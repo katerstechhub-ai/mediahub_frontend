@@ -17,16 +17,20 @@ export default function CreatePostPage() {
 
   const validate = () => {
     const e = {}
-    if (!title.trim()) {
-      e.title = 'Title is required'
-    } else if (title.trim().length < 3) {
+    
+    // Title is now optional - only validate if provided
+    if (title.trim() && title.trim().length < 3) {
       e.title = 'Title must be at least 3 characters'
-    } else if (title.trim().length > 100) {
+    } else if (title.trim() && title.trim().length > 100) {
       e.title = 'Title must be under 100 characters'
     }
+    
+    // Content is now optional - only validate if provided
+    // Allow post with just image, or image + content, or just content
     if (!content.trim() && !file) {
       e.content = 'Add some content or upload an image'
     }
+    
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -59,9 +63,26 @@ export default function CreatePostPage() {
     setLoading(true)
     try {
       const fd = new FormData()
-      fd.append('title', title.trim())
-      fd.append('content', content.trim() || ' ')
-      if (file) fd.append('image', file)
+      
+      // Only append title if it has content
+      if (title.trim()) {
+        fd.append('title', title.trim())
+      }
+      
+      // Only append content if it has content
+      if (content.trim()) {
+        fd.append('content', content.trim())
+      } else {
+        // If no content but has image, send a placeholder
+        if (file) {
+          fd.append('content', ' ')
+        }
+      }
+      
+      // Always append image if exists
+      if (file) {
+        fd.append('image', file)
+      }
       
       await postsAPI.create(fd)
       toast.success('Post created successfully! 🎉')
@@ -90,7 +111,7 @@ export default function CreatePostPage() {
           {/* Upload Section */}
           <div className="mb-6">
             <label className="text-sm font-medium block mb-2" style={{ color: 'var(--text-secondary)' }}>
-              Upload File
+              Upload File <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional but recommended)</span>
             </label>
             {preview ? (
               <div className="relative rounded-lg overflow-hidden" style={{ aspectRatio: '16/9', background: 'var(--bg-primary)' }}>
@@ -122,14 +143,14 @@ export default function CreatePostPage() {
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files[0])} />
           </div>
 
-          {/* Title */}
+          {/* Title - Now optional */}
           <div className="mb-4">
             <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-              Title <span className="text-red-500">*</span>
+              Title <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span>
             </label>
             <input
               type="text"
-              placeholder="Enter post title"
+              placeholder="Enter post title (optional)"
               value={title}
               onChange={(e) => { setTitle(e.target.value); if (errors.title) setErrors(p => ({ ...p, title: '' })) }}
               maxLength={100}
@@ -147,13 +168,13 @@ export default function CreatePostPage() {
             </div>
           </div>
 
-          {/* Content */}
+          {/* Content - Now optional */}
           <div className="mb-4">
             <label className="text-sm font-medium block mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-              Content <span className="text-red-500">*</span>
+              Content <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span>
             </label>
             <textarea
-              placeholder="What's on your mind?"
+              placeholder="What's on your mind? (optional)"
               value={content}
               onChange={(e) => { setContent(e.target.value); if (errors.content) setErrors(p => ({ ...p, content: '' })) }}
               rows={6}
@@ -192,6 +213,10 @@ export default function CreatePostPage() {
             </button>
           </div>
 
+          {/* Helper text */}
+          <p className="text-xs text-center mt-4" style={{ color: 'var(--text-muted)' }}>
+            You need at least an image or some content to create a post
+          </p>
         </div>
       </div>
     </div>
