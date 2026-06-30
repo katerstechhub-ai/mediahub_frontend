@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { FiArrowLeft, FiHeart, FiMessageCircle, FiTrash2, FiMoreHorizontal } from 'react-icons/fi'
+import { FiArrowLeft, FiHeart, FiMessageCircle, FiTrash2, FiMoreHorizontal, FiX } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import { postsAPI, commentsAPI } from '../api'
 import { useAuthStore } from '../store'
@@ -22,6 +22,7 @@ export default function PostDetailPage() {
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [showCommentMenu, setShowCommentMenu] = useState(null)
   const commentInputRef = useRef()
   const commentsEndRef = useRef()
 
@@ -88,6 +89,18 @@ export default function PostDetailPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleDeleteComment = async (commentId) => {
+    if (!confirm('Delete this comment?')) return
+    try {
+      await commentsAPI.delete(commentId)
+      toast.success('Comment deleted')
+      await fetchComments()
+    } catch (error) {
+      toast.error('Failed to delete comment')
+    }
+    setShowCommentMenu(null)
   }
 
   const handleDelete = async () => {
@@ -263,32 +276,60 @@ export default function PostDetailPage() {
               No comments yet — be the first!
             </p>
           ) : (
-            comments.map(c => (
-              <div key={c._id} className="flex gap-2">
-                <Avatar src={c.author?.avatar} name={c.author?.name} size={28} className="flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div
-                    className="rounded-2xl rounded-tl-none px-3 py-1.5"
-                    style={{ background: 'var(--bg-secondary)' }}
-                  >
-                    <p className="text-xs font-semibold mb-0.5" style={{ color: 'var(--text-primary)' }}>
-                      {c.author?.name || 'Unknown'}
-                    </p>
-                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      {c.content || c.text || ''}
+            comments.map(c => {
+              const isCommentOwner = user?._id === c.author?._id || user?.id === c.author?._id
+              return (
+                <div key={c._id} className="flex gap-2 items-start">
+                  <Avatar src={c.author?.avatar} name={c.author?.name} size={28} className="flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div
+                      className="rounded-2xl rounded-tl-none px-3 py-1.5"
+                      style={{ background: 'var(--bg-secondary)' }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                          {c.author?.name || 'Unknown'}
+                        </p>
+                        {isCommentOwner && (
+                          <div className="relative flex-shrink-0">
+                            <button
+                              onClick={() => setShowCommentMenu(showCommentMenu === c._id ? null : c._id)}
+                              className="p-1 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
+                            >
+                              <FiMoreHorizontal size={12} style={{ color: 'var(--text-muted)' }} />
+                            </button>
+                            {showCommentMenu === c._id && (
+                              <div
+                                className="absolute right-0 top-6 rounded-lg shadow-lg border py-1 w-28 z-30"
+                                style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
+                              >
+                                <button
+                                  onClick={() => handleDeleteComment(c._id)}
+                                  className="w-full text-left px-3 py-1.5 text-xs text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-1.5"
+                                >
+                                  <FiTrash2 size={12} /> Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                        {c.content || c.text || ''}
+                      </p>
+                    </div>
+                    <p className="text-[11px] mt-0.5 ml-1" style={{ color: 'var(--text-muted)' }}>
+                      {c.createdAt ? dayjs(c.createdAt).fromNow() : 'Just now'}
                     </p>
                   </div>
-                  <p className="text-[11px] mt-0.5 ml-1" style={{ color: 'var(--text-muted)' }}>
-                    {c.createdAt ? dayjs(c.createdAt).fromNow() : 'Just now'}
-                  </p>
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
           <div ref={commentsEndRef} />
         </div>
 
-        {/* Comment input - Compact */}
+        {/* Comment input - Compact and visible */}
         <div
           className="fixed bottom-0 left-0 right-0 border-t px-4 py-2.5 z-10"
           style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
