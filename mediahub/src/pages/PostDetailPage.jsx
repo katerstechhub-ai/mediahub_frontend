@@ -24,6 +24,7 @@ export default function PostDetailPage() {
   const [showMenu, setShowMenu] = useState(false)
   const [showCommentMenu, setShowCommentMenu] = useState(null)
   const [showHeartAnimation, setShowHeartAnimation] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const lastTapRef = useRef(0)
   const commentInputRef = useRef()
   const commentsEndRef = useRef()
@@ -115,21 +116,25 @@ export default function PostDetailPage() {
     try {
       await commentsAPI.delete(commentId)
       toast.success('Comment deleted')
-      await fetchComments()
+      // Remove the comment from the local state immediately
+      setComments(prevComments => prevComments.filter(c => c._id !== commentId))
+      setShowCommentMenu(null)
     } catch (error) {
       toast.error('Failed to delete comment')
     }
-    setShowCommentMenu(null)
   }
 
   const handleDelete = async () => {
     if (!confirm('Delete this post?')) return
+    setIsDeleting(true)
     try {
       await postsAPI.delete(id)
       toast.success('Post deleted successfully')
+      // Navigate away immediately after successful deletion
       navigate('/')
-    } catch {
+    } catch (error) {
       toast.error('Failed to delete post')
+      setIsDeleting(false)
     }
   }
 
@@ -194,29 +199,33 @@ export default function PostDetailPage() {
               <FiArrowLeft size={20} style={{ color: 'var(--text-primary)' }} />
               <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Back</span>
             </button>
-            {isOwner ? (
+            {isOwner && (
               <div className="relative">
                 <button
                   onClick={() => setShowMenu(v => !v)}
                   className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[var(--bg-secondary)] transition-colors"
+                  disabled={isDeleting}
                 >
                   <FiMoreHorizontal size={18} style={{ color: 'var(--text-primary)' }} />
                 </button>
-                {showMenu && (
+                {showMenu && !isDeleting && (
                   <div
-                    className="absolute right-0 top-10 rounded-xl shadow-lg border py-1 w-36 z-30"
+                    className="absolute right-0 top-10 rounded-xl shadow-lg border py-1 w-40 z-30"
                     style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
                   >
                     <button
-                      onClick={() => { setShowMenu(false); handleDelete() }}
+                      onClick={handleDelete}
+                      disabled={isDeleting}
                       className="w-full text-left px-4 py-2.5 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2"
                     >
-                      <FiTrash2 size={16} /> Delete Post
+                      <FiTrash2 size={16} />
+                      {isDeleting ? 'Deleting...' : 'Delete Post'}
                     </button>
                   </div>
                 )}
               </div>
-            ) : <div className="w-8" />}
+            )}
+            {!isOwner && <div className="w-8" />}
           </div>
         </div>
 
@@ -335,7 +344,7 @@ export default function PostDetailPage() {
                             </button>
                             {showCommentMenu === c._id && (
                               <div
-                                className="absolute right-0 top-7 rounded-lg shadow-lg border py-1 w-36 z-30"
+                                className="absolute right-0 top-7 rounded-lg shadow-lg border py-1 w-40 z-30"
                                 style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
                               >
                                 <button
