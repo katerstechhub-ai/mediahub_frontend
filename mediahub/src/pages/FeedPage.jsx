@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList } from 'react-icons/fi'
+import { FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList, FiSend, FiX } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import { postsAPI, commentsAPI } from '../api'
 import { useAuthStore } from '../store'
 import { Avatar } from '../components/ui'
+import toast from 'react-hot-toast'
 
 export default function FeedPage() {
   const [posts, setPosts] = useState([])
@@ -12,6 +13,10 @@ export default function FeedPage() {
   const [viewMode, setViewMode] = useState('grid')
   const [selectedPost, setSelectedPost] = useState(null)
   const [commentCounts, setCommentCounts] = useState({})
+  const [showCommentModal, setShowCommentModal] = useState(false)
+  const [selectedPostForComment, setSelectedPostForComment] = useState(null)
+  const [commentText, setCommentText] = useState('')
+  const [submittingComment, setSubmittingComment] = useState(false)
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
@@ -54,6 +59,32 @@ export default function FeedPage() {
     } catch (err) {
       console.error('Like failed:', err)
     }
+  }
+
+  const handleCommentSubmit = async (e) => {
+    e.preventDefault()
+    if (!commentText.trim() || !selectedPostForComment) return
+    
+    setSubmittingComment(true)
+    try {
+      await commentsAPI.create(selectedPostForComment._id, commentText.trim())
+      toast.success('Comment added!')
+      setCommentText('')
+      setShowCommentModal(false)
+      setSelectedPostForComment(null)
+      // Refresh comments count
+      await fetchPosts()
+    } catch (error) {
+      toast.error('Failed to post comment')
+    } finally {
+      setSubmittingComment(false)
+    }
+  }
+
+  const openCommentModal = (e, post) => {
+    e.stopPropagation()
+    setSelectedPostForComment(post)
+    setShowCommentModal(true)
   }
 
   const getImageUrl = (post) => {
@@ -108,7 +139,7 @@ export default function FeedPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Grid/List toggle — fixed sizing so it never squishes */}
+            {/* Grid/List toggle */}
             <div className="flex items-center rounded-full p-1 flex-shrink-0 shadow-sm" style={{ background: 'var(--bg-secondary)' }}>
               <button
                 onClick={() => setViewMode('grid')}
@@ -134,7 +165,6 @@ export default function FeedPage() {
               </button>
             </div>
 
-            {/* Create — plain text that reveals itself as a button on hover, no pill/fill */}
             <button
               onClick={() => navigate('/create')}
               aria-label="Create post"
@@ -197,7 +227,7 @@ export default function FeedPage() {
                           <span className="text-[11px] font-bold">{post.likes?.length || 0}</span>
                         </button>
                         <button
-                          onClick={e => { e.stopPropagation(); navigate(`/posts/${post._id}`) }}
+                          onClick={e => { e.stopPropagation(); openCommentModal(e, post) }}
                           className="flex items-center gap-1 text-white"
                         >
                           <FiMessageCircle size={14} strokeWidth={2.5} />
@@ -257,7 +287,7 @@ export default function FeedPage() {
 
                   {/* Content area */}
                   <div className="px-4 py-4">
-                    {/* Row with avatar and like/comment icons - centered vertically */}
+                    {/* Row with avatar and like/comment icons */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <Avatar src={post.author?.avatar} name={post.author?.name} size={40} className="flex-shrink-0" />
@@ -278,7 +308,7 @@ export default function FeedPage() {
                         </div>
                       </div>
                       
-                      {/* Like and comment icons - centered vertically with the heading */}
+                      {/* Like and comment icons */}
                       <div className="flex items-center gap-4 flex-shrink-0 ml-2 self-center">
                         <button 
                           onClick={e => handleLike(e, post._id)} 
@@ -292,7 +322,7 @@ export default function FeedPage() {
                           </span>
                         </button>
                         <button 
-                          onClick={() => navigate(`/posts/${post._id}`)} 
+                          onClick={e => openCommentModal(e, post)}
                           className="flex items-center gap-1.5"
                         >
                           <FiMessageCircle size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
@@ -319,6 +349,80 @@ export default function FeedPage() {
           </div>
         )}
       </div>
+
+      {/* Comment Modal */}
+      {showCommentModal && selectedPostForComment && (
+        <div 
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+          onClick={() => setShowCommentModal(false)}
+        >
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowCommentModal(false)}
+          />
+          
+          {/* Modal */}
+          <div 
+            className="relative w-full max-w-md bg-[var(--bg-primary)] rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <div className="flex items-center gap-3 min-w-0">
+                <Avatar src={selectedPostForComment.author?.avatar} name={selectedPostForComment.author?.name} size={32} />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+                    {selectedPostForComment.author?.name || 'Unknown'}
+                  </p>
+                  {selectedPostForComment.title && (
+                    <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+                      {selectedPostForComment.title}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCommentModal(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition-colors flex-shrink-0"
+              >
+                <FiX size={20} style={{ color: 'var(--text-muted)' }} />
+              </button>
+            </div>
+
+            {/* Comment Input */}
+            <div className="p-4">
+              <form onSubmit={handleCommentSubmit} className="flex gap-3 items-start">
+                <Avatar src={user?.avatar} name={user?.name} size={36} className="flex-shrink-0" />
+                <div className="flex-1 relative">
+                  <textarea
+                    placeholder={`Comment as ${user?.name || 'Anonymous'}...`}
+                    value={commentText}
+                    onChange={e => setCommentText(e.target.value)}
+                    className="w-full rounded-2xl px-4 py-3 pr-12 text-sm outline-none border focus:border-amber-500 transition-all resize-none"
+                    style={{ 
+                      background: 'var(--bg-input)', 
+                      color: 'var(--text-primary)', 
+                      borderColor: 'var(--border)',
+                      minHeight: '80px',
+                      maxHeight: '200px'
+                    }}
+                    autoFocus
+                    rows={3}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!commentText.trim() || submittingComment}
+                    className="absolute right-3 bottom-3 disabled:opacity-30 transition-opacity"
+                  >
+                    <FiSend size={20} color="#f59e0b" />
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

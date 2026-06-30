@@ -24,6 +24,7 @@ export default function PostDetailPage() {
   const [showMenu, setShowMenu] = useState(false)
   const commentInputRef = useRef()
   const commentsEndRef = useRef()
+  const commentsSectionRef = useRef()
 
   const fetchComments = async () => {
     try {
@@ -56,7 +57,6 @@ export default function PostDetailPage() {
 
   useEffect(() => { fetchPost() }, [id])
 
-  // Scroll to bottom when comments change
   useEffect(() => {
     if (commentsEndRef.current) {
       commentsEndRef.current.scrollIntoView({ behavior: 'smooth' })
@@ -83,7 +83,6 @@ export default function PostDetailPage() {
       await commentsAPI.create(id, comment.trim())
       setComment('')
       await fetchComments()
-      // Focus back on input after comment
       setTimeout(() => commentInputRef.current?.focus(), 100)
     } catch (error) {
       toast.error('Failed to post comment')
@@ -100,6 +99,14 @@ export default function PostDetailPage() {
       navigate('/')
     } catch {
       toast.error('Failed to delete')
+    }
+  }
+
+  const scrollToComments = () => {
+    if (commentsSectionRef.current) {
+      commentsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      // Focus the input after scrolling
+      setTimeout(() => commentInputRef.current?.focus(), 500)
     }
   }
 
@@ -130,7 +137,7 @@ export default function PostDetailPage() {
     <div className="min-h-screen pb-24" style={{ background: 'var(--bg-primary)' }}>
       <div className="max-w-2xl mx-auto">
 
-        {/* Header - matching feed header style */}
+        {/* Header */}
         <div
           className="sticky top-0 z-20 border-b backdrop-blur-lg px-4 py-4"
           style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
@@ -169,7 +176,7 @@ export default function PostDetailPage() {
           </div>
         </div>
 
-        {/* Post Card - matching feed card style */}
+        {/* Post Card */}
         <div className="m-4 rounded-3xl overflow-hidden border-2 shadow-sm" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
           {/* Image */}
           {mediaUrl && (
@@ -184,34 +191,53 @@ export default function PostDetailPage() {
             </div>
           )}
 
-          {/* Content area - matching feed style */}
+          {/* Content area */}
           <div className="px-4 py-4">
-            {/* Author row with avatar - exactly like feed */}
-            <div className="flex items-center gap-3">
-              <Avatar src={post.author?.avatar} name={post.author?.name} size={42} className="flex-shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-                  {post.author?.name || 'Unknown'}
-                </p>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
-                </p>
+            {/* Row with avatar, name/title, and icons */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <Avatar src={post.author?.avatar} name={post.author?.name} size={42} className="flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                    {post.author?.name || 'Unknown'}
+                  </p>
+                  {post.title && (
+                    <h3 className="font-extrabold font-display text-lg leading-snug" style={{ color: 'var(--text-primary)' }}>
+                      {post.title}
+                    </h3>
+                  )}
+                  {post.content && post.content.trim() && post.content.trim() !== ' ' && post.content !== post.title && (
+                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      {post.content}
+                    </p>
+                  )}
+                </div>
+              </div>
+              
+              {/* Like and comment icons beside the heading */}
+              <div className="flex items-center gap-4 flex-shrink-0 ml-2 self-center">
+                <button 
+                  onClick={handleLike} 
+                  className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                >
+                  {liked
+                    ? <FaHeart size={18} color="#ef4444" />
+                    : <FiHeart size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
+                  <span className="text-sm font-bold" style={{ color: liked ? '#ef4444' : 'var(--text-muted)' }}>
+                    {likeCount}
+                  </span>
+                </button>
+                <button 
+                  onClick={scrollToComments}
+                  className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer"
+                >
+                  <FiMessageCircle size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+                  <span className="text-sm font-bold" style={{ color: 'var(--text-muted)' }}>
+                    {comments.length}
+                  </span>
+                </button>
               </div>
             </div>
-
-            {/* Title - matching feed heading style */}
-            {post.title && (
-              <h3 className="font-extrabold font-display text-lg mt-2 mb-0.5 leading-snug" style={{ color: 'var(--text-primary)' }}>
-                {post.title}
-              </h3>
-            )}
-
-            {/* Content - matching feed content style */}
-            {post.content && post.content.trim() && post.content.trim() !== ' ' && (
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                {post.content}
-              </p>
-            )}
 
             {/* Tags */}
             {post.tags?.length > 0 && (
@@ -224,30 +250,15 @@ export default function PostDetailPage() {
               </div>
             )}
 
-            {/* Actions - matching feed style */}
-            <div className="flex items-center gap-6 mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-              <button onClick={handleLike} className="flex items-center gap-2 group">
-                {liked
-                  ? <FaHeart size={20} color="#ef4444" />
-                  : <FiHeart size={20} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} className="group-hover:text-red-400 transition-colors" />
-                }
-                <span className="text-sm font-bold" style={{ color: liked ? '#ef4444' : 'var(--text-muted)' }}>
-                  {likeCount}
-                </span>
-              </button>
-
-              <button className="flex items-center gap-2">
-                <FiMessageCircle size={20} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
-                <span className="text-sm font-bold" style={{ color: 'var(--text-muted)' }}>
-                  {comments.length}
-                </span>
-              </button>
-            </div>
+            {/* Time stamp */}
+            <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+              {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
+            </p>
           </div>
         </div>
 
-        {/* Comments section - matching feed style */}
-        <div className="px-4 space-y-4">
+        {/* Comments section */}
+        <div ref={commentsSectionRef} className="px-4 space-y-4 pb-4">
           <h4 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
             Comments ({comments.length})
           </h4>
@@ -282,9 +293,9 @@ export default function PostDetailPage() {
           <div ref={commentsEndRef} />
         </div>
 
-        {/* Comment input - fixed at bottom like feed */}
+        {/* Comment input - fixed at bottom */}
         <div
-          className="fixed bottom-0 left-0 right-0 lg:sticky lg:bottom-0 border-t px-4 py-3 z-10"
+          className="fixed bottom-0 left-0 right-0 border-t px-4 py-3 z-10"
           style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
         >
           <div className="max-w-2xl mx-auto">
