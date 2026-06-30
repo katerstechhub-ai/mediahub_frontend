@@ -208,21 +208,21 @@ export default function FeedPage() {
                     </div>
                   )}
 
-                  {/* Like and comment icons overlay at bottom - Instagram style */}
+                  {/* Instagram-style overlay - no rounded pill, just icons with counts */}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
                   
-                  <div className="absolute bottom-3 right-3 flex items-center gap-3 bg-black/50 backdrop-blur-sm rounded-full px-3 py-1.5">
-                    <div className="flex items-center gap-1">
+                  <div className="absolute bottom-3 right-3 flex items-center gap-4">
+                    <div className="flex items-center gap-1.5 text-white">
                       {isLiked ? (
-                        <FaHeart size={14} color="#ef4444" />
+                        <FaHeart size={16} color="#ef4444" />
                       ) : (
-                        <FiHeart size={14} strokeWidth={2.5} className="text-white" />
+                        <FiHeart size={16} strokeWidth={2.5} className="drop-shadow-lg" />
                       )}
-                      <span className="text-white text-xs font-semibold">{post.likes?.length || 0}</span>
+                      <span className="text-xs font-semibold drop-shadow-lg">{post.likes?.length || 0}</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <FiMessageCircle size={14} strokeWidth={2.5} className="text-white" />
-                      <span className="text-white text-xs font-semibold">{commentCount}</span>
+                    <div className="flex items-center gap-1.5 text-white">
+                      <FiMessageCircle size={16} strokeWidth={2.5} className="drop-shadow-lg" />
+                      <span className="text-xs font-semibold drop-shadow-lg">{commentCount}</span>
                     </div>
                   </div>
                 </div>
