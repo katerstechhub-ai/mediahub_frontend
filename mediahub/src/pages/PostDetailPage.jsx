@@ -29,6 +29,14 @@ export default function PostDetailPage() {
   const commentInputRef = useRef()
   const commentsEndRef = useRef()
 
+  // Helper function to check if current user owns something
+  const isCurrentUser = (author) => {
+    if (!user || !author) return false
+    const currentUserId = user._id || user.id
+    const authorId = author._id || author.id || author
+    return String(currentUserId) === String(authorId)
+  }
+
   const fetchComments = async () => {
     try {
       const response = await commentsAPI.getByPost(id)
@@ -112,28 +120,28 @@ export default function PostDetailPage() {
   }
 
   const handleDeleteComment = async (commentId) => {
-    if (!confirm('Delete this comment?')) return
+    if (!window.confirm('Delete this comment?')) return
     try {
       await commentsAPI.delete(commentId)
       toast.success('Comment deleted')
-      // Remove the comment from the local state immediately
       setComments(prevComments => prevComments.filter(c => c._id !== commentId))
       setShowCommentMenu(null)
     } catch (error) {
-      toast.error('Failed to delete comment')
+      console.error('Delete comment error:', error)
+      toast.error(error.response?.data?.message || 'Failed to delete comment')
     }
   }
 
   const handleDelete = async () => {
-    if (!confirm('Delete this post?')) return
+    if (!window.confirm('Delete this post?')) return
     setIsDeleting(true)
     try {
       await postsAPI.delete(id)
       toast.success('Post deleted successfully')
-      // Navigate away immediately after successful deletion
       navigate('/')
     } catch (error) {
-      toast.error('Failed to delete post')
+      console.error('Delete post error:', error)
+      toast.error(error.response?.data?.message || 'Failed to delete post')
       setIsDeleting(false)
     }
   }
@@ -163,7 +171,7 @@ export default function PostDetailPage() {
   if (!post) return null
 
   const mediaUrl = getImageUrl(post)
-  const isOwner = user?._id === post.author?._id || user?.id === post.author?._id
+  const isOwner = isCurrentUser(post.author)
 
   const HeartAnimation = () => {
     if (!showHeartAnimation) return null
@@ -320,7 +328,7 @@ export default function PostDetailPage() {
             </p>
           ) : (
             comments.map(c => {
-              const isCommentOwner = user?._id === c.author?._id || user?.id === c.author?._id
+              const isCommentOwner = isCurrentUser(c.author)
               return (
                 <div key={c._id} className="flex gap-2 items-start">
                   <Avatar src={c.author?.avatar} name={c.author?.name} size={28} className="flex-shrink-0" />

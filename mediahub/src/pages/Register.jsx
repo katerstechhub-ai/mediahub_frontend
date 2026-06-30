@@ -40,7 +40,17 @@ export default function RegisterPage() {
       toast.success(`Welcome to MediaHub, ${data.user.name}!`)
       navigate('/')
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Registration failed')
+      const errorMessage = err.response?.data?.message || 'Registration failed'
+      
+      // Check for duplicate email error from backend
+      if (errorMessage.toLowerCase().includes('email already exists') || 
+          errorMessage.toLowerCase().includes('email already in use') ||
+          errorMessage.toLowerCase().includes('duplicate key') ||
+          errorMessage.toLowerCase().includes('already registered')) {
+        setErrors({ email: 'This email is already registered. Please login or use another email.' })
+      } else {
+        toast.error(errorMessage)
+      }
     } finally {
       setLoading(false)
     }
