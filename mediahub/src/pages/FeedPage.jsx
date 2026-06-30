@@ -13,8 +13,7 @@ export default function FeedPage() {
   const [viewMode, setViewMode] = useState('grid')
   const [selectedPost, setSelectedPost] = useState(null)
   const [commentCounts, setCommentCounts] = useState({})
-  const [showCommentModal, setShowCommentModal] = useState(false)
-  const [selectedPostForComment, setSelectedPostForComment] = useState(null)
+  const [commentingPostId, setCommentingPostId] = useState(null)
   const [commentText, setCommentText] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
   const navigate = useNavigate()
@@ -61,17 +60,16 @@ export default function FeedPage() {
     }
   }
 
-  const handleCommentSubmit = async (e) => {
+  const handleCommentSubmit = async (e, postId) => {
     e.preventDefault()
-    if (!commentText.trim() || !selectedPostForComment) return
+    if (!commentText.trim()) return
     
     setSubmittingComment(true)
     try {
-      await commentsAPI.create(selectedPostForComment._id, commentText.trim())
+      await commentsAPI.create(postId, commentText.trim())
       toast.success('Comment added!')
       setCommentText('')
-      setShowCommentModal(false)
-      setSelectedPostForComment(null)
+      setCommentingPostId(null)
       // Refresh comments count
       await fetchPosts()
     } catch (error) {
@@ -81,10 +79,15 @@ export default function FeedPage() {
     }
   }
 
-  const openCommentModal = (e, post) => {
+  const toggleCommentInput = (e, postId) => {
     e.stopPropagation()
-    setSelectedPostForComment(post)
-    setShowCommentModal(true)
+    if (commentingPostId === postId) {
+      setCommentingPostId(null)
+      setCommentText('')
+    } else {
+      setCommentingPostId(postId)
+      setCommentText('')
+    }
   }
 
   const getImageUrl = (post) => {
@@ -185,6 +188,7 @@ export default function FeedPage() {
             {posts.map((post) => {
               const imageUrl = getImageUrl(post)
               const isSelected = selectedPost?._id === post._id
+              const isCommenting = commentingPostId === post._id
               return (
                 <div
                   key={post._id}
@@ -227,7 +231,7 @@ export default function FeedPage() {
                           <span className="text-[11px] font-bold">{post.likes?.length || 0}</span>
                         </button>
                         <button
-                          onClick={e => { e.stopPropagation(); openCommentModal(e, post) }}
+                          onClick={e => toggleCommentInput(e, post._id)}
                           className="flex items-center gap-1 text-white"
                         >
                           <FiMessageCircle size={14} strokeWidth={2.5} />
@@ -251,6 +255,7 @@ export default function FeedPage() {
             {posts.map((post) => {
               const imageUrl = getImageUrl(post)
               const isLiked = post.likes?.includes(user?._id)
+              const isCommenting = commentingPostId === post._id
               return (
                 <div
                   key={post._id}
@@ -322,7 +327,7 @@ export default function FeedPage() {
                           </span>
                         </button>
                         <button 
-                          onClick={e => openCommentModal(e, post)}
+                          onClick={e => toggleCommentInput(e, post._id)}
                           className="flex items-center gap-1.5"
                         >
                           <FiMessageCircle size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
@@ -342,6 +347,41 @@ export default function FeedPage() {
                         ))}
                       </div>
                     )}
+
+                    {/* Comment Input - appears when comment icon is clicked */}
+                    {isCommenting && (
+                      <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+                        <form onSubmit={e => handleCommentSubmit(e, post._id)} className="flex gap-2 items-center">
+                          <Avatar src={user?.avatar} name={user?.name} size={32} className="flex-shrink-0" />
+                          <div className="flex-1 relative">
+                            <input
+                              type="text"
+                              placeholder={`Comment as ${user?.name || 'Anonymous'}...`}
+                              value={commentText}
+                              onChange={e => setCommentText(e.target.value)}
+                              className="w-full rounded-full px-4 py-2 pr-12 text-sm outline-none border focus:border-amber-500 transition-all"
+                              style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: 'var(--border)' }}
+                              autoFocus
+                            />
+                            <button
+                              type="submit"
+                              disabled={!commentText.trim() || submittingComment}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 disabled:opacity-30 transition-opacity"
+                            >
+                              <FiSend size={16} color="#f59e0b" />
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={e => toggleCommentInput(e, post._id)}
+                            className="text-xs font-semibold hover:opacity-70"
+                            style={{ color: 'var(--text-muted)' }}
+                          >
+                            Cancel
+                          </button>
+                        </form>
+                      </div>
+                    )}
                   </div>
                 </div>
               )
@@ -349,80 +389,6 @@ export default function FeedPage() {
           </div>
         )}
       </div>
-
-      {/* Comment Modal */}
-      {showCommentModal && selectedPostForComment && (
-        <div 
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-          onClick={() => setShowCommentModal(false)}
-        >
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowCommentModal(false)}
-          />
-          
-          {/* Modal */}
-          <div 
-            className="relative w-full max-w-md bg-[var(--bg-primary)] rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[80vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-              <div className="flex items-center gap-3 min-w-0">
-                <Avatar src={selectedPostForComment.author?.avatar} name={selectedPostForComment.author?.name} size={32} />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-                    {selectedPostForComment.author?.name || 'Unknown'}
-                  </p>
-                  {selectedPostForComment.title && (
-                    <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                      {selectedPostForComment.title}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={() => setShowCommentModal(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition-colors flex-shrink-0"
-              >
-                <FiX size={20} style={{ color: 'var(--text-muted)' }} />
-              </button>
-            </div>
-
-            {/* Comment Input */}
-            <div className="p-4">
-              <form onSubmit={handleCommentSubmit} className="flex gap-3 items-start">
-                <Avatar src={user?.avatar} name={user?.name} size={36} className="flex-shrink-0" />
-                <div className="flex-1 relative">
-                  <textarea
-                    placeholder={`Comment as ${user?.name || 'Anonymous'}...`}
-                    value={commentText}
-                    onChange={e => setCommentText(e.target.value)}
-                    className="w-full rounded-2xl px-4 py-3 pr-12 text-sm outline-none border focus:border-amber-500 transition-all resize-none"
-                    style={{ 
-                      background: 'var(--bg-input)', 
-                      color: 'var(--text-primary)', 
-                      borderColor: 'var(--border)',
-                      minHeight: '80px',
-                      maxHeight: '200px'
-                    }}
-                    autoFocus
-                    rows={3}
-                  />
-                  <button
-                    type="submit"
-                    disabled={!commentText.trim() || submittingComment}
-                    className="absolute right-3 bottom-3 disabled:opacity-30 transition-opacity"
-                  >
-                    <FiSend size={20} color="#f59e0b" />
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -24,7 +24,6 @@ export default function PostDetailPage() {
   const [showMenu, setShowMenu] = useState(false)
   const commentInputRef = useRef()
   const commentsEndRef = useRef()
-  const commentsSectionRef = useRef()
 
   const fetchComments = async () => {
     try {
@@ -83,6 +82,7 @@ export default function PostDetailPage() {
       await commentsAPI.create(id, comment.trim())
       setComment('')
       await fetchComments()
+      // Focus back on input after comment
       setTimeout(() => commentInputRef.current?.focus(), 100)
     } catch (error) {
       toast.error('Failed to post comment')
@@ -102,12 +102,8 @@ export default function PostDetailPage() {
     }
   }
 
-  const scrollToComments = () => {
-    if (commentsSectionRef.current) {
-      commentsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      // Focus the input after scrolling
-      setTimeout(() => commentInputRef.current?.focus(), 500)
-    }
+  const focusCommentInput = () => {
+    commentInputRef.current?.focus()
   }
 
   const getImageUrl = (post) => {
@@ -228,7 +224,7 @@ export default function PostDetailPage() {
                   </span>
                 </button>
                 <button 
-                  onClick={scrollToComments}
+                  onClick={focusCommentInput}
                   className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer"
                 >
                   <FiMessageCircle size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
@@ -258,7 +254,7 @@ export default function PostDetailPage() {
         </div>
 
         {/* Comments section */}
-        <div ref={commentsSectionRef} className="px-4 space-y-4 pb-4">
+        <div className="px-4 space-y-4 pb-4">
           <h4 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
             Comments ({comments.length})
           </h4>
@@ -293,7 +289,7 @@ export default function PostDetailPage() {
           <div ref={commentsEndRef} />
         </div>
 
-        {/* Comment input - fixed at bottom */}
+        {/* Comment input - fixed at bottom, always visible */}
         <div
           className="fixed bottom-0 left-0 right-0 border-t px-4 py-3 z-10"
           style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
