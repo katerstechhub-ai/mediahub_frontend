@@ -142,7 +142,7 @@ export default function PostDetailPage() {
   const isOwner = user?._id === post.author?._id || user?.id === post.author?._id
 
   return (
-    <div className="min-h-screen pb-28" style={{ background: 'var(--bg-primary)' }}>
+    <div className="min-h-screen pb-6" style={{ background: 'var(--bg-primary)' }}>
       <div className="max-w-2xl mx-auto">
 
         {/* Header */}
@@ -259,7 +259,7 @@ export default function PostDetailPage() {
         </div>
 
         {/* Comments section */}
-        <div className="px-4 space-y-3 pb-32">
+        <div className="px-4 space-y-3 pb-6">
           <h4 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
             Comments ({comments.length})
           </h4>
@@ -323,9 +323,15 @@ export default function PostDetailPage() {
           <div ref={commentsEndRef} />
         </div>
 
-        {/* Comment input - Clean and visible */}
+        {/* Comment input - in normal document flow, sticky instead of fixed.
+            `position: fixed` breaks on iOS Safari when the on-screen keyboard opens:
+            the visual viewport shrinks but a fixed element stays anchored to the old
+            layout viewport, which can leave the page looking blank with just the
+            input's cursor visible. `sticky` keeps it pinned to the bottom of the
+            scroll container while staying in-flow, the same way FeedPage's inline
+            comment box works. */}
         <div
-          className="fixed bottom-0 left-0 right-0 bg-[var(--bg-primary)] border-t px-4 py-3 z-10"
+          className="sticky bottom-0 left-0 right-0 bg-[var(--bg-primary)] border-t px-4 py-3 z-10"
           style={{ borderColor: 'var(--border)' }}
         >
           <div className="max-w-2xl mx-auto">
