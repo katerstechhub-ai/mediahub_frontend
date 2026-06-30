@@ -99,11 +99,11 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen pb-20 fade-in flex justify-center" style={{ background: 'var(--bg-primary)' }}>
-      <div className="w-full max-w-3xl px-4 sm:px-6">
+    <div className="min-h-screen pb-20 fade-in" style={{ background: 'var(--bg-primary)' }}>
+      <div className="max-w-3xl mx-auto">
         {/* Header with soft gradient backdrop */}
         <div
-          className="relative px-4 sm:px-6 pt-5 pb-24 -mx-4 sm:mx-0 rounded-b-3xl"
+          className="relative px-4 pt-5 pb-24"
           style={{
             background: 'linear-gradient(135deg, rgba(245,158,11,0.18) 0%, rgba(245,158,11,0.04) 55%, transparent 100%)',
           }}
@@ -130,9 +130,9 @@ export default function ProfilePage() {
         </div>
 
         {/* Profile card — overlaps the gradient header */}
-        <div className="px-4 sm:px-6 -mt-16">
+        <div className="px-4 -mt-16">
           <div
-            className="rounded-3xl shadow-sm px-6 py-7 flex flex-col items-center text-center max-w-md mx-auto"
+            className="rounded-3xl shadow-sm px-6 py-7 flex flex-col items-center text-center"
             style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
           >
             <div className="relative">
@@ -152,7 +152,7 @@ export default function ProfilePage() {
             </h2>
             <p className="text-sm font-semibold mt-0.5" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
 
-            <div className="flex gap-8 sm:gap-10 mt-5 mb-1">
+            <div className="flex gap-10 mt-5 mb-1">
               {[
                 { label: 'Posts', value: userPosts.length },
                 { label: 'Likes', value: totalLikes },
@@ -168,8 +168,8 @@ export default function ProfilePage() {
         </div>
 
         {/* Posts grid */}
-        <div className="px-4 sm:px-6 py-6">
-          <div className="flex items-center gap-2 mb-3 px-1 max-w-md mx-auto">
+        <div className="px-4 py-6">
+          <div className="flex items-center gap-2 mb-3 px-1">
             <FiGrid size={14} style={{ color: 'var(--text-muted)' }} />
             <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-primary)' }}>My Posts</span>
             <span className="text-[10px] ml-1 px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
@@ -189,7 +189,7 @@ export default function ProfilePage() {
               }
             />
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-1.5 max-w-md mx-auto">
+            <div className="grid grid-cols-3 gap-1.5">
               {userPosts.map(post => {
                 const imageUrl = getImageUrl(post)
                 return (
