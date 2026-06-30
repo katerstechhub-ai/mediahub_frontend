@@ -28,21 +28,6 @@ export default function PostDetailPage() {
   const commentInputRef = useRef()
   const commentsEndRef = useRef()
 
-  // Configure toast styles
-  useEffect(() => {
-    toast.configure({
-      style: {
-        background: '#1a1a1a',
-        color: '#ffffff',
-        borderRadius: '12px',
-        padding: '12px 20px',
-        fontSize: '14px',
-        fontWeight: '500',
-      },
-      icon: '✅',
-    })
-  }, [])
-
   const fetchComments = async () => {
     try {
       const response = await commentsAPI.getByPost(id)

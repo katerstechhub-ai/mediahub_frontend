@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FiImage, FiX, FiTag, FiPlus } from 'react-icons/fi'
+import { FiImage, FiX } from 'react-icons/fi'
 import { postsAPI } from '../api'
 import toast from 'react-hot-toast'
 
@@ -14,20 +14,6 @@ export default function CreatePostPage() {
   const [loading, setLoading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [errors, setErrors] = useState({})
-
-  // Configure toast styles
-  useEffect(() => {
-    toast.configure({
-      style: {
-        background: '#1a1a1a',
-        color: '#ffffff',
-        borderRadius: '12px',
-        padding: '12px 20px',
-        fontSize: '14px',
-        fontWeight: '500',
-      },
-    })
-  }, [])
 
   const validate = () => {
     const e = {}
