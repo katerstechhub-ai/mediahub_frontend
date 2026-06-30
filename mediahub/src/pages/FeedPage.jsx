@@ -227,7 +227,7 @@ export default function FeedPage() {
                   className="rounded-3xl overflow-hidden border-2 shadow-sm hover:shadow-md transition-shadow"
                   style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
                 >
-                  {/* Image with avatar overlapping the corner — bolder, less flat */}
+                  {/* Image with avatar in the corner - better positioned */}
                   <div className="relative" style={{ background: 'var(--bg-secondary)' }}>
                     {imageUrl ? (
                       <img
@@ -244,10 +244,6 @@ export default function FeedPage() {
                       </div>
                     )}
 
-                    <div className="absolute -bottom-5 left-4 ring-4 rounded-full" style={{ ringColor: 'var(--bg-primary)' }}>
-                      <Avatar src={post.author?.avatar} name={post.author?.name} size={44} />
-                    </div>
-
                     <button
                       onClick={e => handleLike(e, post._id)}
                       className="absolute top-3 right-3 w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition-transform active:scale-90"
@@ -259,18 +255,50 @@ export default function FeedPage() {
                     </button>
                   </div>
 
-                  <div className="px-4 pt-7 pb-4">
-                    <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-                      {post.author?.name || 'Unknown'}
-                    </p>
+                  {/* Content area - avatar inline with name and icons beside heading */}
+                  <div className="px-4 py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <Avatar src={post.author?.avatar} name={post.author?.name} size={40} className="flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-sm truncate" style={{ color: 'var(--text-primary)' }}>
+                            {post.author?.name || 'Unknown'}
+                          </p>
+                          {post.title && (
+                            <h3 className="font-extrabold font-display text-base leading-snug truncate" style={{ color: 'var(--text-primary)' }}>
+                              {post.title}
+                            </h3>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Like and comment icons beside the heading */}
+                      <div className="flex items-center gap-4 flex-shrink-0 ml-2">
+                        <button 
+                          onClick={e => handleLike(e, post._id)} 
+                          className="flex items-center gap-1.5"
+                        >
+                          {isLiked
+                            ? <FaHeart size={18} color="#ef4444" />
+                            : <FiHeart size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
+                          <span className="text-sm font-bold" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
+                            {post.likes?.length || 0}
+                          </span>
+                        </button>
+                        <button 
+                          onClick={() => navigate(`/posts/${post._id}`)} 
+                          className="flex items-center gap-1.5"
+                        >
+                          <FiMessageCircle size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+                          <span className="text-sm font-bold" style={{ color: 'var(--text-muted)' }}>
+                            {commentCounts[post._id] ?? post.comments?.length ?? 0}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
 
-                    {post.title && (
-                      <h3 className="font-extrabold font-display text-lg mt-1.5 mb-0.5 leading-snug" style={{ color: 'var(--text-primary)' }}>
-                        {post.title}
-                      </h3>
-                    )}
                     {post.content && post.content.trim() !== ' ' && (
-                      <p className="text-sm line-clamp-2" style={{ color: 'var(--text-secondary)' }}>
+                      <p className="text-sm line-clamp-2 mt-1.5" style={{ color: 'var(--text-secondary)' }}>
                         {post.content}
                       </p>
                     )}
@@ -284,23 +312,6 @@ export default function FeedPage() {
                         ))}
                       </div>
                     )}
-
-                    <div className="flex items-center gap-5 mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-                      <button onClick={e => handleLike(e, post._id)} className="flex items-center gap-2">
-                        {isLiked
-                          ? <FaHeart size={19} color="#ef4444" />
-                          : <FiHeart size={19} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
-                        <span className="text-sm font-bold" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
-                          {post.likes?.length || 0}
-                        </span>
-                      </button>
-                      <button onClick={() => navigate(`/posts/${post._id}`)} className="flex items-center gap-2">
-                        <FiMessageCircle size={19} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
-                        <span className="text-sm font-bold" style={{ color: 'var(--text-muted)' }}>
-                          {commentCounts[post._id] ?? post.comments?.length ?? 0}
-                        </span>
-                      </button>
-                    </div>
                   </div>
                 </div>
               )
