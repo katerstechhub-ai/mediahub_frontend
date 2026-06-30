@@ -208,7 +208,6 @@ export default function FeedPage() {
                     </div>
                   )}
 
-                  {/* Instagram-style overlay - no rounded pill, just icons with counts */}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
                   
                   <div className="absolute bottom-3 right-3 flex items-center gap-4">
@@ -262,27 +261,27 @@ export default function FeedPage() {
 
                     <button
                       onClick={e => handleLike(e, post._id)}
-                      className="absolute top-3 right-3 w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition-transform active:scale-90"
+                      className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md transition-transform active:scale-90"
                       style={{ background: 'rgba(0,0,0,0.55)' }}
                     >
                       {isLiked
-                        ? <FaHeart size={18} color="#ef4444" />
-                        : <FiHeart size={18} strokeWidth={2.5} color="white" />}
+                        ? <FaHeart size={16} color="#ef4444" />
+                        : <FiHeart size={16} strokeWidth={2.5} color="white" />}
                     </button>
                   </div>
 
                   {/* Content area */}
-                  <div className="px-4 py-4">
+                  <div className="px-4 py-3">
                     {/* Row with avatar and like/comment icons */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <Avatar src={post.author?.avatar} name={post.author?.name} size={40} className="flex-shrink-0" />
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <Avatar src={post.author?.avatar} name={post.author?.name} size={32} className="flex-shrink-0" />
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
                             {post.author?.name || 'Unknown'}
                           </p>
                           {post.title && (
-                            <h3 className="font-extrabold font-display text-lg leading-snug" style={{ color: 'var(--text-primary)' }}>
+                            <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>
                               {post.title}
                             </h3>
                           )}
@@ -295,24 +294,24 @@ export default function FeedPage() {
                       </div>
                       
                       {/* Like and comment icons */}
-                      <div className="flex items-center gap-4 flex-shrink-0 ml-2 self-center">
+                      <div className="flex items-center gap-3 flex-shrink-0 ml-2 self-center">
                         <button 
                           onClick={e => handleLike(e, post._id)} 
-                          className="flex items-center gap-1.5"
+                          className="flex items-center gap-1"
                         >
                           {isLiked
-                            ? <FaHeart size={18} color="#ef4444" />
-                            : <FiHeart size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
-                          <span className="text-sm font-bold" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
+                            ? <FaHeart size={16} color="#ef4444" />
+                            : <FiHeart size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
+                          <span className="text-xs font-bold" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
                             {post.likes?.length || 0}
                           </span>
                         </button>
                         <button 
                           onClick={e => toggleCommentInput(e, post._id)}
-                          className="flex items-center gap-1.5"
+                          className="flex items-center gap-1"
                         >
-                          <FiMessageCircle size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
-                          <span className="text-sm font-bold" style={{ color: 'var(--text-muted)' }}>
+                          <FiMessageCircle size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+                          <span className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>
                             {commentCount}
                           </span>
                         </button>
@@ -320,50 +319,45 @@ export default function FeedPage() {
                     </div>
 
                     {post.tags?.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-3">
+                      <div className="flex flex-wrap gap-1.5 mt-2">
                         {post.tags.slice(0, 3).map(tag => (
-                          <span key={tag} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+                          <span key={tag} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
                             #{tag}
                           </span>
                         ))}
                       </div>
                     )}
 
-                    {/* Comment Input */}
+                    {/* Comment Input - Compact */}
                     {isCommenting && (
-                      <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-                        <form onSubmit={e => handleCommentSubmit(e, post._id)} className="flex items-start gap-2">
-                          <Avatar src={user?.avatar} name={user?.name} size={32} className="flex-shrink-0 mt-1" />
-                          <div className="flex-1">
-                            <div className="bg-[var(--bg-input)] rounded-2xl border px-4 py-2 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
-                              <textarea
-                                placeholder="Write a comment..."
-                                value={commentText}
-                                onChange={e => setCommentText(e.target.value)}
-                                className="w-full bg-transparent outline-none text-sm resize-none"
-                                style={{ color: 'var(--text-primary)', minHeight: '60px', maxHeight: '150px' }}
-                                autoFocus
-                                rows={2}
-                              />
-                            </div>
-                            <div className="flex items-center justify-end gap-3 mt-2">
-                              <button
-                                type="button"
-                                onClick={e => toggleCommentInput(e, post._id)}
-                                className="text-sm font-semibold hover:opacity-70"
-                                style={{ color: 'var(--text-muted)' }}
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="submit"
-                                disabled={!commentText.trim() || submittingComment}
-                                className="text-sm font-bold text-amber-500 hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                              >
-                                {submittingComment ? 'Posting...' : 'Post'}
-                              </button>
-                            </div>
+                      <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+                        <form onSubmit={e => handleCommentSubmit(e, post._id)} className="flex items-center gap-2">
+                          <Avatar src={user?.avatar} name={user?.name} size={28} className="flex-shrink-0" />
+                          <div className="flex-1 flex items-center gap-2 bg-[var(--bg-input)] rounded-full border px-3 py-1 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
+                            <input
+                              type="text"
+                              placeholder="Write a comment..."
+                              value={commentText}
+                              onChange={e => setCommentText(e.target.value)}
+                              className="flex-1 bg-transparent outline-none text-sm py-1.5"
+                              style={{ color: 'var(--text-primary)' }}
+                              autoFocus
+                            />
+                            <button
+                              type="submit"
+                              disabled={!commentText.trim() || submittingComment}
+                              className="flex-shrink-0 text-xs font-bold text-amber-500 hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {submittingComment ? 'Posting...' : 'Post'}
+                            </button>
                           </div>
+                          <button
+                            type="button"
+                            onClick={e => toggleCommentInput(e, post._id)}
+                            className="flex-shrink-0"
+                          >
+                            <FiX size={16} style={{ color: 'var(--text-muted)' }} />
+                          </button>
                         </form>
                       </div>
                     )}

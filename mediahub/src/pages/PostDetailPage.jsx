@@ -129,12 +129,12 @@ export default function PostDetailPage() {
   const isOwner = user?._id === post.author?._id || user?.id === post.author?._id
 
   return (
-    <div className="min-h-screen pb-28" style={{ background: 'var(--bg-primary)' }}>
+    <div className="min-h-screen pb-24" style={{ background: 'var(--bg-primary)' }}>
       <div className="max-w-2xl mx-auto">
 
         {/* Header */}
         <div
-          className="sticky top-0 z-20 border-b backdrop-blur-lg px-4 py-4"
+          className="sticky top-0 z-20 border-b backdrop-blur-lg px-4 py-3"
           style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
         >
           <div className="flex items-center justify-between">
@@ -149,30 +149,30 @@ export default function PostDetailPage() {
               <div className="relative">
                 <button
                   onClick={() => setShowMenu(v => !v)}
-                  className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[var(--bg-secondary)] transition-colors"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[var(--bg-secondary)] transition-colors"
                 >
-                  <FiMoreHorizontal size={20} style={{ color: 'var(--text-primary)' }} />
+                  <FiMoreHorizontal size={18} style={{ color: 'var(--text-primary)' }} />
                 </button>
                 {showMenu && (
                   <div
-                    className="absolute right-0 top-11 rounded-xl shadow-lg border py-1 w-36 z-30"
+                    className="absolute right-0 top-10 rounded-xl shadow-lg border py-1 w-36 z-30"
                     style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
                   >
                     <button
                       onClick={() => { setShowMenu(false); handleDelete() }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2"
+                      className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2"
                     >
                       <FiTrash2 size={14} /> Delete post
                     </button>
                   </div>
                 )}
               </div>
-            ) : <div className="w-9" />}
+            ) : <div className="w-8" />}
           </div>
         </div>
 
         {/* Post Card */}
-        <div className="m-4 rounded-3xl overflow-hidden border-2 shadow-sm" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+        <div className="m-3 rounded-3xl overflow-hidden border-2 shadow-sm" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
           {/* Image */}
           {mediaUrl && (
             <div className="relative" style={{ background: 'var(--bg-secondary)' }}>
@@ -187,17 +187,17 @@ export default function PostDetailPage() {
           )}
 
           {/* Content area */}
-          <div className="px-4 py-4">
+          <div className="px-4 py-3">
             {/* Row with avatar, name/title, and icons */}
             <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <Avatar src={post.author?.avatar} name={post.author?.name} size={42} className="flex-shrink-0" />
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Avatar src={post.author?.avatar} name={post.author?.name} size={32} className="flex-shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
                     {post.author?.name || 'Unknown'}
                   </p>
                   {post.title && (
-                    <h3 className="font-extrabold font-display text-lg leading-snug" style={{ color: 'var(--text-primary)' }}>
+                    <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>
                       {post.title}
                     </h3>
                   )}
@@ -210,24 +210,24 @@ export default function PostDetailPage() {
               </div>
               
               {/* Like and comment icons beside the heading */}
-              <div className="flex items-center gap-4 flex-shrink-0 ml-2 self-center">
+              <div className="flex items-center gap-3 flex-shrink-0 ml-2 self-center">
                 <button 
                   onClick={handleLike} 
-                  className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                  className="flex items-center gap-1 hover:opacity-80 transition-opacity"
                 >
                   {liked
-                    ? <FaHeart size={18} color="#ef4444" />
-                    : <FiHeart size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
-                  <span className="text-sm font-bold" style={{ color: liked ? '#ef4444' : 'var(--text-muted)' }}>
+                    ? <FaHeart size={16} color="#ef4444" />
+                    : <FiHeart size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
+                  <span className="text-xs font-bold" style={{ color: liked ? '#ef4444' : 'var(--text-muted)' }}>
                     {likeCount}
                   </span>
                 </button>
                 <button 
                   onClick={focusCommentInput}
-                  className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer"
+                  className="flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer"
                 >
-                  <FiMessageCircle size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
-                  <span className="text-sm font-bold" style={{ color: 'var(--text-muted)' }}>
+                  <FiMessageCircle size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+                  <span className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>
                     {comments.length}
                   </span>
                 </button>
@@ -236,9 +236,9 @@ export default function PostDetailPage() {
 
             {/* Tags */}
             {post.tags?.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-3">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {post.tags.map(tag => (
-                  <span key={tag} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+                  <span key={tag} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
                     #{tag}
                   </span>
                 ))}
@@ -246,29 +246,29 @@ export default function PostDetailPage() {
             )}
 
             {/* Time stamp */}
-            <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
               {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
             </p>
           </div>
         </div>
 
         {/* Comments section */}
-        <div className="px-4 space-y-4 pb-4">
+        <div className="px-4 space-y-3 pb-4">
           <h4 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
             Comments ({comments.length})
           </h4>
           
           {comments.length === 0 ? (
-            <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-sm text-center py-4" style={{ color: 'var(--text-muted)' }}>
               No comments yet — be the first!
             </p>
           ) : (
             comments.map(c => (
-              <div key={c._id} className="flex gap-3">
-                <Avatar src={c.author?.avatar} name={c.author?.name} size={36} className="flex-shrink-0" />
+              <div key={c._id} className="flex gap-2">
+                <Avatar src={c.author?.avatar} name={c.author?.name} size={28} className="flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div
-                    className="rounded-2xl rounded-tl-none px-3 py-2"
+                    className="rounded-2xl rounded-tl-none px-3 py-1.5"
                     style={{ background: 'var(--bg-secondary)' }}
                   >
                     <p className="text-xs font-semibold mb-0.5" style={{ color: 'var(--text-primary)' }}>
@@ -278,7 +278,7 @@ export default function PostDetailPage() {
                       {c.content || c.text || ''}
                     </p>
                   </div>
-                  <p className="text-[11px] mt-1 ml-1" style={{ color: 'var(--text-muted)' }}>
+                  <p className="text-[11px] mt-0.5 ml-1" style={{ color: 'var(--text-muted)' }}>
                     {c.createdAt ? dayjs(c.createdAt).fromNow() : 'Just now'}
                   </p>
                 </div>
@@ -288,35 +288,31 @@ export default function PostDetailPage() {
           <div ref={commentsEndRef} />
         </div>
 
-        {/* Comment input - Wider and taller with textarea */}
+        {/* Comment input - Compact */}
         <div
-          className="fixed bottom-0 left-0 right-0 border-t px-4 py-3 z-10"
+          className="fixed bottom-0 left-0 right-0 border-t px-4 py-2.5 z-10"
           style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
         >
           <div className="max-w-2xl mx-auto">
-            <form onSubmit={handleComment} className="flex items-start gap-3">
-              <Avatar src={user?.avatar} name={user?.name} size={36} className="flex-shrink-0 mt-1" />
-              <div className="flex-1">
-                <div className="bg-[var(--bg-input)] rounded-2xl border px-4 py-2 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
-                  <textarea
-                    ref={commentInputRef}
-                    placeholder="Write a comment..."
-                    value={comment}
-                    onChange={e => setComment(e.target.value)}
-                    className="w-full bg-transparent outline-none text-sm resize-none"
-                    style={{ color: 'var(--text-primary)', minHeight: '60px', maxHeight: '150px' }}
-                    rows={2}
-                  />
-                </div>
-                <div className="flex items-center justify-end mt-2">
-                  <button
-                    type="submit"
-                    disabled={!comment.trim() || submitting}
-                    className="text-sm font-bold text-amber-500 hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {submitting ? 'Posting...' : 'Post'}
-                  </button>
-                </div>
+            <form onSubmit={handleComment} className="flex items-center gap-2">
+              <Avatar src={user?.avatar} name={user?.name} size={28} className="flex-shrink-0" />
+              <div className="flex-1 flex items-center gap-2 bg-[var(--bg-input)] rounded-full border px-3 py-1 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
+                <input
+                  ref={commentInputRef}
+                  type="text"
+                  placeholder="Write a comment..."
+                  value={comment}
+                  onChange={e => setComment(e.target.value)}
+                  className="flex-1 bg-transparent outline-none text-sm py-1.5"
+                  style={{ color: 'var(--text-primary)' }}
+                />
+                <button
+                  type="submit"
+                  disabled={!comment.trim() || submitting}
+                  className="flex-shrink-0 text-xs font-bold text-amber-500 hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {submitting ? 'Posting...' : 'Post'}
+                </button>
               </div>
             </form>
           </div>
