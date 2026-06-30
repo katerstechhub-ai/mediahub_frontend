@@ -1,9 +1,8 @@
 import axios from 'axios';
 
-// ✅ Remove /api from the base URL
-const API_URL = 'https://media-hub-bq9w.onrender.com'; // Remove /api
+const API_URL = 'https://media-hub-bq9w.onrender.com';
 
-console.log('🔍 API_URL:', API_URL); // Should show: https://media-hub-bq9w.onrender.com
+console.log('🔍 API_URL:', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
@@ -25,7 +24,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor for debugging
+// Response interceptor - handle 401/403 errors
 api.interceptors.response.use(
   (response) => {
     console.log('✅ API Response:', response.config.url, response.status);
@@ -33,15 +32,27 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('❌ API Error:', error.config?.url, error.response?.status, error.response?.data);
+    
+    // If 401 or 403, clear auth and redirect to login
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      // Redirect to login if not already there
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+        window.location.href = '/login';
+      }
+    }
+    
     return Promise.reject(error);
   }
 );
 
-// Auth API - Now uses /api/auth/login (full path: https://media-hub-bq9w.onrender.com/api/auth/login)
+// Auth API
 export const authAPI = {
   login: (credentials) => api.post('/api/auth/login', credentials),
   register: (userData) => api.post('/api/auth/register', userData),
   getProfile: () => api.get('/api/auth/me'),
+  getMe: () => api.get('/api/auth/me'), // Add this alias for consistency
   logout: () => api.post('/api/auth/logout'),
   updateProfile: (data) => api.put('/api/auth/me', data),
   updateAvatar: (file) => {
