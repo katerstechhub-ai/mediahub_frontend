@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FiGrid, FiArrowLeft, FiHeart, FiMessageCircle, FiUser } from 'react-icons/fi'
+import {
+  FiGrid, FiArrowLeft, FiHeart, FiMessageCircle, FiUser, FiEdit2
+} from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
 import { authAPI, postsAPI, commentsAPI } from '../api'
@@ -33,7 +35,6 @@ export default function ProfilePage() {
     })
     setUserPosts(filtered)
 
-    // fetch real comment counts
     const fetchCounts = async () => {
       const counts = {}
       await Promise.all(filtered.map(async (post) => {
@@ -98,67 +99,80 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen fade-in" style={{ background: 'var(--bg-primary)' }}>
+    <div className="min-h-screen pb-20 fade-in" style={{ background: 'var(--bg-primary)' }}>
       <div className="max-w-3xl mx-auto">
-        {/* Header */}
+        {/* Header with soft gradient backdrop */}
         <div
-          className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b backdrop-blur-lg"
-          style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
+          className="relative px-4 pt-5 pb-24"
+          style={{
+            background: 'linear-gradient(135deg, rgba(245,158,11,0.18) 0%, rgba(245,158,11,0.04) 55%, transparent 100%)',
+          }}
         >
-          <button onClick={() => navigate(-1)} className="hover:text-amber-500 transition-colors" style={{ color: 'var(--text-primary)' }}>
-            <FiArrowLeft size={20} />
-          </button>
-          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Profile</span>
-          <button onClick={() => navigate('/settings')} className="text-sm font-medium hover:text-amber-500 transition-colors" style={{ color: 'var(--text-primary)' }}>
-            Settings
-          </button>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => navigate(-1)}
+              className="w-10 h-10 flex items-center justify-center rounded-full shadow-sm"
+              style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+            >
+              <FiArrowLeft size={18} />
+            </button>
+            <button
+              onClick={() => navigate('/settings')}
+              className="text-sm font-semibold hover:text-amber-500 transition-colors"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              Settings
+            </button>
+          </div>
+          <h1 className="text-2xl font-extrabold font-display mt-5" style={{ color: 'var(--text-primary)' }}>
+            Profile
+          </h1>
         </div>
 
-        {/* Profile info */}
-        <div className="h-10" />
-        <div className="px-4 pb-6 flex flex-col items-center gap-3 text-center border-b" style={{ borderColor: 'var(--border)' }}>
-          <div className="relative">
-            <Avatar src={user?.avatar} name={user?.name} size={80} ring />
-            <label
-              htmlFor="avatar-upload"
-              className="absolute bottom-0 right-0 text-xs font-medium px-2 py-0.5 rounded-full cursor-pointer hover:text-amber-500 transition-colors"
-              style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
-            >
-              {uploadingAvatar ? '…' : 'Edit'}
-            </label>
-            <input id="avatar-upload" type="file" accept="image/*" className="hidden" disabled={uploadingAvatar} onChange={handleAvatarChange} />
-          </div>
+        {/* Profile card — overlaps the gradient header */}
+        <div className="px-4 -mt-16">
+          <div
+            className="rounded-3xl shadow-sm px-6 py-7 flex flex-col items-center text-center"
+            style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
+          >
+            <div className="relative">
+              <Avatar src={user?.avatar} name={user?.name} size={84} ring />
+              <label
+                htmlFor="avatar-upload"
+                className="absolute -bottom-1 -right-1 w-7 h-7 flex items-center justify-center rounded-full cursor-pointer text-white shadow-sm"
+                style={{ background: '#f59e0b' }}
+              >
+                {uploadingAvatar ? '…' : <FiEdit2 size={12} />}
+              </label>
+              <input id="avatar-upload" type="file" accept="image/*" className="hidden" disabled={uploadingAvatar} onChange={handleAvatarChange} />
+            </div>
 
-          <div>
-            <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{user?.name || 'User'}</h2>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
-            {user?.bio && <p className="text-xs mt-1.5 max-w-xs mx-auto" style={{ color: 'var(--text-secondary)' }}>{user.bio}</p>}
-          </div>
+            <h2 className="text-xl font-extrabold font-display mt-4" style={{ color: 'var(--text-primary)' }}>
+              {user?.name || 'User'}
+            </h2>
+            <p className="text-sm font-semibold mt-0.5" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
 
-          <div className="flex gap-8 mt-1">
-            {[
-              { label: 'Posts', value: userPosts.length },
-              { label: 'Likes', value: totalLikes },
-              { label: 'Comments', value: totalComments },
-            ].map(({ label, value }) => (
-              <div key={label} className="text-center">
-                <p className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{value}</p>
-                <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{label}</p>
-              </div>
-            ))}
+            <div className="flex gap-10 mt-5 mb-1">
+              {[
+                { label: 'Posts', value: userPosts.length },
+                { label: 'Likes', value: totalLikes },
+                { label: 'Comments', value: totalComments },
+              ].map(({ label, value }) => (
+                <div key={label} className="text-center">
+                  <p className="text-lg font-extrabold font-display" style={{ color: 'var(--text-primary)' }}>{value}</p>
+                  <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--text-muted)' }}>{label}</p>
+                </div>
+              ))}
+            </div>
           </div>
-
-          <button onClick={() => navigate('/create')} className="mt-1 text-sm font-semibold hover:text-amber-500 transition-colors" style={{ color: 'var(--text-primary)' }}>
-            + Create Post
-          </button>
         </div>
 
         {/* Posts grid */}
-        <div className="px-3 py-4">
+        <div className="px-4 py-6">
           <div className="flex items-center gap-2 mb-3 px-1">
             <FiGrid size={14} style={{ color: 'var(--text-muted)' }} />
-            <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>My Posts</span>
-            <span className="text-[10px] ml-1 px-1.5 py-0.5 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-primary)' }}>My Posts</span>
+            <span className="text-[10px] ml-1 px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
               {userPosts.length}
             </span>
           </div>
@@ -175,14 +189,14 @@ export default function ProfilePage() {
               }
             />
           ) : (
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-1.5">
               {userPosts.map(post => {
                 const imageUrl = getImageUrl(post)
                 return (
                   <div
                     key={post._id || post.id}
                     onClick={() => navigate(`/posts/${post._id || post.id}`)}
-                    className="cursor-pointer rounded-lg overflow-hidden group relative"
+                    className="cursor-pointer rounded-xl overflow-hidden group relative"
                     style={{ aspectRatio: '1/1', background: 'var(--bg-secondary)' }}
                   >
                     <button

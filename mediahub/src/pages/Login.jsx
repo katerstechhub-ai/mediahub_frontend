@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
+  const [remember, setRemember] = useState(false)
 
   const validate = () => {
     const e = {}
@@ -46,152 +47,147 @@ export default function LoginPage() {
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4 sm:p-8"
-      style={{ background: '#3a1d0e' }}
-    >
+    <div className="min-h-screen w-full relative flex items-center justify-end overflow-hidden">
+      {/* Full-bleed background image */}
       <div
-        className="w-full max-w-4xl rounded-[2rem] shadow-2xl p-3 flex flex-col md:flex-row gap-3"
-        style={{ background: '#ffffff' }}
+        className="absolute inset-0 bg-cover bg-center"
+        style={{
+          backgroundImage:
+            "url('https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1600&auto=format&fit=crop')",
+        }}
+      />
+      {/* Dark overlay so the form stays readable everywhere on the image */}
+      <div className="absolute inset-0" style={{ background: 'rgba(10, 16, 12, 0.55)' }} />
+      <div
+        className="absolute inset-0"
+        style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(8,12,9,0.35) 55%, rgba(8,12,9,0.55) 100%)' }}
+      />
+
+      {/* Transparent glass form panel — spans full height, flush to the right edge */}
+      <div
+        className="relative z-10 w-full md:w-[560px] min-h-screen flex items-center justify-center px-6 sm:px-10 md:px-14"
+        style={{
+          background: 'rgba(20, 28, 22, 0.35)',
+          backdropFilter: 'blur(18px)',
+          WebkitBackdropFilter: 'blur(18px)',
+          borderLeft: '1px solid rgba(255,255,255,0.08)',
+        }}
       >
-        {/* Inset dark visual panel */}
-        <div className="relative w-full md:w-[42%] h-56 md:h-auto rounded-[1.5rem] overflow-hidden shrink-0 bg-black">
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                'radial-gradient(ellipse at 30% 90%, #f97316 0%, #ea580c 18%, rgba(234,88,18,0.4) 38%, transparent 60%), radial-gradient(ellipse at 55% 100%, #fb923c 0%, transparent 45%), #0a0a0a',
-            }}
-          />
-          {/* vertical light streaks */}
-          <div className="absolute bottom-0 left-0 right-0 h-3/5 flex items-end gap-1 px-8">
-            {[85, 60, 95, 40, 70].map((h, i) => (
-              <div
-                key={i}
-                className="flex-1 rounded-t-full"
-                style={{
-                  height: `${h}%`,
-                  background: 'linear-gradient(180deg, transparent 0%, #fb923c 55%, #fed7aa 100%)',
-                  filter: 'blur(2px)',
-                  opacity: 0.85,
-                }}
+        <style>{`
+          input:-webkit-autofill,
+          input:-webkit-autofill:hover,
+          input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #fff;
+            caret-color: #fff;
+            transition: background-color 9999s ease-in-out 0s;
+          }
+        `}</style>
+        <div className="w-full max-w-sm mx-auto text-center">
+          {/* Logo mark */}
+          <div className="flex items-center justify-center gap-2 mb-8">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 2 L13.5 9.5 L21 11 L13.5 12.5 L12 20 L10.5 12.5 L3 11 L10.5 9.5 Z"
+                fill="#f59e0b"
               />
-            ))}
+            </svg>
+            <span className="text-sm font-extrabold font-display tracking-wide text-white/90">
+              MediaHub
+            </span>
           </div>
 
-          <div className="relative z-10 p-7 md:p-8">
-            <h2 className="text-2xl md:text-3xl font-bold leading-snug text-white">
-              Your moments,<br />on display.
-            </h2>
-          </div>
-        </div>
+          <h1 className="text-4xl font-extrabold font-display mb-2 text-white">
+            Welcome back
+          </h1>
+          <p className="text-sm mb-8 text-white/60">
+            Please enter your details.
+          </p>
 
-        {/* Form panel */}
-        <div className="w-full md:w-[58%] flex items-center justify-center px-4 py-6 md:p-10">
-          <div className="w-full max-w-sm">
-            {/* Logo mark */}
-            <div className="flex items-center gap-2 mb-5">
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M12 2 L13.5 9.5 L21 11 L13.5 12.5 L12 20 L10.5 12.5 L3 11 L10.5 9.5 Z"
-                  fill="#f59e0b"
-                />
-              </svg>
-              <span className="text-sm font-semibold tracking-wide" style={{ color: '#111' }}>
-                MediaHub
-              </span>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-7 text-left">
+            {/* Email */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-semibold text-white/85">
+                E-mail
+              </label>
+              <input
+                type="email"
+                placeholder="Enter your e-mail"
+                value={form.email}
+                onChange={(e) => {
+                  setForm({ ...form, email: e.target.value })
+                  if (errors.email) setErrors({ ...errors, email: '' })
+                }}
+                className="w-full bg-transparent text-base outline-none border-b pb-2.5 transition-colors text-white placeholder-white/40 focus:border-amber-400"
+                style={{ borderColor: errors.email ? '#f87171' : 'rgba(255,255,255,0.3)' }}
+              />
+              {errors.email && <p className="text-xs text-red-300">{errors.email}</p>}
             </div>
 
-            <h1 className="text-3xl font-bold mb-1.5" style={{ color: '#111' }}>
-              Welcome back
-            </h1>
-            <p className="text-sm mb-6" style={{ color: '#8a8a8a' }}>
-              Sign in to continue to your feed
-            </p>
-
-            <div className="border-t mb-6" style={{ borderColor: '#ececec' }} />
-
-            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-              {/* Email */}
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium" style={{ color: '#6b6b6b' }}>
-                  Your email
-                </label>
+            {/* Password */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-semibold text-white/85">
+                Password
+              </label>
+              <div className="relative">
                 <input
-                  type="email"
-                  placeholder="you@example.com"
-                  value={form.email}
+                  type={showPw ? 'text' : 'password'}
+                  placeholder="Enter your password"
+                  value={form.password}
                   onChange={(e) => {
-                    setForm({ ...form, email: e.target.value })
-                    if (errors.email) setErrors({ ...errors, email: '' })
+                    setForm({ ...form, password: e.target.value })
+                    if (errors.password) setErrors({ ...errors, password: '' })
                   }}
-                  className="w-full rounded-xl text-base outline-none border transition-all focus:border-amber-500"
-                  style={{
-                    padding: '16px 18px',
-                    background: '#fff',
-                    color: '#111',
-                    borderColor: errors.email ? '#ef4444' : '#e3e3e3',
-                  }}
+                  className="w-full bg-transparent text-base outline-none border-b pb-2.5 pr-9 transition-colors text-white placeholder-white/40 focus:border-amber-400"
+                  style={{ borderColor: errors.password ? '#f87171' : 'rgba(255,255,255,0.3)' }}
                 />
-                {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
+                <button
+                  type="button"
+                  onClick={() => setShowPw(!showPw)}
+                  className="absolute right-0 top-0 hover:opacity-70 transition-opacity text-white/60"
+                >
+                  {showPw ? <FiEyeOff size={17} /> : <FiEye size={17} />}
+                </button>
               </div>
+              {errors.password && <p className="text-xs text-red-300">{errors.password}</p>}
+            </div>
 
-              {/* Password */}
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium" style={{ color: '#6b6b6b' }}>
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPw ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    value={form.password}
-                    onChange={(e) => {
-                      setForm({ ...form, password: e.target.value })
-                      if (errors.password) setErrors({ ...errors, password: '' })
-                    }}
-                    className="w-full rounded-xl text-base outline-none border transition-all focus:border-amber-500"
-                    style={{
-                      padding: '16px 46px 16px 18px',
-                      background: '#fff',
-                      color: '#111',
-                      borderColor: errors.password ? '#ef4444' : '#e3e3e3',
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPw(!showPw)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 hover:opacity-70 transition-opacity"
-                    style={{ color: '#9a9a9a' }}
-                  >
-                    {showPw ? <FiEyeOff size={18} /> : <FiEye size={18} />}
-                  </button>
-                </div>
-                {errors.password && <p className="text-xs text-red-500">{errors.password}</p>}
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-xl font-semibold text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-1"
-                style={{ padding: '16px', background: '#f59e0b', color: '#fff' }}
-              >
-                {loading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                    Signing in...
-                  </span>
-                ) : 'Sign in'}
-              </button>
-            </form>
-
-            <p className="text-center text-sm mt-6" style={{ color: '#8a8a8a' }}>
-              Don't have an account?{' '}
-              <Link to="/register" className="font-semibold underline" style={{ color: '#111' }}>
-                Sign up
+            {/* Remember me / forgot password */}
+            <div className="flex items-center justify-between -mt-1">
+              <label className="flex items-center gap-2 text-sm cursor-pointer text-white/70 select-none">
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                  className="w-4 h-4 rounded accent-amber-500 cursor-pointer"
+                />
+                Remember me
+              </label>
+              <Link to="/forgot-password" className="text-sm font-medium hover:text-amber-400 transition-colors text-white/70">
+                Forgot your password?
               </Link>
-            </p>
-          </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-xl font-bold text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2 bg-black/80 hover:bg-black text-white"
+              style={{ padding: '16px' }}
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                  Signing in...
+                </span>
+              ) : 'Log in'}
+            </button>
+          </form>
+
+          <p className="text-center text-sm mt-6 text-white/60">
+            Don't have an account?{' '}
+            <Link to="/register" className="font-semibold text-white hover:text-amber-400 transition-colors">
+              Register here
+            </Link>
+          </p>
         </div>
       </div>
     </div>

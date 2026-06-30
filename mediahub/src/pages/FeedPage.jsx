@@ -77,16 +77,16 @@ export default function FeedPage() {
   if (posts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-screen text-center px-4" style={{ background: 'var(--bg-primary)' }}>
-        <div className="w-20 h-20 rounded-full flex items-center justify-center mb-5" style={{ background: 'var(--bg-secondary)' }}>
-          <FiImage size={36} style={{ color: 'var(--text-muted)' }} />
+        <div className="w-24 h-24 rounded-full flex items-center justify-center mb-5" style={{ background: 'var(--bg-secondary)' }}>
+          <FiImage size={40} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
         </div>
-        <h3 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>No posts yet</h3>
+        <h3 className="text-2xl font-extrabold font-display" style={{ color: 'var(--text-primary)' }}>No posts yet</h3>
         <p className="text-sm mt-2 mb-6" style={{ color: 'var(--text-muted)' }}>Share something with the world</p>
         <button
           onClick={() => navigate('/create')}
-          className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-white font-semibold rounded-xl transition-colors text-sm"
+          className="flex items-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-400 text-white font-bold rounded-full transition-colors text-sm shadow-lg shadow-amber-500/30"
         >
-          <FiPlusSquare size={18} /> Create Post
+          <FiPlusSquare size={20} strokeWidth={2.5} /> Create Post
         </button>
       </div>
     )
@@ -96,52 +96,62 @@ export default function FeedPage() {
     <div className="min-h-screen pb-20" style={{ background: 'var(--bg-primary)' }}>
       {/* Header */}
       <div
-        className="sticky top-0 z-10 border-b backdrop-blur-lg px-4 py-5"
+        className="sticky top-0 z-10 border-b backdrop-blur-lg px-4 sm:px-6 py-4"
         style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
       >
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>MediaHub</h1>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{posts.length} posts</p>
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-extrabold font-display tracking-tight truncate" style={{ color: 'var(--text-primary)' }}>
+              MediaHub
+            </h1>
+            <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{posts.length} posts</p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-xl p-0.5" style={{ background: 'var(--bg-secondary)' }}>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Grid/List toggle — fixed sizing so it never squishes */}
+            <div className="flex items-center rounded-full p-1 flex-shrink-0 shadow-sm" style={{ background: 'var(--bg-secondary)' }}>
               <button
                 onClick={() => setViewMode('grid')}
-                className="p-2 rounded-xl transition-all"
+                aria-label="Grid view"
+                className="w-10 h-10 flex items-center justify-center rounded-full transition-all flex-shrink-0"
                 style={{
-                  background: viewMode === 'grid' ? 'var(--bg-primary)' : 'transparent',
-                  color: viewMode === 'grid' ? '#f59e0b' : 'var(--text-muted)',
+                  background: viewMode === 'grid' ? '#f59e0b' : 'transparent',
+                  color: viewMode === 'grid' ? '#fff' : 'var(--text-muted)',
                 }}
               >
-                <FiGrid size={17} />
+                <FiGrid size={19} strokeWidth={2.5} />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className="p-2 rounded-xl transition-all"
+                aria-label="List view"
+                className="w-10 h-10 flex items-center justify-center rounded-full transition-all flex-shrink-0"
                 style={{
-                  background: viewMode === 'list' ? 'var(--bg-primary)' : 'transparent',
-                  color: viewMode === 'list' ? '#f59e0b' : 'var(--text-muted)',
+                  background: viewMode === 'list' ? '#f59e0b' : 'transparent',
+                  color: viewMode === 'list' ? '#fff' : 'var(--text-muted)',
                 }}
               >
-                <FiList size={17} />
+                <FiList size={19} strokeWidth={2.5} />
               </button>
             </div>
+
+            {/* Create — plain text that reveals itself as a button on hover, no pill/fill */}
             <button
               onClick={() => navigate('/create')}
-              className="p-2 bg-amber-500 hover:bg-amber-400 text-white rounded-xl transition-colors"
+              aria-label="Create post"
+              className="flex-shrink-0 flex items-center justify-center gap-1.5 h-10 px-3 rounded-lg transition-colors font-bold text-sm whitespace-nowrap hover:bg-[var(--bg-secondary)]"
+              style={{ color: 'var(--text-primary)' }}
             >
-              <FiPlusSquare size={18} />
+              <FiPlusSquare size={19} strokeWidth={2.5} className="flex-shrink-0" />
+              <span className="hidden sm:inline">Create</span>
             </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-3 pb-3">
-        <div className="h-10" />
+      <div className="max-w-7xl mx-auto px-3 sm:px-5 pb-3">
+        <div className="h-6" />
         {viewMode === 'grid' ? (
-          // ✅ 2 columns on mobile, scales up on larger screens
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {posts.map((post) => {
               const imageUrl = getImageUrl(post)
               const isSelected = selectedPost?._id === post._id
@@ -149,7 +159,7 @@ export default function FeedPage() {
                 <div
                   key={post._id}
                   onClick={() => setSelectedPost(isSelected ? null : post)}
-                  className="relative group cursor-pointer rounded-xl overflow-hidden aspect-square"
+                  className="relative group cursor-pointer rounded-2xl overflow-hidden aspect-square shadow-sm hover:shadow-lg transition-shadow"
                   style={{ background: 'var(--bg-secondary)' }}
                 >
                   {imageUrl ? (
@@ -162,17 +172,15 @@ export default function FeedPage() {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <FiImage size={24} style={{ color: 'var(--text-muted)' }} />
+                      <FiImage size={26} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
                     </div>
                   )}
 
-                  {/* Like count badge */}
-                  <div className="absolute bottom-1.5 right-1.5 bg-black/60 rounded-full px-1.5 py-0.5 flex items-center gap-1">
-                    <FiHeart size={10} className="text-white" />
-                    <span className="text-white text-[10px] font-medium">{post.likes?.length || 0}</span>
+                  <div className="absolute bottom-2 right-2 bg-black/70 rounded-full px-2.5 py-1 flex items-center gap-1.5">
+                    <FiHeart size={12} strokeWidth={2.5} className="text-white" />
+                    <span className="text-white text-xs font-bold">{post.likes?.length || 0}</span>
                   </div>
 
-                  {/* Selected overlay */}
                   {isSelected && (
                     <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-3">
                       <h3 className="text-white font-bold text-xs text-center line-clamp-2 mb-1">
@@ -184,21 +192,21 @@ export default function FeedPage() {
                           className="flex items-center gap-1 text-white"
                         >
                           {post.likes?.includes(user?._id)
-                            ? <FaHeart size={13} className="text-red-400" />
-                            : <FiHeart size={13} />}
-                          <span className="text-[11px]">{post.likes?.length || 0}</span>
+                            ? <FaHeart size={14} className="text-red-400" />
+                            : <FiHeart size={14} strokeWidth={2.5} />}
+                          <span className="text-[11px] font-bold">{post.likes?.length || 0}</span>
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); navigate(`/posts/${post._id}`) }}
                           className="flex items-center gap-1 text-white"
                         >
-                          <FiMessageCircle size={13} />
-                          <span className="text-[11px]">{commentCounts[post._id] ?? post.comments?.length ?? 0}</span>
+                          <FiMessageCircle size={14} strokeWidth={2.5} />
+                          <span className="text-[11px] font-bold">{commentCounts[post._id] ?? post.comments?.length ?? 0}</span>
                         </button>
                       </div>
                       <button
                         onClick={e => { e.stopPropagation(); navigate(`/posts/${post._id}`) }}
-                        className="mt-2 text-amber-400 text-[11px] font-medium hover:underline"
+                        className="mt-3 text-amber-400 text-xs font-bold hover:underline px-4 py-1.5 rounded-full border border-amber-400/40"
                       >
                         View post →
                       </button>
@@ -209,43 +217,55 @@ export default function FeedPage() {
             })}
           </div>
         ) : (
-          <div className="max-w-xl mx-auto space-y-4">
+          <div className="max-w-xl mx-auto space-y-6">
             {posts.map((post) => {
               const imageUrl = getImageUrl(post)
               const isLiked = post.likes?.includes(user?._id)
               return (
                 <div
                   key={post._id}
-                  className="rounded-2xl overflow-hidden border"
+                  className="rounded-3xl overflow-hidden border-2 shadow-sm hover:shadow-md transition-shadow"
                   style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
                 >
-                  {/* Author */}
-                  <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-                    <Avatar src={post.author?.avatar} name={post.author?.name} size={38} />
-                    <div>
-                      <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
-                        {post.author?.name || 'Unknown'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Image */}
-                  {imageUrl && (
-                    <div style={{ background: 'var(--bg-secondary)' }}>
+                  {/* Image with avatar overlapping the corner — bolder, less flat */}
+                  <div className="relative" style={{ background: 'var(--bg-secondary)' }}>
+                    {imageUrl ? (
                       <img
                         src={imageUrl}
                         alt={post.title || 'Post'}
                         className="w-full h-auto"
-                        style={{ maxHeight: 320, objectFit: 'cover' }}
+                        style={{ maxHeight: 360, objectFit: 'cover' }}
                         loading="lazy"
                         onError={e => e.target.style.display = 'none'}
                       />
-                    </div>
-                  )}
+                    ) : (
+                      <div className="w-full h-40 flex items-center justify-center">
+                        <FiImage size={28} style={{ color: 'var(--text-muted)' }} />
+                      </div>
+                    )}
 
-                  <div className="px-4 py-3">
+                    <div className="absolute -bottom-5 left-4 ring-4 rounded-full" style={{ ringColor: 'var(--bg-primary)' }}>
+                      <Avatar src={post.author?.avatar} name={post.author?.name} size={44} />
+                    </div>
+
+                    <button
+                      onClick={e => handleLike(e, post._id)}
+                      className="absolute top-3 right-3 w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition-transform active:scale-90"
+                      style={{ background: 'rgba(0,0,0,0.55)' }}
+                    >
+                      {isLiked
+                        ? <FaHeart size={18} color="#ef4444" />
+                        : <FiHeart size={18} strokeWidth={2.5} color="white" />}
+                    </button>
+                  </div>
+
+                  <div className="px-4 pt-7 pb-4">
+                    <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                      {post.author?.name || 'Unknown'}
+                    </p>
+
                     {post.title && (
-                      <h3 className="font-bold text-sm mb-0.5" style={{ color: 'var(--text-primary)' }}>
+                      <h3 className="font-extrabold font-display text-lg mt-1.5 mb-0.5 leading-snug" style={{ color: 'var(--text-primary)' }}>
                         {post.title}
                       </h3>
                     )}
@@ -256,28 +276,27 @@ export default function FeedPage() {
                     )}
 
                     {post.tags?.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
+                      <div className="flex flex-wrap gap-1.5 mt-3">
                         {post.tags.slice(0, 3).map(tag => (
-                          <span key={tag} className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+                          <span key={tag} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
                             #{tag}
                           </span>
                         ))}
                       </div>
                     )}
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-4 mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
-                      <button onClick={e => handleLike(e, post._id)} className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-5 mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+                      <button onClick={e => handleLike(e, post._id)} className="flex items-center gap-2">
                         {isLiked
-                          ? <FaHeart size={17} color="#ef4444" />
-                          : <FiHeart size={17} style={{ color: 'var(--text-muted)' }} />}
-                        <span className="text-sm" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
+                          ? <FaHeart size={19} color="#ef4444" />
+                          : <FiHeart size={19} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
+                        <span className="text-sm font-bold" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
                           {post.likes?.length || 0}
                         </span>
                       </button>
-                      <button onClick={() => navigate(`/posts/${post._id}`)} className="flex items-center gap-1.5">
-                        <FiMessageCircle size={17} style={{ color: 'var(--text-muted)' }} />
-                        <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                      <button onClick={() => navigate(`/posts/${post._id}`)} className="flex items-center gap-2">
+                        <FiMessageCircle size={19} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+                        <span className="text-sm font-bold" style={{ color: 'var(--text-muted)' }}>
                           {commentCounts[post._id] ?? post.comments?.length ?? 0}
                         </span>
                       </button>

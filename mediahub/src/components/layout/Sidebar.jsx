@@ -27,7 +27,7 @@ export default function Sidebar() {
     <aside
       className="fixed top-0 left-0 h-screen flex flex-col"
       style={{
-        width: '72px',
+        width: '84px',
         zIndex: 40,
         background: 'var(--bg-primary)',
         borderRight: '1px solid var(--border)',
@@ -35,64 +35,64 @@ export default function Sidebar() {
     >
       {/* Logo */}
       <div
-        className="h-16 flex items-center justify-center border-b"
+        className="h-20 flex items-center justify-center border-b"
         style={{ borderColor: 'var(--border)' }}
       >
-        <div className="w-10 h-10 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 flex items-center justify-center text-white font-bold text-xl shadow-md">
+        <div className="w-12 h-12 rounded-full bg-amber-500 flex items-center justify-center text-white font-extrabold text-2xl shadow-lg shadow-amber-500/30">
           M
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-5 space-y-3 overflow-y-auto">
         {navItems.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
             className={({ isActive }) =>
-              `flex items-center justify-center w-12 h-12 mx-auto rounded-xl transition-all duration-200 ${
+              `flex items-center justify-center w-14 h-14 mx-auto rounded-full transition-all duration-200 ${
                 isActive
-                  ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
-                  : 'hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)]'
+                  ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30 scale-105'
+                  : 'hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:scale-105'
               }`
             }
             title={label}
           >
-            <Icon size={22} />
+            <Icon size={26} strokeWidth={2.5} />
           </NavLink>
         ))}
       </nav>
 
       {/* Bottom actions */}
       <div
-        className="px-2 py-4 border-t space-y-1"
+        className="px-3 py-5 border-t space-y-3"
         style={{ borderColor: 'var(--border)' }}
       >
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}
-          className="w-12 h-12 mx-auto flex items-center justify-center rounded-xl transition-all duration-200 hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)]"
+          className="w-14 h-14 mx-auto flex items-center justify-center rounded-full transition-all duration-200 hover:bg-[var(--bg-secondary)] hover:scale-105 text-[var(--text-secondary)]"
           title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
         >
-          {theme === 'dark' ? <FiSun size={20} /> : <FiMoon size={20} />}
+          {theme === 'dark' ? <FiSun size={24} strokeWidth={2.5} /> : <FiMoon size={24} strokeWidth={2.5} />}
         </button>
 
         {/* User avatar */}
         {user && (
           <button
             onClick={() => navigate('/profile')}
-            className="w-12 h-12 mx-auto flex items-center justify-center rounded-xl hover:bg-[var(--bg-secondary)] transition-all duration-200"
+            className="w-14 h-14 mx-auto flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] hover:scale-105 transition-all duration-200"
             title="Profile"
           >
             {user.avatar ? (
               <img
                 src={user.avatar}
                 alt={user.name}
-                className="w-8 h-8 rounded-full object-cover shadow-sm"
+                className="w-10 h-10 rounded-full object-cover shadow-md ring-2 ring-amber-500/40"
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white text-sm font-bold shadow-sm">
+              <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-white text-base font-bold shadow-md">
                 {user.name?.[0]?.toUpperCase() || 'U'}
               </div>
             )}
@@ -102,10 +102,10 @@ export default function Sidebar() {
         {/* Logout */}
         <button
           onClick={handleLogout}
-          className="w-12 h-12 mx-auto flex items-center justify-center rounded-xl transition-all duration-200 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+          className="w-14 h-14 mx-auto flex items-center justify-center rounded-full transition-all duration-200 text-red-500 hover:bg-red-50 hover:scale-105 dark:hover:bg-red-900/20"
           title="Logout"
         >
-          <FiLogOut size={20} />
+          <FiLogOut size={24} strokeWidth={2.5} />
         </button>
       </div>
     </aside>

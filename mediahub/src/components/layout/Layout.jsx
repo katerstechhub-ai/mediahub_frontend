@@ -6,8 +6,8 @@ import BottomNav from './BottomNav'
 export default function Layout() {
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Sidebar - compact icon-only */}
-      <div className="hidden lg:block lg:w-[72px] flex-shrink-0">
+      {/* Sidebar - bold icon-only */}
+      <div className="hidden lg:block lg:w-[84px] flex-shrink-0">
         <Sidebar />
       </div>
       
