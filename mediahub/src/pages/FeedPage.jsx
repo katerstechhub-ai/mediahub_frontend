@@ -61,7 +61,6 @@ export default function FeedPage() {
     }
   }
 
-  // Double tap handler for grid view
   const handleDoubleTapGrid = (e, postId) => {
     e.stopPropagation()
     
@@ -69,17 +68,13 @@ export default function FeedPage() {
     const lastTap = lastTapRef.current[postId] || 0
     
     if (now - lastTap < 300) {
-      // Double tap detected!
       handleLike(e, postId)
-      // Show heart animation
       setShowHeartAnimation(postId)
       setTimeout(() => setShowHeartAnimation(null), 800)
       lastTapRef.current[postId] = 0
     } else {
       lastTapRef.current[postId] = now
-      // Single tap - navigate to post detail after a small delay
       setTimeout(() => {
-        // Only navigate if it wasn't a double tap
         if (lastTapRef.current[postId] === now) {
           navigate(`/posts/${postId}`)
         }
@@ -87,7 +82,6 @@ export default function FeedPage() {
     }
   }
 
-  // Double tap handler for list view image
   const handleDoubleTapList = (e, postId) => {
     e.stopPropagation()
     
@@ -95,9 +89,7 @@ export default function FeedPage() {
     const lastTap = lastTapRef.current[postId] || 0
     
     if (now - lastTap < 300) {
-      // Double tap detected!
       handleLike(e, postId)
-      // Show heart animation
       setShowHeartAnimation(postId)
       setTimeout(() => setShowHeartAnimation(null), 800)
       lastTapRef.current[postId] = 0
@@ -145,7 +137,6 @@ export default function FeedPage() {
     return null
   }
 
-  // Heart animation component
   const HeartAnimation = ({ postId }) => {
     if (showHeartAnimation !== postId) return null
     
@@ -273,7 +264,6 @@ export default function FeedPage() {
                     </div>
                   )}
 
-                  {/* Heart animation on double tap */}
                   <HeartAnimation postId={post._id} />
 
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
@@ -297,7 +287,8 @@ export default function FeedPage() {
             })}
           </div>
         ) : (
-          <div className="max-w-xl mx-auto space-y-6">
+          // List View - Responsive for desktop
+          <div className="max-w-4xl mx-auto space-y-8">
             {posts.map((post) => {
               const imageUrl = getImageUrl(post)
               const isLiked = post.likes?.includes(user?._id)
@@ -307,46 +298,44 @@ export default function FeedPage() {
               return (
                 <div
                   key={post._id}
-                  className="border-b pb-4"
+                  className="border-b pb-6"
                   style={{ borderColor: 'var(--border)' }}
                 >
                   {/* Image - with double tap */}
                   {imageUrl && (
                     <div 
-                      className="w-full mb-3 relative cursor-pointer"
+                      className="w-full mb-4 relative cursor-pointer rounded-lg overflow-hidden"
                       style={{ background: 'var(--bg-secondary)' }}
                       onClick={(e) => handleDoubleTapList(e, post._id)}
                     >
                       <img
                         src={imageUrl}
                         alt={post.title || 'Post'}
-                        className="w-full h-auto"
-                        style={{ maxHeight: 400, objectFit: 'cover' }}
+                        className="w-full h-auto max-h-[500px] object-cover"
                         loading="lazy"
                         onError={e => e.target.style.display = 'none'}
                       />
-                      {/* Heart animation on double tap */}
                       <HeartAnimation postId={post._id} />
                     </div>
                   )}
 
-                  {/* Content area - flat */}
-                  <div className="px-1">
+                  {/* Content area */}
+                  <div className="px-2">
                     {/* Row with avatar, name/title, and icons */}
                     <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <Avatar src={post.author?.avatar} name={post.author?.name} size={32} className="flex-shrink-0" />
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <Avatar src={post.author?.avatar} name={post.author?.name} size={40} className="flex-shrink-0" />
                         <div className="min-w-0 flex-1">
-                          <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                          <p className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>
                             {post.author?.name || 'Unknown'}
                           </p>
                           {post.title && (
-                            <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>
+                            <h3 className="font-extrabold font-display text-xl leading-snug mt-0.5" style={{ color: 'var(--text-primary)' }}>
                               {post.title}
                             </h3>
                           )}
                           {post.content && post.content.trim() !== ' ' && post.content !== post.title && (
-                            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                            <p className="text-base mt-1" style={{ color: 'var(--text-secondary)' }}>
                               {post.content}
                             </p>
                           )}
@@ -354,24 +343,24 @@ export default function FeedPage() {
                       </div>
                       
                       {/* Like and comment icons */}
-                      <div className="flex items-center gap-3 flex-shrink-0 ml-2 self-center">
+                      <div className="flex items-center gap-4 flex-shrink-0 ml-3 self-start pt-1">
                         <button 
                           onClick={e => handleLike(e, post._id)} 
-                          className="flex items-center gap-1"
+                          className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
                         >
                           {isLiked
-                            ? <FaHeart size={16} color="#ef4444" />
-                            : <FiHeart size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
-                          <span className="text-xs font-bold" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
+                            ? <FaHeart size={20} color="#ef4444" />
+                            : <FiHeart size={20} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
+                          <span className="text-sm font-semibold" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
                             {post.likes?.length || 0}
                           </span>
                         </button>
                         <button 
                           onClick={e => toggleCommentInput(e, post._id)}
-                          className="flex items-center gap-1"
+                          className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
                         >
-                          <FiMessageCircle size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
-                          <span className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>
+                          <FiMessageCircle size={20} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+                          <span className="text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>
                             {commentCount}
                           </span>
                         </button>
@@ -380,9 +369,9 @@ export default function FeedPage() {
 
                     {/* Tags */}
                     {post.tags?.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {post.tags.slice(0, 3).map(tag => (
-                          <span key={tag} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {post.tags.slice(0, 5).map(tag => (
+                          <span key={tag} className="text-xs font-medium px-3 py-1 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
                             #{tag}
                           </span>
                         ))}
@@ -390,29 +379,33 @@ export default function FeedPage() {
                     )}
 
                     {/* Time stamp */}
-                    <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
-                      {post.createdAt ? new Date(post.createdAt).toLocaleDateString() : 'Just now'}
+                    <p className="text-sm mt-2" style={{ color: 'var(--text-muted)' }}>
+                      {post.createdAt ? new Date(post.createdAt).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      }) : 'Just now'}
                     </p>
 
                     {/* Comment Input */}
                     {isCommenting && (
-                      <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
-                        <form onSubmit={e => handleCommentSubmit(e, post._id)} className="flex items-center gap-2">
-                          <Avatar src={user?.avatar} name={user?.name} size={28} className="flex-shrink-0" />
-                          <div className="flex-1 flex items-center gap-2 bg-[var(--bg-input)] rounded-full border px-3 py-1 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
+                      <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+                        <form onSubmit={e => handleCommentSubmit(e, post._id)} className="flex items-center gap-3">
+                          <Avatar src={user?.avatar} name={user?.name} size={32} className="flex-shrink-0" />
+                          <div className="flex-1 flex items-center gap-3 bg-[var(--bg-input)] rounded-full border px-4 py-1.5 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
                             <input
                               type="text"
                               placeholder="Write a comment..."
                               value={commentText}
                               onChange={e => setCommentText(e.target.value)}
-                              className="flex-1 bg-transparent outline-none text-sm py-1.5"
+                              className="flex-1 bg-transparent outline-none text-base py-2"
                               style={{ color: 'var(--text-primary)' }}
                               autoFocus
                             />
                             <button
                               type="submit"
                               disabled={!commentText.trim() || submittingComment}
-                              className="flex-shrink-0 text-xs font-bold text-amber-500 hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              className="flex-shrink-0 text-sm font-semibold text-amber-500 hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                               {submittingComment ? 'Posting...' : 'Post'}
                             </button>
@@ -420,9 +413,9 @@ export default function FeedPage() {
                           <button
                             type="button"
                             onClick={e => toggleCommentInput(e, post._id)}
-                            className="flex-shrink-0"
+                            className="flex-shrink-0 p-1 hover:bg-[var(--bg-secondary)] rounded-full transition-colors"
                           >
-                            <FiX size={16} style={{ color: 'var(--text-muted)' }} />
+                            <FiX size={20} style={{ color: 'var(--text-muted)' }} />
                           </button>
                         </form>
                       </div>
@@ -435,7 +428,6 @@ export default function FeedPage() {
         )}
       </div>
 
-      {/* Add CSS animation for heart */}
       <style>{`
         @keyframes likeHeart {
           0% {
