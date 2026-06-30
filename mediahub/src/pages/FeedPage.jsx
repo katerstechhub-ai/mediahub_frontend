@@ -28,7 +28,6 @@ export default function FeedPage() {
       else if (Array.isArray(data)) arr = data
       setPosts(arr)
 
-      // fetch real comment counts for each post
       const counts = {}
       await Promise.all(arr.map(async (post) => {
         try {
@@ -140,7 +139,8 @@ export default function FeedPage() {
 
       <div className="max-w-7xl mx-auto p-3">
         {viewMode === 'grid' ? (
-          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5">
+          // ✅ 2 columns on mobile, scales up on larger screens
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
             {posts.map((post) => {
               const imageUrl = getImageUrl(post)
               const isSelected = selectedPost?._id === post._id

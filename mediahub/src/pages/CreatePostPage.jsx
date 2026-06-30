@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FiImage, FiX, FiArrowLeft, FiTag } from 'react-icons/fi'
+import { FiImage, FiX, FiTag } from 'react-icons/fi'
 import { postsAPI } from '../api'
 import toast from 'react-hot-toast'
 
@@ -39,16 +39,9 @@ export default function CreatePostPage() {
 
   const handleFile = (f) => {
     if (!f) return
-    if (!f.type.startsWith('image/')) {
-      toast.error('Images only please')
-      return
-    }
-    if (f.size > 10 * 1024 * 1024) {
-      toast.error('Image too large. Max 10MB')
-      return
-    }
+    if (!f.type.startsWith('image/')) { toast.error('Images only please'); return }
+    if (f.size > 10 * 1024 * 1024) { toast.error('Image too large. Max 10MB'); return }
     setFile(f)
-    // clear content error if image is now provided
     if (errors.content) setErrors(prev => ({ ...prev, content: '' }))
     const reader = new FileReader()
     reader.onloadend = () => setPreview(reader.result)
@@ -67,10 +60,8 @@ export default function CreatePostPage() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleSubmit = async () => {
     if (!validate()) return
-
     setLoading(true)
     try {
       const fd = new FormData()
@@ -78,15 +69,12 @@ export default function CreatePostPage() {
       fd.append('content', content.trim() || ' ')
       if (file) fd.append('image', file)
       if (tags) {
-        const tagArr = tags.split(',').map(t => t.trim()).filter(Boolean)
-        tagArr.forEach(t => fd.append('tags', t))
+        tags.split(',').map(t => t.trim()).filter(Boolean).forEach(t => fd.append('tags', t))
       }
-
       await postsAPI.create(fd)
-      toast.success('Post created successfully!')
+      toast.success('Post created!')
       navigate('/')
     } catch (err) {
-      console.error('Create post error:', err.response?.data)
       toast.error(err.response?.data?.message || 'Failed to create post')
     } finally {
       setLoading(false)
@@ -94,176 +82,122 @@ export default function CreatePostPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg-primary)' }}>
-      <div className="max-w-xl mx-auto px-4">
-        {/* Header */}
-        <div
-          className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b backdrop-blur-lg"
-          style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
-        >
+    <div className="min-h-screen flex items-start justify-center px-4 py-10" style={{ background: 'var(--bg-primary)' }}>
+      <div className="w-full max-w-lg rounded-2xl border p-6 flex flex-col gap-5" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+
+        {/* Heading */}
+        <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Add new post</h2>
+
+        {/* Title field */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Title</label>
+          <input
+            type="text"
+            placeholder="This is the title"
+            value={title}
+            onChange={(e) => { setTitle(e.target.value); if (errors.title) setErrors(p => ({ ...p, title: '' })) }}
+            maxLength={100}
+            className="w-full rounded-xl px-4 py-3 text-sm outline-none border focus:border-amber-500 transition-all"
+            style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: errors.title ? '#ef4444' : 'var(--border)' }}
+          />
+          <div className="flex justify-between">
+            {errors.title ? <p className="text-xs text-red-500">{errors.title}</p> : <span />}
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{title.length}/100</span>
+          </div>
+        </div>
+
+        {/* Content field */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Post</label>
+          <textarea
+            placeholder="Type post here"
+            value={content}
+            onChange={(e) => { setContent(e.target.value); if (errors.content) setErrors(p => ({ ...p, content: '' })) }}
+            rows={5}
+            className="w-full rounded-xl px-4 py-3 text-sm outline-none border focus:border-amber-500 transition-all resize-none"
+            style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: errors.content ? '#ef4444' : 'var(--border)' }}
+          />
+          {errors.content && <p className="text-xs text-red-500">{errors.content}</p>}
+        </div>
+
+        {/* Tags */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+            <FiTag size={13} /> Tags
+            <span className="font-normal text-xs" style={{ color: 'var(--text-muted)' }}>optional · max 10</span>
+          </label>
+          <input
+            type="text"
+            placeholder="travel, nature, food"
+            value={tags}
+            onChange={(e) => { setTags(e.target.value); if (errors.tags) setErrors(p => ({ ...p, tags: '' })) }}
+            className="w-full rounded-xl px-4 py-3 text-sm outline-none border focus:border-amber-500 transition-all"
+            style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: errors.tags ? '#ef4444' : 'var(--border)' }}
+          />
+          {errors.tags && <p className="text-xs text-red-500">{errors.tags}</p>}
+          {tags && (
+            <div className="flex flex-wrap gap-2 mt-1">
+              {tags.split(',').map(t => t.trim()).filter(Boolean).map(tag => (
+                <span key={tag} className="text-xs px-2.5 py-1 rounded-full" style={{ background: 'var(--bg-primary)', color: 'var(--text-muted)' }}>#{tag}</span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Image upload */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+            Image <span className="font-normal text-xs" style={{ color: 'var(--text-muted)' }}>optional</span>
+          </label>
+          {preview ? (
+            <div className="relative rounded-xl overflow-hidden" style={{ aspectRatio: '16/9' }}>
+              <img src={preview} alt="Preview" className="w-full h-full object-cover" />
+              <button
+                onClick={removeImage}
+                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80 transition-colors"
+              >
+                <FiX size={15} color="white" />
+              </button>
+            </div>
+          ) : (
+            <div
+              onClick={() => fileRef.current?.click()}
+              onDrop={handleDrop}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              className="rounded-xl border-2 border-dashed flex items-center justify-center gap-3 cursor-pointer transition-colors py-6"
+              style={{ borderColor: dragOver ? '#f59e0b' : 'var(--border)', background: dragOver ? 'rgba(245,158,11,0.05)' : 'var(--bg-input)' }}
+            >
+              <FiImage size={20} color="#f59e0b" />
+              <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Click or drag to upload · max 10MB</span>
+            </div>
+          )}
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files[0])} />
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center justify-between pt-2">
           <button
             onClick={() => navigate(-1)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-[var(--bg-secondary)] transition-colors"
+            className="px-5 py-2.5 rounded-xl text-sm font-semibold border transition-colors hover:bg-[var(--bg-primary)]"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
           >
-            <FiArrowLeft size={22} style={{ color: 'var(--text-primary)' }} />
+            Cancel
           </button>
-          <span className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>New Post</span>
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="px-5 py-2 text-sm font-semibold bg-amber-500 text-white rounded-xl hover:bg-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-2.5 bg-amber-500 text-white rounded-xl font-semibold text-sm hover:bg-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
               <span className="flex items-center gap-2">
                 <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                Sharing...
+                Publishing...
               </span>
-            ) : 'Share'}
+            ) : 'Publish'}
           </button>
         </div>
 
-        <div className="py-6 flex flex-col gap-5">
-          {/* Image upload */}
-          <div>
-            {preview ? (
-              <div className="relative rounded-2xl overflow-hidden" style={{ aspectRatio: '1/1', background: 'var(--bg-secondary)' }}>
-                <img src={preview} alt="Preview" className="w-full h-full object-cover" />
-                <button
-                  onClick={removeImage}
-                  className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80 transition-colors"
-                >
-                  <FiX size={18} color="white" />
-                </button>
-              </div>
-            ) : (
-              <div
-                onClick={() => fileRef.current?.click()}
-                onDrop={handleDrop}
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-                onDragLeave={() => setDragOver(false)}
-                className="rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-colors py-16 gap-3"
-                style={{
-                  borderColor: dragOver ? '#f59e0b' : 'var(--border)',
-                  background: dragOver ? 'rgba(245,158,11,0.05)' : 'var(--bg-secondary)',
-                }}
-              >
-                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center">
-                  <FiImage size={28} color="#f59e0b" />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Drop a photo here</p>
-                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>or click to browse · max 10MB</p>
-                </div>
-              </div>
-            )}
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => handleFile(e.target.files[0])}
-            />
-          </div>
-
-          {/* Title */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-              Title <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              placeholder="Give your post a title"
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value)
-                if (errors.title) setErrors(prev => ({ ...prev, title: '' }))
-              }}
-              maxLength={100}
-              className="w-full rounded-xl px-4 py-3 text-sm outline-none border focus:border-amber-500 transition-all"
-              style={{
-                background: 'var(--bg-input)',
-                color: 'var(--text-primary)',
-                borderColor: errors.title ? '#ef4444' : 'var(--border)',
-              }}
-            />
-            <div className="flex justify-between items-center">
-              {errors.title
-                ? <p className="text-xs text-red-500">{errors.title}</p>
-                : <span />}
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{title.length}/100</span>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-              Content
-            </label>
-            <textarea
-              placeholder="What's on your mind?"
-              value={content}
-              onChange={(e) => {
-                setContent(e.target.value)
-                if (errors.content) setErrors(prev => ({ ...prev, content: '' }))
-              }}
-              rows={4}
-              className="w-full rounded-xl px-4 py-3 text-sm outline-none border focus:border-amber-500 transition-all resize-none"
-              style={{
-                background: 'var(--bg-input)',
-                color: 'var(--text-primary)',
-                borderColor: errors.content ? '#ef4444' : 'var(--border)',
-              }}
-            />
-            {errors.content && <p className="text-xs text-red-500">{errors.content}</p>}
-          </div>
-
-          {/* Tags */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-              <FiTag size={14} /> Tags
-              <span className="font-normal text-xs" style={{ color: 'var(--text-muted)' }}>optional · max 10</span>
-            </label>
-            <input
-              type="text"
-              placeholder="travel, nature, food (comma separated)"
-              value={tags}
-              onChange={(e) => {
-                setTags(e.target.value)
-                if (errors.tags) setErrors(prev => ({ ...prev, tags: '' }))
-              }}
-              className="w-full rounded-xl px-4 py-3 text-sm outline-none border focus:border-amber-500 transition-all"
-              style={{
-                background: 'var(--bg-input)',
-                color: 'var(--text-primary)',
-                borderColor: errors.tags ? '#ef4444' : 'var(--border)',
-              }}
-            />
-            {errors.tags && <p className="text-xs text-red-500">{errors.tags}</p>}
-            {tags && (
-              <div className="flex flex-wrap gap-2 mt-1">
-                {tags.split(',').map(t => t.trim()).filter(Boolean).map(tag => (
-                  <span key={tag} className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Submit */}
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="w-full py-3.5 bg-amber-500 text-white rounded-xl font-semibold text-base hover:bg-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
-                Creating...
-              </span>
-            ) : 'Share Post'}
-          </button>
-        </div>
       </div>
     </div>
   )
