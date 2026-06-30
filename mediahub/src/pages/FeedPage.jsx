@@ -229,6 +229,7 @@ export default function FeedPage() {
             })}
           </div>
         ) : (
+          // List View - Flat design, no cards
           <div className="max-w-xl mx-auto space-y-6">
             {posts.map((post) => {
               const imageUrl = getImageUrl(post)
@@ -239,41 +240,27 @@ export default function FeedPage() {
               return (
                 <div
                   key={post._id}
-                  className="rounded-3xl overflow-hidden border-2 shadow-sm hover:shadow-md transition-shadow"
-                  style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
+                  className="border-b pb-4"
+                  style={{ borderColor: 'var(--border)' }}
                 >
-                  {/* Image */}
-                  <div className="relative" style={{ background: 'var(--bg-secondary)' }}>
-                    {imageUrl ? (
+                  {/* Image - flat, no rounding */}
+                  {imageUrl && (
+                    <div className="w-full mb-3" style={{ background: 'var(--bg-secondary)' }}>
                       <img
                         src={imageUrl}
                         alt={post.title || 'Post'}
                         className="w-full h-auto"
-                        style={{ maxHeight: 360, objectFit: 'cover' }}
+                        style={{ maxHeight: 400, objectFit: 'cover' }}
                         loading="lazy"
                         onError={e => e.target.style.display = 'none'}
                       />
-                    ) : (
-                      <div className="w-full h-40 flex items-center justify-center">
-                        <FiImage size={28} style={{ color: 'var(--text-muted)' }} />
-                      </div>
-                    )}
+                    </div>
+                  )}
 
-                    <button
-                      onClick={e => handleLike(e, post._id)}
-                      className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md transition-transform active:scale-90"
-                      style={{ background: 'rgba(0,0,0,0.55)' }}
-                    >
-                      {isLiked
-                        ? <FaHeart size={16} color="#ef4444" />
-                        : <FiHeart size={16} strokeWidth={2.5} color="white" />}
-                    </button>
-                  </div>
-
-                  {/* Content area */}
-                  <div className="px-4 py-3">
-                    {/* Row with avatar and like/comment icons */}
-                    <div className="flex items-center justify-between">
+                  {/* Content area - flat */}
+                  <div className="px-1">
+                    {/* Row with avatar, name/title, and icons */}
+                    <div className="flex items-start justify-between">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <Avatar src={post.author?.avatar} name={post.author?.name} size={32} className="flex-shrink-0" />
                         <div className="min-w-0 flex-1">
@@ -318,6 +305,7 @@ export default function FeedPage() {
                       </div>
                     </div>
 
+                    {/* Tags */}
                     {post.tags?.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {post.tags.slice(0, 3).map(tag => (
@@ -328,7 +316,12 @@ export default function FeedPage() {
                       </div>
                     )}
 
-                    {/* Comment Input - Compact */}
+                    {/* Time stamp */}
+                    <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                      {post.createdAt ? new Date(post.createdAt).toLocaleDateString() : 'Just now'}
+                    </p>
+
+                    {/* Comment Input */}
                     {isCommenting && (
                       <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
                         <form onSubmit={e => handleCommentSubmit(e, post._id)} className="flex items-center gap-2">

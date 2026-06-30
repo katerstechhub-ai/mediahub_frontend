@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { FiArrowLeft, FiHeart, FiMessageCircle, FiTrash2, FiMoreHorizontal, FiX } from 'react-icons/fi'
+import { FiArrowLeft, FiHeart, FiMessageCircle, FiTrash2, FiMoreHorizontal } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import { postsAPI, commentsAPI } from '../api'
 import { useAuthStore } from '../store'
@@ -184,85 +184,82 @@ export default function PostDetailPage() {
           </div>
         </div>
 
-        {/* Post Card */}
-        <div className="m-3 rounded-3xl overflow-hidden border-2 shadow-sm" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
-          {/* Image */}
-          {mediaUrl && (
-            <div className="relative" style={{ background: 'var(--bg-secondary)' }}>
-              <img
-                src={mediaUrl}
-                alt={post.title || 'Post image'}
-                className="w-full h-auto"
-                style={{ maxHeight: 500, objectFit: 'cover' }}
-                onError={e => e.target.style.display = 'none'}
-              />
+        {/* Image - No card wrapper */}
+        {mediaUrl && (
+          <div className="w-full" style={{ background: 'var(--bg-secondary)' }}>
+            <img
+              src={mediaUrl}
+              alt={post.title || 'Post image'}
+              className="w-full h-auto"
+              style={{ maxHeight: 500, objectFit: 'cover' }}
+              onError={e => e.target.style.display = 'none'}
+            />
+          </div>
+        )}
+
+        {/* Content - No card wrapper, just flat */}
+        <div className="px-4 py-3">
+          {/* Row with avatar, name/title, and icons */}
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <Avatar src={post.author?.avatar} name={post.author?.name} size={32} className="flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                  {post.author?.name || 'Unknown'}
+                </p>
+                {post.title && (
+                  <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>
+                    {post.title}
+                  </h3>
+                )}
+                {post.content && post.content.trim() && post.content.trim() !== ' ' && post.content !== post.title && (
+                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    {post.content}
+                  </p>
+                )}
+              </div>
+            </div>
+            
+            {/* Like and comment icons beside the heading */}
+            <div className="flex items-center gap-3 flex-shrink-0 ml-2 self-center">
+              <button 
+                onClick={handleLike} 
+                className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+              >
+                {liked
+                  ? <FaHeart size={16} color="#ef4444" />
+                  : <FiHeart size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
+                <span className="text-xs font-bold" style={{ color: liked ? '#ef4444' : 'var(--text-muted)' }}>
+                  {likeCount}
+                </span>
+              </button>
+              <button 
+                onClick={focusCommentInput}
+                className="flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer"
+              >
+                <FiMessageCircle size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+                <span className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>
+                  {comments.length}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Tags */}
+          {post.tags?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {post.tags.map(tag => (
+                <span key={tag} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+                  #{tag}
+                </span>
+              ))}
             </div>
           )}
 
-          {/* Content area */}
-          <div className="px-4 py-3">
-            {/* Row with avatar, name/title, and icons */}
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <Avatar src={post.author?.avatar} name={post.author?.name} size={32} className="flex-shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-                    {post.author?.name || 'Unknown'}
-                  </p>
-                  {post.title && (
-                    <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>
-                      {post.title}
-                    </h3>
-                  )}
-                  {post.content && post.content.trim() && post.content.trim() !== ' ' && post.content !== post.title && (
-                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      {post.content}
-                    </p>
-                  )}
-                </div>
-              </div>
-              
-              {/* Like and comment icons beside the heading */}
-              <div className="flex items-center gap-3 flex-shrink-0 ml-2 self-center">
-                <button 
-                  onClick={handleLike} 
-                  className="flex items-center gap-1 hover:opacity-80 transition-opacity"
-                >
-                  {liked
-                    ? <FaHeart size={16} color="#ef4444" />
-                    : <FiHeart size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
-                  <span className="text-xs font-bold" style={{ color: liked ? '#ef4444' : 'var(--text-muted)' }}>
-                    {likeCount}
-                  </span>
-                </button>
-                <button 
-                  onClick={focusCommentInput}
-                  className="flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer"
-                >
-                  <FiMessageCircle size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
-                  <span className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>
-                    {comments.length}
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* Tags */}
-            {post.tags?.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {post.tags.map(tag => (
-                  <span key={tag} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Time stamp */}
-            <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
-              {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
-            </p>
-          </div>
+          {/* Time stamp */}
+          <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
+            {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
+          </p>
         </div>
 
         {/* Comments section */}
@@ -294,20 +291,21 @@ export default function PostDetailPage() {
                           <div className="relative flex-shrink-0">
                             <button
                               onClick={() => setShowCommentMenu(showCommentMenu === c._id ? null : c._id)}
-                              className="p-1 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
+                              className="p-1.5 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
+                              style={{ color: 'var(--text-muted)' }}
                             >
-                              <FiMoreHorizontal size={12} style={{ color: 'var(--text-muted)' }} />
+                              <FiMoreHorizontal size={18} strokeWidth={2.5} />
                             </button>
                             {showCommentMenu === c._id && (
                               <div
-                                className="absolute right-0 top-6 rounded-lg shadow-lg border py-1 w-28 z-30"
+                                className="absolute right-0 top-7 rounded-lg shadow-lg border py-1 w-32 z-30"
                                 style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
                               >
                                 <button
                                   onClick={() => handleDeleteComment(c._id)}
-                                  className="w-full text-left px-3 py-1.5 text-xs text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-1.5"
+                                  className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2"
                                 >
-                                  <FiTrash2 size={12} /> Delete
+                                  <FiTrash2 size={14} /> Delete Comment
                                 </button>
                               </div>
                             )}
@@ -329,7 +327,7 @@ export default function PostDetailPage() {
           <div ref={commentsEndRef} />
         </div>
 
-        {/* Comment input - Compact and visible */}
+        {/* Comment input - Clean and visible like feed page */}
         <div
           className="fixed bottom-0 left-0 right-0 border-t px-4 py-2.5 z-10"
           style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
