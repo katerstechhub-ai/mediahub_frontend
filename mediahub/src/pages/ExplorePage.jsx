@@ -54,12 +54,12 @@ export default function ExplorePage() {
 
   return (
     <div className="min-h-screen fade-in" style={{ background: 'var(--bg-primary)' }}>
-      <div className="max-w-7xl mx-auto px-4 py-4">
+      <div className="max-w-7xl mx-auto px-4 pt-16 pb-4">
         {/* Search bar */}
-        <div className="relative max-w-2xl mx-auto mb-6">
+        <div className="relative max-w-2xl mx-auto mb-10">
           <FiSearch 
-            size={20} 
-            className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" 
+            size={22} 
+            className="absolute left-5 top-1/2 -translate-y-1/2 pointer-events-none" 
             style={{ color: 'var(--text-muted)', zIndex: 10 }}
           />
           <input
@@ -68,25 +68,27 @@ export default function ExplorePage() {
             placeholder="Search posts, tags, people…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full rounded-full py-3 pl-12 pr-12 text-sm outline-none border-2 focus:border-amber-500 transition-all"
+            className="w-full rounded-full py-5 text-base outline-none border-2 focus:border-amber-500 transition-all"
             style={{ 
               background: 'var(--bg-input)', 
               color: 'var(--text-primary)', 
               borderColor: 'var(--border)',
-              paddingLeft: '48px',
-              paddingRight: '48px'
+              paddingLeft: '56px',
+              paddingRight: '56px'
             }}
           />
           {query && (
             <button 
               onClick={() => setQuery('')} 
-              className="absolute right-4 top-1/2 -translate-y-1/2 hover:scale-110 transition-transform"
+              className="absolute right-5 top-1/2 -translate-y-1/2 hover:scale-110 transition-transform"
               style={{ color: 'var(--text-muted)' }}
             >
-              <FiX size={18} />
+              <FiX size={20} />
             </button>
           )}
         </div>
+
+        <div className="h-10" />
 
         {filtered.length === 0 ? (
           <EmptyState 

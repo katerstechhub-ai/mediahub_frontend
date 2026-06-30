@@ -96,7 +96,7 @@ export default function FeedPage() {
     <div className="min-h-screen pb-20" style={{ background: 'var(--bg-primary)' }}>
       {/* Header */}
       <div
-        className="sticky top-0 z-10 border-b backdrop-blur-lg px-4 py-3"
+        className="sticky top-0 z-10 border-b backdrop-blur-lg px-4 py-5"
         style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -137,7 +137,8 @@ export default function FeedPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-3">
+      <div className="max-w-7xl mx-auto px-3 pb-3">
+        <div className="h-10" />
         {viewMode === 'grid' ? (
           // ✅ 2 columns on mobile, scales up on larger screens
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">

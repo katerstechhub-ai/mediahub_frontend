@@ -115,7 +115,8 @@ export default function ProfilePage() {
         </div>
 
         {/* Profile info */}
-        <div className="px-4 py-6 flex flex-col items-center gap-3 text-center border-b" style={{ borderColor: 'var(--border)' }}>
+        <div className="h-10" />
+        <div className="px-4 pb-6 flex flex-col items-center gap-3 text-center border-b" style={{ borderColor: 'var(--border)' }}>
           <div className="relative">
             <Avatar src={user?.avatar} name={user?.name} size={80} ring />
             <label

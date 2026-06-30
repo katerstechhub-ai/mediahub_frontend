@@ -82,8 +82,9 @@ export default function CreatePostPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-start justify-center px-4 py-10" style={{ background: 'var(--bg-primary)' }}>
-      <div className="w-full max-w-lg rounded-2xl border p-6 flex flex-col gap-5" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+    <div className="min-h-screen flex flex-col items-center px-4 pb-16" style={{ background: 'var(--bg-primary)' }}>
+      <div className="h-14 w-full" />
+      <div className="w-full max-w-lg rounded-2xl border p-8 flex flex-col gap-7" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
 
         {/* Heading */}
         <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Add new post</h2>
@@ -97,7 +98,7 @@ export default function CreatePostPage() {
             value={title}
             onChange={(e) => { setTitle(e.target.value); if (errors.title) setErrors(p => ({ ...p, title: '' })) }}
             maxLength={100}
-            className="w-full rounded-xl px-4 py-3 text-sm outline-none border focus:border-amber-500 transition-all"
+            className="w-full rounded-xl px-4 py-3.5 text-sm outline-none border focus:border-amber-500 transition-all"
             style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: errors.title ? '#ef4444' : 'var(--border)' }}
           />
           <div className="flex justify-between">
@@ -114,7 +115,7 @@ export default function CreatePostPage() {
             value={content}
             onChange={(e) => { setContent(e.target.value); if (errors.content) setErrors(p => ({ ...p, content: '' })) }}
             rows={5}
-            className="w-full rounded-xl px-4 py-3 text-sm outline-none border focus:border-amber-500 transition-all resize-none"
+            className="w-full rounded-xl px-4 py-3.5 text-sm outline-none border focus:border-amber-500 transition-all resize-none"
             style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: errors.content ? '#ef4444' : 'var(--border)' }}
           />
           {errors.content && <p className="text-xs text-red-500">{errors.content}</p>}
@@ -131,7 +132,7 @@ export default function CreatePostPage() {
             placeholder="travel, nature, food"
             value={tags}
             onChange={(e) => { setTags(e.target.value); if (errors.tags) setErrors(p => ({ ...p, tags: '' })) }}
-            className="w-full rounded-xl px-4 py-3 text-sm outline-none border focus:border-amber-500 transition-all"
+            className="w-full rounded-xl px-4 py-3.5 text-sm outline-none border focus:border-amber-500 transition-all"
             style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: errors.tags ? '#ef4444' : 'var(--border)' }}
           />
           {errors.tags && <p className="text-xs text-red-500">{errors.tags}</p>}

@@ -47,109 +47,176 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--bg-primary)' }}>
-      <div className="w-full max-w-md mx-auto fade-in">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-2" style={{ fontFamily: 'Playfair Display, serif', color: '#f59e0b' }}>
-            MediaHub
-          </h1>
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Create your account to get started</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {/* Name */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Full Name</label>
-            <input
-              type="text"
-              placeholder="John Doe"
-              value={form.name}
-              onChange={(e) => {
-                setForm({ ...form, name: e.target.value })
-                if (errors.name) setErrors({ ...errors, name: '' })
-              }}
-              className="w-full rounded-xl px-4 py-3 text-sm outline-none border focus:border-amber-500 transition-all"
-              style={{
-                background: 'var(--bg-input)',
-                color: 'var(--text-primary)',
-                borderColor: errors.name ? '#ef4444' : 'var(--border)',
-              }}
-            />
-            {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
-          </div>
-
-          {/* Email */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Email</label>
-            <input
-              type="email"
-              placeholder="you@example.com"
-              value={form.email}
-              onChange={(e) => {
-                setForm({ ...form, email: e.target.value })
-                if (errors.email) setErrors({ ...errors, email: '' })
-              }}
-              className="w-full rounded-xl px-4 py-3 text-sm outline-none border focus:border-amber-500 transition-all"
-              style={{
-                background: 'var(--bg-input)',
-                color: 'var(--text-primary)',
-                borderColor: errors.email ? '#ef4444' : 'var(--border)',
-              }}
-            />
-            {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
-          </div>
-
-          {/* Password */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Password</label>
-            <div className="relative">
-              <input
-                type={showPw ? 'text' : 'password'}
-                placeholder="Min. 6 characters"
-                value={form.password}
-                onChange={(e) => {
-                  setForm({ ...form, password: e.target.value })
-                  if (errors.password) setErrors({ ...errors, password: '' })
-                }}
-                className="w-full rounded-xl px-4 pr-10 py-3 text-sm outline-none border focus:border-amber-500 transition-all"
+    <div
+      className="min-h-screen flex items-center justify-center p-4 sm:p-8"
+      style={{ background: '#3a1d0e' }}
+    >
+      <div
+        className="w-full max-w-4xl rounded-[2rem] shadow-2xl p-3 flex flex-col md:flex-row gap-3 fade-in"
+        style={{ background: '#ffffff' }}
+      >
+        {/* Inset dark visual panel */}
+        <div className="relative w-full md:w-[42%] h-56 md:h-auto rounded-[1.5rem] overflow-hidden shrink-0 bg-black">
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                'radial-gradient(ellipse at 70% 90%, #f97316 0%, #ea580c 18%, rgba(234,88,18,0.4) 38%, transparent 60%), radial-gradient(ellipse at 45% 100%, #fb923c 0%, transparent 45%), #0a0a0a',
+            }}
+          />
+          <div className="absolute bottom-0 left-0 right-0 h-3/5 flex items-end gap-1 px-8">
+            {[40, 70, 95, 60, 85].map((h, i) => (
+              <div
+                key={i}
+                className="flex-1 rounded-t-full"
                 style={{
-                  background: 'var(--bg-input)',
-                  color: 'var(--text-primary)',
-                  borderColor: errors.password ? '#ef4444' : 'var(--border)',
+                  height: `${h}%`,
+                  background: 'linear-gradient(180deg, transparent 0%, #fb923c 55%, #fed7aa 100%)',
+                  filter: 'blur(2px)',
+                  opacity: 0.85,
                 }}
               />
-              <button
-                type="button"
-                onClick={() => setShowPw(!showPw)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 hover:opacity-70 transition-opacity"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                {showPw ? <FiEyeOff size={16} /> : <FiEye size={16} />}
-              </button>
-            </div>
-            {errors.password && <p className="text-xs text-red-500">{errors.password}</p>}
+            ))}
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-amber-500 text-white rounded-xl font-semibold text-sm hover:bg-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                Creating account...
-              </span>
-            ) : 'Create Account'}
-          </button>
-        </form>
+          <div className="relative z-10 p-7 md:p-8">
+            <h2 className="text-2xl md:text-3xl font-bold leading-snug text-white">
+              Join the<br />community.
+            </h2>
+          </div>
+        </div>
 
-        <p className="text-center text-sm mt-6" style={{ color: 'var(--text-muted)' }}>
-          Already have an account?{' '}
-          <Link to="/login" className="text-amber-500 font-semibold hover:text-amber-400 transition-colors">
-            Sign in
-          </Link>
-        </p>
+        {/* Form panel */}
+        <div className="w-full md:w-[58%] flex items-center justify-center px-4 py-6 md:p-10">
+          <div className="w-full max-w-sm">
+            {/* Logo mark */}
+            <div className="flex items-center gap-2 mb-5">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 2 L13.5 9.5 L21 11 L13.5 12.5 L12 20 L10.5 12.5 L3 11 L10.5 9.5 Z"
+                  fill="#f59e0b"
+                />
+              </svg>
+              <span className="text-sm font-semibold tracking-wide" style={{ color: '#111' }}>
+                MediaHub
+              </span>
+            </div>
+
+            <h1 className="text-3xl font-bold mb-1.5" style={{ color: '#111' }}>
+              Get started
+            </h1>
+            <p className="text-sm mb-6" style={{ color: '#8a8a8a' }}>
+              Create your account — it only takes a minute
+            </p>
+
+            <div className="border-t mb-6" style={{ borderColor: '#ececec' }} />
+
+            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+              {/* Name */}
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium" style={{ color: '#6b6b6b' }}>
+                  Full name
+                </label>
+                <input
+                  type="text"
+                  placeholder="John Doe"
+                  value={form.name}
+                  onChange={(e) => {
+                    setForm({ ...form, name: e.target.value })
+                    if (errors.name) setErrors({ ...errors, name: '' })
+                  }}
+                  className="w-full rounded-xl text-base outline-none border transition-all focus:border-amber-500"
+                  style={{
+                    padding: '16px 18px',
+                    background: '#fff',
+                    color: '#111',
+                    borderColor: errors.name ? '#ef4444' : '#e3e3e3',
+                  }}
+                />
+                {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
+              </div>
+
+              {/* Email */}
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium" style={{ color: '#6b6b6b' }}>
+                  Your email
+                </label>
+                <input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={form.email}
+                  onChange={(e) => {
+                    setForm({ ...form, email: e.target.value })
+                    if (errors.email) setErrors({ ...errors, email: '' })
+                  }}
+                  className="w-full rounded-xl text-base outline-none border transition-all focus:border-amber-500"
+                  style={{
+                    padding: '16px 18px',
+                    background: '#fff',
+                    color: '#111',
+                    borderColor: errors.email ? '#ef4444' : '#e3e3e3',
+                  }}
+                />
+                {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
+              </div>
+
+              {/* Password */}
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium" style={{ color: '#6b6b6b' }}>
+                  Create new password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPw ? 'text' : 'password'}
+                    placeholder="Min. 6 characters"
+                    value={form.password}
+                    onChange={(e) => {
+                      setForm({ ...form, password: e.target.value })
+                      if (errors.password) setErrors({ ...errors, password: '' })
+                    }}
+                    className="w-full rounded-xl text-base outline-none border transition-all focus:border-amber-500"
+                    style={{
+                      padding: '16px 46px 16px 18px',
+                      background: '#fff',
+                      color: '#111',
+                      borderColor: errors.password ? '#ef4444' : '#e3e3e3',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw(!showPw)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 hover:opacity-70 transition-opacity"
+                    style={{ color: '#9a9a9a' }}
+                  >
+                    {showPw ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                  </button>
+                </div>
+                {errors.password && <p className="text-xs text-red-500">{errors.password}</p>}
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full rounded-xl font-semibold text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+                style={{ padding: '16px', background: '#f59e0b', color: '#fff' }}
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                    Creating account...
+                  </span>
+                ) : 'Create new account'}
+              </button>
+            </form>
+
+            <p className="text-center text-sm mt-6" style={{ color: '#8a8a8a' }}>
+              Already have an account?{' '}
+              <Link to="/login" className="font-semibold underline" style={{ color: '#111' }}>
+                Login
+              </Link>
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )
