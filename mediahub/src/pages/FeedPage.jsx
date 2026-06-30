@@ -70,7 +70,6 @@ export default function FeedPage() {
       toast.success('Comment added!')
       setCommentText('')
       setCommentingPostId(null)
-      // Refresh comments count
       await fetchPosts()
     } catch (error) {
       toast.error('Failed to post comment')
@@ -142,7 +141,6 @@ export default function FeedPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Grid/List toggle */}
             <div className="flex items-center rounded-full p-1 flex-shrink-0 shadow-sm" style={{ background: 'var(--bg-secondary)' }}>
               <button
                 onClick={() => setViewMode('grid')}
@@ -188,7 +186,6 @@ export default function FeedPage() {
             {posts.map((post) => {
               const imageUrl = getImageUrl(post)
               const isSelected = selectedPost?._id === post._id
-              const isCommenting = commentingPostId === post._id
               return (
                 <div
                   key={post._id}
@@ -231,7 +228,7 @@ export default function FeedPage() {
                           <span className="text-[11px] font-bold">{post.likes?.length || 0}</span>
                         </button>
                         <button
-                          onClick={e => toggleCommentInput(e, post._id)}
+                          onClick={e => { e.stopPropagation(); navigate(`/posts/${post._id}`) }}
                           className="flex items-center gap-1 text-white"
                         >
                           <FiMessageCircle size={14} strokeWidth={2.5} />
@@ -348,36 +345,36 @@ export default function FeedPage() {
                       </div>
                     )}
 
-                    {/* Comment Input - appears when comment icon is clicked */}
+                    {/* Comment Input - Clean and visible */}
                     {isCommenting && (
                       <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-                        <form onSubmit={e => handleCommentSubmit(e, post._id)} className="flex gap-2 items-center">
+                        <form onSubmit={e => handleCommentSubmit(e, post._id)} className="flex items-center gap-2">
                           <Avatar src={user?.avatar} name={user?.name} size={32} className="flex-shrink-0" />
-                          <div className="flex-1 relative">
+                          <div className="flex-1 flex items-center gap-2 bg-[var(--bg-input)] rounded-full border px-4 py-1 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
                             <input
                               type="text"
-                              placeholder={`Comment as ${user?.name || 'Anonymous'}...`}
+                              placeholder="Write a comment..."
                               value={commentText}
                               onChange={e => setCommentText(e.target.value)}
-                              className="w-full rounded-full px-4 py-2 pr-12 text-sm outline-none border focus:border-amber-500 transition-all"
-                              style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: 'var(--border)' }}
+                              className="flex-1 bg-transparent outline-none text-sm py-2"
+                              style={{ color: 'var(--text-primary)' }}
                               autoFocus
                             />
                             <button
                               type="submit"
                               disabled={!commentText.trim() || submittingComment}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 disabled:opacity-30 transition-opacity"
+                              className="flex-shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-full transition-colors"
                             >
-                              <FiSend size={16} color="#f59e0b" />
+                              {submittingComment ? 'Posting...' : 'Post'}
                             </button>
                           </div>
                           <button
                             type="button"
                             onClick={e => toggleCommentInput(e, post._id)}
-                            className="text-xs font-semibold hover:opacity-70"
+                            className="flex-shrink-0 text-sm font-semibold hover:opacity-70 px-2"
                             style={{ color: 'var(--text-muted)' }}
                           >
-                            Cancel
+                            <FiX size={18} />
                           </button>
                         </form>
                       </div>

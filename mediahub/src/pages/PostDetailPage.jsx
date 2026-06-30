@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { FiArrowLeft, FiHeart, FiMessageCircle, FiSend, FiTrash2, FiMoreHorizontal } from 'react-icons/fi'
+import { FiArrowLeft, FiHeart, FiMessageCircle, FiSend, FiTrash2, FiMoreHorizontal, FiX } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import { postsAPI, commentsAPI } from '../api'
 import { useAuthStore } from '../store'
@@ -82,7 +82,6 @@ export default function PostDetailPage() {
       await commentsAPI.create(id, comment.trim())
       setComment('')
       await fetchComments()
-      // Focus back on input after comment
       setTimeout(() => commentInputRef.current?.focus(), 100)
     } catch (error) {
       toast.error('Failed to post comment')
@@ -289,30 +288,30 @@ export default function PostDetailPage() {
           <div ref={commentsEndRef} />
         </div>
 
-        {/* Comment input - fixed at bottom, always visible */}
+        {/* Comment input - fixed at bottom, clean and visible */}
         <div
           className="fixed bottom-0 left-0 right-0 border-t px-4 py-3 z-10"
           style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
         >
           <div className="max-w-2xl mx-auto">
-            <form onSubmit={handleComment} className="flex gap-3 items-center">
+            <form onSubmit={handleComment} className="flex items-center gap-3">
               <Avatar src={user?.avatar} name={user?.name} size={36} className="flex-shrink-0" />
-              <div className="flex-1 relative">
+              <div className="flex-1 flex items-center gap-2 bg-[var(--bg-input)] rounded-full border px-4 py-1 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
                 <input
                   ref={commentInputRef}
                   type="text"
-                  placeholder="Write a comment…"
+                  placeholder="Write a comment..."
                   value={comment}
                   onChange={e => setComment(e.target.value)}
-                  className="w-full rounded-full px-5 py-2.5 pr-12 text-sm outline-none border focus:border-amber-500 transition-all"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: 'var(--border)' }}
+                  className="flex-1 bg-transparent outline-none text-sm py-2"
+                  style={{ color: 'var(--text-primary)' }}
                 />
                 <button
                   type="submit"
                   disabled={!comment.trim() || submitting}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 disabled:opacity-30 transition-opacity"
+                  className="flex-shrink-0 px-4 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-full transition-colors"
                 >
-                  <FiSend size={18} color="#f59e0b" />
+                  {submitting ? 'Posting...' : 'Post'}
                 </button>
               </div>
             </form>
