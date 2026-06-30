@@ -257,8 +257,8 @@ export default function FeedPage() {
 
                   {/* Content area */}
                   <div className="px-4 py-4">
-                    {/* Row with avatar and like/comment icons */}
-                    <div className="flex items-start justify-between">
+                    {/* Row with avatar and like/comment icons - centered vertically */}
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <Avatar src={post.author?.avatar} name={post.author?.name} size={40} className="flex-shrink-0" />
                         <div className="min-w-0 flex-1">
@@ -278,8 +278,8 @@ export default function FeedPage() {
                         </div>
                       </div>
                       
-                      {/* Like and comment icons beside the heading */}
-                      <div className="flex items-center gap-4 flex-shrink-0 ml-2 pt-0.5">
+                      {/* Like and comment icons - centered vertically with the heading */}
+                      <div className="flex items-center gap-4 flex-shrink-0 ml-2 self-center">
                         <button 
                           onClick={e => handleLike(e, post._id)} 
                           className="flex items-center gap-1.5"
