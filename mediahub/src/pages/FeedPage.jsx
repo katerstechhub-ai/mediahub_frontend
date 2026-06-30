@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList, FiX } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
@@ -15,6 +15,8 @@ export default function FeedPage() {
   const [commentingPostId, setCommentingPostId] = useState(null)
   const [commentText, setCommentText] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
+  const [showHeartAnimation, setShowHeartAnimation] = useState(null)
+  const lastTapRef = useRef({})
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
@@ -50,12 +52,57 @@ export default function FeedPage() {
   }
 
   const handleLike = async (e, postId) => {
-    e.stopPropagation()
+    e?.stopPropagation()
     try {
       await postsAPI.like(postId)
       fetchPosts()
     } catch (err) {
       console.error('Like failed:', err)
+    }
+  }
+
+  // Double tap handler for grid view
+  const handleDoubleTapGrid = (e, postId) => {
+    e.stopPropagation()
+    
+    const now = Date.now()
+    const lastTap = lastTapRef.current[postId] || 0
+    
+    if (now - lastTap < 300) {
+      // Double tap detected!
+      handleLike(e, postId)
+      // Show heart animation
+      setShowHeartAnimation(postId)
+      setTimeout(() => setShowHeartAnimation(null), 800)
+      lastTapRef.current[postId] = 0
+    } else {
+      lastTapRef.current[postId] = now
+      // Single tap - navigate to post detail after a small delay
+      setTimeout(() => {
+        // Only navigate if it wasn't a double tap
+        if (lastTapRef.current[postId] === now) {
+          navigate(`/posts/${postId}`)
+        }
+      }, 300)
+    }
+  }
+
+  // Double tap handler for list view image
+  const handleDoubleTapList = (e, postId) => {
+    e.stopPropagation()
+    
+    const now = Date.now()
+    const lastTap = lastTapRef.current[postId] || 0
+    
+    if (now - lastTap < 300) {
+      // Double tap detected!
+      handleLike(e, postId)
+      // Show heart animation
+      setShowHeartAnimation(postId)
+      setTimeout(() => setShowHeartAnimation(null), 800)
+      lastTapRef.current[postId] = 0
+    } else {
+      lastTapRef.current[postId] = now
     }
   }
 
@@ -96,6 +143,24 @@ export default function FeedPage() {
     if (post.imageUrl) return post.imageUrl
     if (post.thumbnail) return post.thumbnail
     return null
+  }
+
+  // Heart animation component
+  const HeartAnimation = ({ postId }) => {
+    if (showHeartAnimation !== postId) return null
+    
+    return (
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+        <FaHeart 
+          size={80} 
+          color="#ef4444"
+          className="animate-like-heart"
+          style={{
+            animation: 'likeHeart 0.8s ease-out forwards'
+          }}
+        />
+      </div>
+    )
   }
 
   if (loading) {
@@ -190,7 +255,7 @@ export default function FeedPage() {
               return (
                 <div
                   key={post._id}
-                  onClick={() => navigate(`/posts/${post._id}`)}
+                  onClick={(e) => handleDoubleTapGrid(e, post._id)}
                   className="relative group cursor-pointer rounded-2xl overflow-hidden aspect-square shadow-sm hover:shadow-lg transition-shadow"
                   style={{ background: 'var(--bg-secondary)' }}
                 >
@@ -207,6 +272,9 @@ export default function FeedPage() {
                       <FiImage size={26} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
                     </div>
                   )}
+
+                  {/* Heart animation on double tap */}
+                  <HeartAnimation postId={post._id} />
 
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
                   
@@ -229,7 +297,6 @@ export default function FeedPage() {
             })}
           </div>
         ) : (
-          // List View - Flat design, no cards
           <div className="max-w-xl mx-auto space-y-6">
             {posts.map((post) => {
               const imageUrl = getImageUrl(post)
@@ -243,9 +310,13 @@ export default function FeedPage() {
                   className="border-b pb-4"
                   style={{ borderColor: 'var(--border)' }}
                 >
-                  {/* Image - flat, no rounding */}
+                  {/* Image - with double tap */}
                   {imageUrl && (
-                    <div className="w-full mb-3" style={{ background: 'var(--bg-secondary)' }}>
+                    <div 
+                      className="w-full mb-3 relative cursor-pointer"
+                      style={{ background: 'var(--bg-secondary)' }}
+                      onClick={(e) => handleDoubleTapList(e, post._id)}
+                    >
                       <img
                         src={imageUrl}
                         alt={post.title || 'Post'}
@@ -254,6 +325,8 @@ export default function FeedPage() {
                         loading="lazy"
                         onError={e => e.target.style.display = 'none'}
                       />
+                      {/* Heart animation on double tap */}
+                      <HeartAnimation postId={post._id} />
                     </div>
                   )}
 
@@ -361,6 +434,27 @@ export default function FeedPage() {
           </div>
         )}
       </div>
+
+      {/* Add CSS animation for heart */}
+      <style>{`
+        @keyframes likeHeart {
+          0% {
+            transform: scale(0.5);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.5);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(2);
+            opacity: 0;
+          }
+        }
+        .animate-like-heart {
+          animation: likeHeart 0.8s ease-out forwards;
+        }
+      `}</style>
     </div>
   )
 }
