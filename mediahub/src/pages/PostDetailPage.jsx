@@ -23,6 +23,8 @@ export default function PostDetailPage() {
   const [submitting, setSubmitting] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [showCommentMenu, setShowCommentMenu] = useState(null)
+  const [showHeartAnimation, setShowHeartAnimation] = useState(false)
+  const lastTapRef = useRef(0)
   const commentInputRef = useRef()
   const commentsEndRef = useRef()
 
@@ -72,6 +74,25 @@ export default function PostDetailPage() {
     } catch {
       setLiked(wasLiked)
       setLikeCount(c => wasLiked ? c + 1 : c - 1)
+    }
+  }
+
+  // Double tap handler for image
+  const handleImageDoubleTap = (e) => {
+    e.stopPropagation()
+    
+    const now = Date.now()
+    const lastTap = lastTapRef.current
+    
+    if (now - lastTap < 300) {
+      // Double tap detected!
+      handleLike()
+      // Show heart animation
+      setShowHeartAnimation(true)
+      setTimeout(() => setShowHeartAnimation(false), 800)
+      lastTapRef.current = 0
+    } else {
+      lastTapRef.current = now
     }
   }
 
@@ -141,6 +162,24 @@ export default function PostDetailPage() {
   const mediaUrl = getImageUrl(post)
   const isOwner = user?._id === post.author?._id || user?.id === post.author?._id
 
+  // Heart animation component
+  const HeartAnimation = () => {
+    if (!showHeartAnimation) return null
+    
+    return (
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+        <FaHeart 
+          size={100} 
+          color="#ef4444"
+          className="animate-like-heart"
+          style={{
+            animation: 'likeHeart 0.8s ease-out forwards'
+          }}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen pb-6" style={{ background: 'var(--bg-primary)' }}>
       <div className="max-w-2xl mx-auto">
@@ -184,9 +223,13 @@ export default function PostDetailPage() {
           </div>
         </div>
 
-        {/* Image */}
+        {/* Image - with double tap support */}
         {mediaUrl && (
-          <div className="w-full" style={{ background: 'var(--bg-secondary)' }}>
+          <div 
+            className="w-full relative cursor-pointer"
+            style={{ background: 'var(--bg-secondary)' }}
+            onClick={handleImageDoubleTap}
+          >
             <img
               src={mediaUrl}
               alt={post.title || 'Post image'}
@@ -194,6 +237,8 @@ export default function PostDetailPage() {
               style={{ maxHeight: 500, objectFit: 'cover' }}
               onError={e => e.target.style.display = 'none'}
             />
+            {/* Heart animation on double tap */}
+            <HeartAnimation />
           </div>
         )}
 
@@ -323,13 +368,7 @@ export default function PostDetailPage() {
           <div ref={commentsEndRef} />
         </div>
 
-        {/* Comment input - in normal document flow, sticky instead of fixed.
-            `position: fixed` breaks on iOS Safari when the on-screen keyboard opens:
-            the visual viewport shrinks but a fixed element stays anchored to the old
-            layout viewport, which can leave the page looking blank with just the
-            input's cursor visible. `sticky` keeps it pinned to the bottom of the
-            scroll container while staying in-flow, the same way FeedPage's inline
-            comment box works. */}
+        {/* Comment input - sticky at bottom */}
         <div
           className="sticky bottom-0 left-0 right-0 bg-[var(--bg-primary)] border-t px-4 py-3 z-10"
           style={{ borderColor: 'var(--border)' }}
@@ -360,6 +399,27 @@ export default function PostDetailPage() {
         </div>
 
       </div>
+
+      {/* CSS Animation */}
+      <style>{`
+        @keyframes likeHeart {
+          0% {
+            transform: scale(0.5);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.5);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(2);
+            opacity: 0;
+          }
+        }
+        .animate-like-heart {
+          animation: likeHeart 0.8s ease-out forwards;
+        }
+      `}</style>
     </div>
   )
 }
