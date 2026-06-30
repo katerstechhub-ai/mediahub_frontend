@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { FiArrowLeft, FiHeart, FiMessageCircle, FiSend, FiTrash2, FiMoreHorizontal, FiX } from 'react-icons/fi'
+import { FiArrowLeft, FiHeart, FiMessageCircle, FiSend, FiTrash2, FiMoreHorizontal } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import { postsAPI, commentsAPI } from '../api'
 import { useAuthStore } from '../store'
@@ -22,8 +22,8 @@ export default function PostDetailPage() {
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
-  const [showCommentModal, setShowCommentModal] = useState(false)
-  const commentRef = useRef()
+  const commentInputRef = useRef()
+  const commentsEndRef = useRef()
 
   const fetchComments = async () => {
     try {
@@ -56,6 +56,13 @@ export default function PostDetailPage() {
 
   useEffect(() => { fetchPost() }, [id])
 
+  // Scroll to bottom when comments change
+  useEffect(() => {
+    if (commentsEndRef.current) {
+      commentsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [comments])
+
   const handleLike = async () => {
     const wasLiked = liked
     setLiked(!wasLiked)
@@ -76,8 +83,8 @@ export default function PostDetailPage() {
       await commentsAPI.create(id, comment.trim())
       setComment('')
       await fetchComments()
-      setShowCommentModal(false)
-      toast.success('Comment added!')
+      // Focus back on input after comment
+      setTimeout(() => commentInputRef.current?.focus(), 100)
     } catch (error) {
       toast.error('Failed to post comment')
     } finally {
@@ -120,125 +127,139 @@ export default function PostDetailPage() {
   const isOwner = user?._id === post.author?._id || user?.id === post.author?._id
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg-primary)' }}>
-      <div className="max-w-xl mx-auto">
+    <div className="min-h-screen pb-24" style={{ background: 'var(--bg-primary)' }}>
+      <div className="max-w-2xl mx-auto">
 
-        {/* Header */}
+        {/* Header - matching feed header style */}
         <div
-          className="sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b backdrop-blur-lg"
+          className="sticky top-0 z-20 border-b backdrop-blur-lg px-4 py-4"
           style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
         >
-          <button
-            onClick={() => navigate(-1)}
-            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[var(--bg-secondary)] transition-colors"
-          >
-            <FiArrowLeft size={20} style={{ color: 'var(--text-primary)' }} />
-          </button>
-          <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Post</span>
-          {isOwner ? (
-            <div className="relative">
-              <button
-                onClick={() => setShowMenu(v => !v)}
-                className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[var(--bg-secondary)] transition-colors"
-              >
-                <FiMoreHorizontal size={20} style={{ color: 'var(--text-primary)' }} />
-              </button>
-              {showMenu && (
-                <div
-                  className="absolute right-0 top-11 rounded-xl shadow-lg border py-1 w-36 z-30"
-                  style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+            >
+              <FiArrowLeft size={20} style={{ color: 'var(--text-primary)' }} />
+              <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Back</span>
+            </button>
+            {isOwner ? (
+              <div className="relative">
+                <button
+                  onClick={() => setShowMenu(v => !v)}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[var(--bg-secondary)] transition-colors"
                 >
-                  <button
-                    onClick={() => { setShowMenu(false); handleDelete() }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2"
+                  <FiMoreHorizontal size={20} style={{ color: 'var(--text-primary)' }} />
+                </button>
+                {showMenu && (
+                  <div
+                    className="absolute right-0 top-11 rounded-xl shadow-lg border py-1 w-36 z-30"
+                    style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
                   >
-                    <FiTrash2 size={14} /> Delete post
-                  </button>
-                </div>
-              )}
+                    <button
+                      onClick={() => { setShowMenu(false); handleDelete() }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2"
+                    >
+                      <FiTrash2 size={14} /> Delete post
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : <div className="w-9" />}
+          </div>
+        </div>
+
+        {/* Post Card - matching feed card style */}
+        <div className="m-4 rounded-3xl overflow-hidden border-2 shadow-sm" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+          {/* Image */}
+          {mediaUrl && (
+            <div className="relative" style={{ background: 'var(--bg-secondary)' }}>
+              <img
+                src={mediaUrl}
+                alt={post.title || 'Post image'}
+                className="w-full h-auto"
+                style={{ maxHeight: 500, objectFit: 'cover' }}
+                onError={e => e.target.style.display = 'none'}
+              />
             </div>
-          ) : <div className="w-9" />}
-        </div>
+          )}
 
-        {/* Author row */}
-        <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-          <Avatar src={post.author?.avatar} name={post.author?.name} size={42} ring />
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{post.author?.name || 'Unknown'}</p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}</p>
+          {/* Content area - matching feed style */}
+          <div className="px-4 py-4">
+            {/* Author row with avatar - exactly like feed */}
+            <div className="flex items-center gap-3">
+              <Avatar src={post.author?.avatar} name={post.author?.name} size={42} className="flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                  {post.author?.name || 'Unknown'}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
+                </p>
+              </div>
+            </div>
+
+            {/* Title - matching feed heading style */}
+            {post.title && (
+              <h3 className="font-extrabold font-display text-lg mt-2 mb-0.5 leading-snug" style={{ color: 'var(--text-primary)' }}>
+                {post.title}
+              </h3>
+            )}
+
+            {/* Content - matching feed content style */}
+            {post.content && post.content.trim() && post.content.trim() !== ' ' && (
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                {post.content}
+              </p>
+            )}
+
+            {/* Tags */}
+            {post.tags?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {post.tags.map(tag => (
+                  <span key={tag} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Actions - matching feed style */}
+            <div className="flex items-center gap-6 mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+              <button onClick={handleLike} className="flex items-center gap-2 group">
+                {liked
+                  ? <FaHeart size={20} color="#ef4444" />
+                  : <FiHeart size={20} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} className="group-hover:text-red-400 transition-colors" />
+                }
+                <span className="text-sm font-bold" style={{ color: liked ? '#ef4444' : 'var(--text-muted)' }}>
+                  {likeCount}
+                </span>
+              </button>
+
+              <button className="flex items-center gap-2">
+                <FiMessageCircle size={20} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+                <span className="text-sm font-bold" style={{ color: 'var(--text-muted)' }}>
+                  {comments.length}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Title */}
-        {post.title && (
-          <h1 className="px-4 pb-2 text-lg font-bold leading-snug" style={{ color: 'var(--text-primary)' }}>
-            {post.title}
-          </h1>
-        )}
-
-        {/* Content */}
-        {post.content && post.content.trim() && post.content.trim() !== ' ' && (
-          <p className="px-4 pb-3 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-            {post.content}
-          </p>
-        )}
-
-        {/* Tags */}
-        {post.tags?.length > 0 && (
-          <div className="px-4 pb-3 flex flex-wrap gap-1.5">
-            {post.tags.map(tag => (
-              <span key={tag} className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
-                #{tag}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Image — full width, natural ratio, no crop */}
-        {mediaUrl && (
-          <div className="w-full" style={{ background: 'var(--bg-secondary)' }}>
-            <img
-              src={mediaUrl}
-              alt={post.title || 'Post image'}
-              className="w-full h-auto block"
-              style={{ maxHeight: '70vh', objectFit: 'contain' }}
-              onError={e => e.target.style.display = 'none'}
-            />
-          </div>
-        )}
-
-        {/* Actions */}
-        <div
-          className="flex items-center gap-5 px-4 py-3 border-b"
-          style={{ borderColor: 'var(--border)' }}
-        >
-          <button onClick={handleLike} className="flex items-center gap-1.5 group">
-            {liked
-              ? <FaHeart size={20} color="#ef4444" />
-              : <FiHeart size={20} style={{ color: 'var(--text-muted)' }} className="group-hover:text-red-400 transition-colors" />
-            }
-            <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{likeCount}</span>
-          </button>
-
-          <button
-            onClick={() => setShowCommentModal(true)}
-            className="flex items-center gap-1.5"
-          >
-            <FiMessageCircle size={20} style={{ color: 'var(--text-muted)' }} />
-            <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{comments.length}</span>
-          </button>
-        </div>
-
-        {/* Comments list */}
-        <div className="px-4 py-4 flex flex-col gap-4 pb-8">
+        {/* Comments section - matching feed style */}
+        <div className="px-4 space-y-4">
+          <h4 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+            Comments ({comments.length})
+          </h4>
+          
           {comments.length === 0 ? (
             <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)' }}>
               No comments yet — be the first!
             </p>
           ) : (
             comments.map(c => (
-              <div key={c._id} className="flex gap-2.5">
-                <Avatar src={c.author?.avatar} name={c.author?.name} size={32} />
+              <div key={c._id} className="flex gap-3">
+                <Avatar src={c.author?.avatar} name={c.author?.name} size={36} className="flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div
                     className="rounded-2xl rounded-tl-none px-3 py-2"
@@ -258,97 +279,39 @@ export default function PostDetailPage() {
               </div>
             ))
           )}
+          <div ref={commentsEndRef} />
         </div>
 
-        {/* Comment Modal */}
-        {showCommentModal && (
-          <div 
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-            onClick={() => setShowCommentModal(false)}
-          >
-            {/* Backdrop */}
-            <div 
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setShowCommentModal(false)}
-            />
-            
-            {/* Modal */}
-            <div 
-              className="relative w-full max-w-md bg-[var(--bg-primary)] rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[80vh] flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Modal Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-                <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
-                  Comments
-                </h3>
+        {/* Comment input - fixed at bottom like feed */}
+        <div
+          className="fixed bottom-0 left-0 right-0 lg:sticky lg:bottom-0 border-t px-4 py-3 z-10"
+          style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
+        >
+          <div className="max-w-2xl mx-auto">
+            <form onSubmit={handleComment} className="flex gap-3 items-center">
+              <Avatar src={user?.avatar} name={user?.name} size={36} className="flex-shrink-0" />
+              <div className="flex-1 relative">
+                <input
+                  ref={commentInputRef}
+                  type="text"
+                  placeholder="Write a comment…"
+                  value={comment}
+                  onChange={e => setComment(e.target.value)}
+                  className="w-full rounded-full px-5 py-2.5 pr-12 text-sm outline-none border focus:border-amber-500 transition-all"
+                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: 'var(--border)' }}
+                />
                 <button
-                  onClick={() => setShowCommentModal(false)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition-colors"
+                  type="submit"
+                  disabled={!comment.trim() || submitting}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 disabled:opacity-30 transition-opacity"
                 >
-                  <FiX size={20} style={{ color: 'var(--text-muted)' }} />
+                  <FiSend size={18} color="#f59e0b" />
                 </button>
               </div>
-
-              {/* Comments List in Modal */}
-              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-                {comments.length === 0 ? (
-                  <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>
-                    No comments yet. Be the first!
-                  </p>
-                ) : (
-                  comments.map(c => (
-                    <div key={c._id} className="flex gap-3">
-                      <Avatar src={c.author?.avatar} name={c.author?.name} size={36} />
-                      <div className="flex-1 min-w-0">
-                        <div
-                          className="rounded-2xl rounded-tl-none px-4 py-2.5"
-                          style={{ background: 'var(--bg-secondary)' }}
-                        >
-                          <p className="text-sm font-semibold mb-0.5" style={{ color: 'var(--text-primary)' }}>
-                            {c.author?.name || 'Unknown'}
-                          </p>
-                          <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                            {c.content || c.text || ''}
-                          </p>
-                        </div>
-                        <p className="text-[11px] mt-1 ml-1" style={{ color: 'var(--text-muted)' }}>
-                          {c.createdAt ? dayjs(c.createdAt).fromNow() : 'Just now'}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* Comment Input in Modal */}
-              <div className="px-4 py-4 border-t" style={{ borderColor: 'var(--border)' }}>
-                <form onSubmit={handleComment} className="flex gap-2 items-center">
-                  <Avatar src={user?.avatar} name={user?.name} size={36} />
-                  <div className="flex-1 relative">
-                    <input
-                      ref={commentRef}
-                      type="text"
-                      placeholder="Add a comment…"
-                      value={comment}
-                      onChange={e => setComment(e.target.value)}
-                      className="w-full rounded-2xl px-4 py-2.5 pr-10 text-sm outline-none border focus:border-amber-500 transition-all"
-                      style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: 'var(--border)' }}
-                      autoFocus
-                    />
-                    <button
-                      type="submit"
-                      disabled={!comment.trim() || submitting}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 disabled:opacity-30 transition-opacity"
-                    >
-                      <FiSend size={18} color="#f59e0b" />
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
+            </form>
           </div>
-        )}
+        </div>
+
       </div>
     </div>
   )
