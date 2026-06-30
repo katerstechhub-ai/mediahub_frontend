@@ -28,6 +28,21 @@ export default function PostDetailPage() {
   const commentInputRef = useRef()
   const commentsEndRef = useRef()
 
+  // Configure toast styles
+  useEffect(() => {
+    toast.configure({
+      style: {
+        background: '#1a1a1a',
+        color: '#ffffff',
+        borderRadius: '12px',
+        padding: '12px 20px',
+        fontSize: '14px',
+        fontWeight: '500',
+      },
+      icon: '✅',
+    })
+  }, [])
+
   const fetchComments = async () => {
     try {
       const response = await commentsAPI.getByPost(id)
@@ -77,7 +92,6 @@ export default function PostDetailPage() {
     }
   }
 
-  // Double tap handler for image
   const handleImageDoubleTap = (e) => {
     e.stopPropagation()
     
@@ -85,9 +99,7 @@ export default function PostDetailPage() {
     const lastTap = lastTapRef.current
     
     if (now - lastTap < 300) {
-      // Double tap detected!
       handleLike()
-      // Show heart animation
       setShowHeartAnimation(true)
       setTimeout(() => setShowHeartAnimation(false), 800)
       lastTapRef.current = 0
@@ -104,6 +116,7 @@ export default function PostDetailPage() {
       await commentsAPI.create(id, comment.trim())
       setComment('')
       await fetchComments()
+      toast.success('Comment added!')
       setTimeout(() => commentInputRef.current?.focus(), 100)
     } catch (error) {
       toast.error('Failed to post comment')
@@ -128,10 +141,10 @@ export default function PostDetailPage() {
     if (!confirm('Delete this post?')) return
     try {
       await postsAPI.delete(id)
-      toast.success('Post deleted')
+      toast.success('Post deleted successfully')
       navigate('/')
     } catch {
-      toast.error('Failed to delete')
+      toast.error('Failed to delete post')
     }
   }
 
@@ -162,7 +175,6 @@ export default function PostDetailPage() {
   const mediaUrl = getImageUrl(post)
   const isOwner = user?._id === post.author?._id || user?.id === post.author?._id
 
-  // Heart animation component
   const HeartAnimation = () => {
     if (!showHeartAnimation) return null
     
@@ -212,9 +224,9 @@ export default function PostDetailPage() {
                   >
                     <button
                       onClick={() => { setShowMenu(false); handleDelete() }}
-                      className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2"
+                      className="w-full text-left px-4 py-2.5 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2"
                     >
-                      <FiTrash2 size={14} /> Delete post
+                      <FiTrash2 size={16} /> Delete Post
                     </button>
                   </div>
                 )}
@@ -237,7 +249,6 @@ export default function PostDetailPage() {
               style={{ maxHeight: 500, objectFit: 'cover' }}
               onError={e => e.target.style.display = 'none'}
             />
-            {/* Heart animation on double tap */}
             <HeartAnimation />
           </div>
         )}
@@ -339,12 +350,12 @@ export default function PostDetailPage() {
                             </button>
                             {showCommentMenu === c._id && (
                               <div
-                                className="absolute right-0 top-7 rounded-lg shadow-lg border py-1 w-32 z-30"
+                                className="absolute right-0 top-7 rounded-lg shadow-lg border py-1 w-36 z-30"
                                 style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
                               >
                                 <button
                                   onClick={() => handleDeleteComment(c._id)}
-                                  className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2"
+                                  className="w-full text-left px-3 py-2 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2"
                                 >
                                   <FiTrash2 size={14} /> Delete Comment
                                 </button>
@@ -368,7 +379,7 @@ export default function PostDetailPage() {
           <div ref={commentsEndRef} />
         </div>
 
-        {/* Comment input - sticky at bottom */}
+        {/* Comment input */}
         <div
           className="sticky bottom-0 left-0 right-0 bg-[var(--bg-primary)] border-t px-4 py-3 z-10"
           style={{ borderColor: 'var(--border)' }}
@@ -400,7 +411,6 @@ export default function PostDetailPage() {
 
       </div>
 
-      {/* CSS Animation */}
       <style>{`
         @keyframes likeHeart {
           0% {

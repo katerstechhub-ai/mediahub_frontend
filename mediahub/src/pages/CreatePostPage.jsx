@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiImage, FiX, FiTag, FiPlus } from 'react-icons/fi'
 import { postsAPI } from '../api'
@@ -9,13 +9,25 @@ export default function CreatePostPage() {
   const fileRef = useRef()
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  // const [tags, setTags] = useState([])
-  // const [tagInput, setTagInput] = useState('')
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
   const [loading, setLoading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [errors, setErrors] = useState({})
+
+  // Configure toast styles
+  useEffect(() => {
+    toast.configure({
+      style: {
+        background: '#1a1a1a',
+        color: '#ffffff',
+        borderRadius: '12px',
+        padding: '12px 20px',
+        fontSize: '14px',
+        fontWeight: '500',
+      },
+    })
+  }, [])
 
   const validate = () => {
     const e = {}
@@ -29,7 +41,6 @@ export default function CreatePostPage() {
     if (!content.trim() && !file) {
       e.content = 'Add some content or upload an image'
     }
-    // if (tags.length > 10) e.tags = 'Maximum 10 tags allowed'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -57,41 +68,6 @@ export default function CreatePostPage() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  // const addTag = () => {
-  //   const trimmed = tagInput.trim()
-  //   if (!trimmed) return
-  //   if (tags.includes(trimmed)) {
-  //     toast.error('Tag already added')
-  //     return
-  //   }
-  //   if (tags.length >= 10) {
-  //     toast.error('Maximum 10 tags allowed')
-  //     return
-  //   }
-  //   if (trimmed.length > 30) {
-  //     toast.error('Tag must be under 30 characters')
-  //     return
-  //   }
-  //   setTags([...tags, trimmed])
-  //   setTagInput('')
-  //   if (errors.tags) setErrors(p => ({ ...p, tags: '' }))
-  // }
-
-  // const removeTag = (tagToRemove) => {
-  //   setTags(tags.filter(t => t !== tagToRemove))
-  // }
-
-  // const handleKeyDown = (e) => {
-  //   if (e.key === 'Enter') {
-  //     e.preventDefault()
-  //     addTag()
-  //   }
-  //   if (e.key === ',' || e.key === ' ') {
-  //     e.preventDefault()
-  //     addTag()
-  //   }
-  // }
-
   const handleSubmit = async () => {
     if (!validate()) return
     setLoading(true)
@@ -101,13 +77,8 @@ export default function CreatePostPage() {
       fd.append('content', content.trim() || ' ')
       if (file) fd.append('image', file)
       
-      // Tags are commented out for now
-      // if (tags.length > 0) {
-      //   fd.append('tags', JSON.stringify(tags))
-      // }
-      
       await postsAPI.create(fd)
-      toast.success('Post created!')
+      toast.success('Post created successfully! 🎉')
       navigate('/')
     } catch (err) {
       console.error('Error:', err.response?.data)
@@ -210,57 +181,6 @@ export default function CreatePostPage() {
             />
             {errors.content && <p className="text-xs text-red-500 mt-1">{errors.content}</p>}
           </div>
-
-          {/* Tags - Commented out */}
-          {/* <div className="mb-6">
-            <label className="text-sm font-medium flex items-center gap-2 mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-              <FiTag size={14} /> Tags <span className="font-normal text-xs" style={{ color: 'var(--text-muted)' }}>optional · max 10</span>
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Type tag and press Enter"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="flex-1 rounded-lg px-4 py-3 text-sm outline-none border focus:border-amber-500 transition-all"
-                style={{ 
-                  background: 'var(--bg-input)', 
-                  color: 'var(--text-primary)', 
-                  borderColor: errors.tags ? '#ef4444' : 'var(--border)',
-                  height: '48px'
-                }}
-              />
-              <button
-                onClick={addTag}
-                className="px-5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1"
-                style={{ background: '#f59e0b', color: 'white' }}
-              >
-                <FiPlus size={18} /> Add
-              </button>
-            </div>
-            {errors.tags && <p className="text-xs text-red-500 mt-1">{errors.tags}</p>}
-            
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {tags.map(tag => (
-                  <span 
-                    key={tag} 
-                    className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full border"
-                    style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
-                  >
-                    #{tag}
-                    <button
-                      onClick={() => removeTag(tag)}
-                      className="hover:text-red-500 transition-colors"
-                    >
-                      <FiX size={14} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div> */}
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
