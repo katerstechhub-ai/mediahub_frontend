@@ -237,7 +237,6 @@ export default function FeedPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-5 pb-3">
         <div className="h-6" />
         {viewMode === 'grid' ? (
-          // Grid View - Unchanged
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {posts.map((post) => {
               const imageUrl = getImageUrl(post)
@@ -288,141 +287,265 @@ export default function FeedPage() {
             })}
           </div>
         ) : (
-          // List View - 3 columns on desktop with text beneath
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {posts.map((post) => {
-              const imageUrl = getImageUrl(post)
-              const isLiked = post.likes?.includes(user?._id)
-              const isCommenting = commentingPostId === post._id
-              const commentCount = commentCounts[post._id] ?? post.comments?.length ?? 0
-              
-              return (
-                <div
-                  key={post._id}
-                  className="border rounded-xl overflow-hidden hover:shadow-lg transition-shadow"
-                  style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}
-                >
-                  {/* Image */}
-                  {imageUrl && (
-                    <div 
-                      className="w-full relative cursor-pointer"
-                      style={{ background: 'var(--bg-secondary)' }}
-                      onClick={(e) => handleDoubleTapList(e, post._id)}
-                    >
-                      <img
-                        src={imageUrl}
-                        alt={post.title || 'Post'}
-                        className="w-full h-auto aspect-square object-cover"
-                        loading="lazy"
-                        onError={e => e.target.style.display = 'none'}
-                      />
-                      <HeartAnimation postId={post._id} />
-                    </div>
-                  )}
-
-                  {/* Content - beneath the image */}
-                  <div className="p-3">
-                    {/* Author and icons row */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <Avatar src={post.author?.avatar} name={post.author?.name} size={28} className="flex-shrink-0" />
-                        <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>
-                          {post.author?.name || 'Unknown'}
-                        </p>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <button 
-                          onClick={e => handleLike(e, post._id)} 
-                          className="flex items-center gap-0.5"
-                        >
-                          {isLiked
-                            ? <FaHeart size={14} color="#ef4444" />
-                            : <FiHeart size={14} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
-                          <span className="text-xs font-semibold" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
-                            {post.likes?.length || 0}
-                          </span>
-                        </button>
-                        <button 
-                          onClick={e => toggleCommentInput(e, post._id)}
-                          className="flex items-center gap-0.5"
-                        >
-                          <FiMessageCircle size={14} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
-                          <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-                            {commentCount}
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Title */}
-                    {post.title && (
-                      <h3 className="font-extrabold font-display text-sm mt-1 leading-snug line-clamp-2" style={{ color: 'var(--text-primary)' }}>
-                        {post.title}
-                      </h3>
-                    )}
-
-                    {/* Content preview */}
-                    {post.content && post.content.trim() !== ' ' && post.content !== post.title && (
-                      <p className="text-xs mt-0.5 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>
-                        {post.content}
-                      </p>
-                    )}
-
-                    {/* Tags */}
-                    {post.tags?.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {post.tags.slice(0, 2).map(tag => (
-                          <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-primary)', color: 'var(--text-muted)' }}>
-                            #{tag}
-                          </span>
-                        ))}
+          // List View - Mobile stays single column, Desktop gets 3 columns
+          <>
+            {/* Mobile: Single column list */}
+            <div className="block md:hidden space-y-6">
+              {posts.map((post) => {
+                const imageUrl = getImageUrl(post)
+                const isLiked = post.likes?.includes(user?._id)
+                const isCommenting = commentingPostId === post._id
+                const commentCount = commentCounts[post._id] ?? post.comments?.length ?? 0
+                
+                return (
+                  <div
+                    key={post._id}
+                    className="border-b pb-4"
+                    style={{ borderColor: 'var(--border)' }}
+                  >
+                    {imageUrl && (
+                      <div 
+                        className="w-full mb-3 relative cursor-pointer"
+                        style={{ background: 'var(--bg-secondary)' }}
+                        onClick={(e) => handleDoubleTapList(e, post._id)}
+                      >
+                        <img
+                          src={imageUrl}
+                          alt={post.title || 'Post'}
+                          className="w-full h-auto"
+                          style={{ maxHeight: 400, objectFit: 'cover' }}
+                          loading="lazy"
+                          onError={e => e.target.style.display = 'none'}
+                        />
+                        <HeartAnimation postId={post._id} />
                       </div>
                     )}
 
-                    {/* Time stamp */}
-                    <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
-                      {post.createdAt ? new Date(post.createdAt).toLocaleDateString() : 'Just now'}
-                    </p>
-
-                    {/* Comment Input */}
-                    {isCommenting && (
-                      <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
-                        <form onSubmit={e => handleCommentSubmit(e, post._id)} className="flex items-center gap-1.5">
-                          <Avatar src={user?.avatar} name={user?.name} size={24} className="flex-shrink-0" />
-                          <div className="flex-1 flex items-center gap-1.5 bg-[var(--bg-input)] rounded-full border px-2.5 py-0.5 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
-                            <input
-                              type="text"
-                              placeholder="Write a comment..."
-                              value={commentText}
-                              onChange={e => setCommentText(e.target.value)}
-                              className="flex-1 bg-transparent outline-none text-xs py-1"
-                              style={{ color: 'var(--text-primary)' }}
-                              autoFocus
-                            />
-                            <button
-                              type="submit"
-                              disabled={!commentText.trim() || submittingComment}
-                              className="flex-shrink-0 text-[10px] font-semibold text-amber-500 hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                              {submittingComment ? '...' : 'Post'}
-                            </button>
+                    <div className="px-1">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <Avatar src={post.author?.avatar} name={post.author?.name} size={32} className="flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                              {post.author?.name || 'Unknown'}
+                            </p>
+                            {post.title && (
+                              <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>
+                                {post.title}
+                              </h3>
+                            )}
+                            {post.content && post.content.trim() !== ' ' && post.content !== post.title && (
+                              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                                {post.content}
+                              </p>
+                            )}
                           </div>
-                          <button
-                            type="button"
-                            onClick={e => toggleCommentInput(e, post._id)}
-                            className="flex-shrink-0"
+                        </div>
+                        
+                        <div className="flex items-center gap-3 flex-shrink-0 ml-2 self-center">
+                          <button 
+                            onClick={e => handleLike(e, post._id)} 
+                            className="flex items-center gap-1"
                           >
-                            <FiX size={14} style={{ color: 'var(--text-muted)' }} />
+                            {isLiked
+                              ? <FaHeart size={16} color="#ef4444" />
+                              : <FiHeart size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
+                            <span className="text-xs font-bold" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
+                              {post.likes?.length || 0}
+                            </span>
                           </button>
-                        </form>
+                          <button 
+                            onClick={e => toggleCommentInput(e, post._id)}
+                            className="flex items-center gap-1"
+                          >
+                            <FiMessageCircle size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+                            <span className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>
+                              {commentCount}
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {post.tags?.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {post.tags.slice(0, 3).map(tag => (
+                            <span key={tag} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                        {post.createdAt ? new Date(post.createdAt).toLocaleDateString() : 'Just now'}
+                      </p>
+
+                      {isCommenting && (
+                        <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+                          <form onSubmit={e => handleCommentSubmit(e, post._id)} className="flex items-center gap-2">
+                            <Avatar src={user?.avatar} name={user?.name} size={28} className="flex-shrink-0" />
+                            <div className="flex-1 flex items-center gap-2 bg-[var(--bg-input)] rounded-full border px-3 py-1 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
+                              <input
+                                type="text"
+                                placeholder="Write a comment..."
+                                value={commentText}
+                                onChange={e => setCommentText(e.target.value)}
+                                className="flex-1 bg-transparent outline-none text-sm py-1.5"
+                                style={{ color: 'var(--text-primary)' }}
+                                autoFocus
+                              />
+                              <button
+                                type="submit"
+                                disabled={!commentText.trim() || submittingComment}
+                                className="flex-shrink-0 text-xs font-bold text-amber-500 hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                {submittingComment ? 'Posting...' : 'Post'}
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={e => toggleCommentInput(e, post._id)}
+                              className="flex-shrink-0"
+                            >
+                              <FiX size={16} style={{ color: 'var(--text-muted)' }} />
+                            </button>
+                          </form>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Desktop: 3-column grid */}
+            <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-6">
+              {posts.map((post) => {
+                const imageUrl = getImageUrl(post)
+                const isLiked = post.likes?.includes(user?._id)
+                const isCommenting = commentingPostId === post._id
+                const commentCount = commentCounts[post._id] ?? post.comments?.length ?? 0
+                
+                return (
+                  <div
+                    key={post._id}
+                    className="border rounded-xl overflow-hidden hover:shadow-lg transition-shadow"
+                    style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}
+                  >
+                    {imageUrl && (
+                      <div 
+                        className="w-full relative cursor-pointer"
+                        style={{ background: 'var(--bg-secondary)' }}
+                        onClick={(e) => handleDoubleTapList(e, post._id)}
+                      >
+                        <img
+                          src={imageUrl}
+                          alt={post.title || 'Post'}
+                          className="w-full h-auto aspect-square object-cover"
+                          loading="lazy"
+                          onError={e => e.target.style.display = 'none'}
+                        />
+                        <HeartAnimation postId={post._id} />
                       </div>
                     )}
+
+                    <div className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <Avatar src={post.author?.avatar} name={post.author?.name} size={28} className="flex-shrink-0" />
+                          <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>
+                            {post.author?.name || 'Unknown'}
+                          </p>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button 
+                            onClick={e => handleLike(e, post._id)} 
+                            className="flex items-center gap-0.5"
+                          >
+                            {isLiked
+                              ? <FaHeart size={14} color="#ef4444" />
+                              : <FiHeart size={14} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
+                            <span className="text-xs font-semibold" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
+                              {post.likes?.length || 0}
+                            </span>
+                          </button>
+                          <button 
+                            onClick={e => toggleCommentInput(e, post._id)}
+                            className="flex items-center gap-0.5"
+                          >
+                            <FiMessageCircle size={14} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+                            <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+                              {commentCount}
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {post.title && (
+                        <h3 className="font-extrabold font-display text-sm mt-1 leading-snug line-clamp-2" style={{ color: 'var(--text-primary)' }}>
+                          {post.title}
+                        </h3>
+                      )}
+
+                      {post.content && post.content.trim() !== ' ' && post.content !== post.title && (
+                        <p className="text-xs mt-0.5 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>
+                          {post.content}
+                        </p>
+                      )}
+
+                      {post.tags?.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {post.tags.slice(0, 2).map(tag => (
+                            <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-primary)', color: 'var(--text-muted)' }}>
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                        {post.createdAt ? new Date(post.createdAt).toLocaleDateString() : 'Just now'}
+                      </p>
+
+                      {isCommenting && (
+                        <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+                          <form onSubmit={e => handleCommentSubmit(e, post._id)} className="flex items-center gap-1.5">
+                            <Avatar src={user?.avatar} name={user?.name} size={24} className="flex-shrink-0" />
+                            <div className="flex-1 flex items-center gap-1.5 bg-[var(--bg-input)] rounded-full border px-2.5 py-0.5 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
+                              <input
+                                type="text"
+                                placeholder="Write a comment..."
+                                value={commentText}
+                                onChange={e => setCommentText(e.target.value)}
+                                className="flex-1 bg-transparent outline-none text-xs py-1"
+                                style={{ color: 'var(--text-primary)' }}
+                                autoFocus
+                              />
+                              <button
+                                type="submit"
+                                disabled={!commentText.trim() || submittingComment}
+                                className="flex-shrink-0 text-[10px] font-semibold text-amber-500 hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                {submittingComment ? '...' : 'Post'}
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={e => toggleCommentInput(e, post._id)}
+                              className="flex-shrink-0"
+                            >
+                              <FiX size={14} style={{ color: 'var(--text-muted)' }} />
+                            </button>
+                          </form>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          </>
         )}
       </div>
 
