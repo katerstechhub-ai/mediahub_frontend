@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { FiArrowLeft, FiHeart, FiMessageCircle, FiSend, FiTrash2, FiMoreHorizontal, FiX } from 'react-icons/fi'
+import { FiArrowLeft, FiHeart, FiMessageCircle, FiTrash2, FiMoreHorizontal } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import { postsAPI, commentsAPI } from '../api'
 import { useAuthStore } from '../store'
@@ -129,7 +129,7 @@ export default function PostDetailPage() {
   const isOwner = user?._id === post.author?._id || user?.id === post.author?._id
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: 'var(--bg-primary)' }}>
+    <div className="min-h-screen pb-28" style={{ background: 'var(--bg-primary)' }}>
       <div className="max-w-2xl mx-auto">
 
         {/* Header */}
@@ -288,31 +288,35 @@ export default function PostDetailPage() {
           <div ref={commentsEndRef} />
         </div>
 
-        {/* Comment input - fixed at bottom, clean and visible */}
+        {/* Comment input - Wider and taller with textarea */}
         <div
           className="fixed bottom-0 left-0 right-0 border-t px-4 py-3 z-10"
           style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
         >
           <div className="max-w-2xl mx-auto">
-            <form onSubmit={handleComment} className="flex items-center gap-3">
-              <Avatar src={user?.avatar} name={user?.name} size={36} className="flex-shrink-0" />
-              <div className="flex-1 flex items-center gap-2 bg-[var(--bg-input)] rounded-full border px-4 py-1 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
-                <input
-                  ref={commentInputRef}
-                  type="text"
-                  placeholder="Write a comment..."
-                  value={comment}
-                  onChange={e => setComment(e.target.value)}
-                  className="flex-1 bg-transparent outline-none text-sm py-2"
-                  style={{ color: 'var(--text-primary)' }}
-                />
-                <button
-                  type="submit"
-                  disabled={!comment.trim() || submitting}
-                  className="flex-shrink-0 px-4 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-full transition-colors"
-                >
-                  {submitting ? 'Posting...' : 'Post'}
-                </button>
+            <form onSubmit={handleComment} className="flex items-start gap-3">
+              <Avatar src={user?.avatar} name={user?.name} size={36} className="flex-shrink-0 mt-1" />
+              <div className="flex-1">
+                <div className="bg-[var(--bg-input)] rounded-2xl border px-4 py-2 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
+                  <textarea
+                    ref={commentInputRef}
+                    placeholder="Write a comment..."
+                    value={comment}
+                    onChange={e => setComment(e.target.value)}
+                    className="w-full bg-transparent outline-none text-sm resize-none"
+                    style={{ color: 'var(--text-primary)', minHeight: '60px', maxHeight: '150px' }}
+                    rows={2}
+                  />
+                </div>
+                <div className="flex items-center justify-end mt-2">
+                  <button
+                    type="submit"
+                    disabled={!comment.trim() || submitting}
+                    className="text-sm font-bold text-amber-500 hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {submitting ? 'Posting...' : 'Post'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

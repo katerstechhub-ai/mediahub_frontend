@@ -345,37 +345,41 @@ export default function FeedPage() {
                       </div>
                     )}
 
-                    {/* Comment Input - Clean and visible */}
+                    {/* Comment Input - Wider and taller */}
                     {isCommenting && (
                       <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-                        <form onSubmit={e => handleCommentSubmit(e, post._id)} className="flex items-center gap-2">
-                          <Avatar src={user?.avatar} name={user?.name} size={32} className="flex-shrink-0" />
-                          <div className="flex-1 flex items-center gap-2 bg-[var(--bg-input)] rounded-full border px-4 py-1 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
-                            <input
-                              type="text"
-                              placeholder="Write a comment..."
-                              value={commentText}
-                              onChange={e => setCommentText(e.target.value)}
-                              className="flex-1 bg-transparent outline-none text-sm py-2"
-                              style={{ color: 'var(--text-primary)' }}
-                              autoFocus
-                            />
-                            <button
-                              type="submit"
-                              disabled={!commentText.trim() || submittingComment}
-                              className="flex-shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-full transition-colors"
-                            >
-                              {submittingComment ? 'Posting...' : 'Post'}
-                            </button>
+                        <form onSubmit={e => handleCommentSubmit(e, post._id)} className="flex items-start gap-2">
+                          <Avatar src={user?.avatar} name={user?.name} size={32} className="flex-shrink-0 mt-1" />
+                          <div className="flex-1">
+                            <div className="bg-[var(--bg-input)] rounded-2xl border px-4 py-2 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
+                              <textarea
+                                placeholder="Write a comment..."
+                                value={commentText}
+                                onChange={e => setCommentText(e.target.value)}
+                                className="w-full bg-transparent outline-none text-sm resize-none"
+                                style={{ color: 'var(--text-primary)', minHeight: '60px', maxHeight: '150px' }}
+                                autoFocus
+                                rows={2}
+                              />
+                            </div>
+                            <div className="flex items-center justify-end gap-3 mt-2">
+                              <button
+                                type="button"
+                                onClick={e => toggleCommentInput(e, post._id)}
+                                className="text-sm font-semibold hover:opacity-70"
+                                style={{ color: 'var(--text-muted)' }}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="submit"
+                                disabled={!commentText.trim() || submittingComment}
+                                className="text-sm font-bold text-amber-500 hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                {submittingComment ? 'Posting...' : 'Post'}
+                              </button>
+                            </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={e => toggleCommentInput(e, post._id)}
-                            className="flex-shrink-0 text-sm font-semibold hover:opacity-70 px-2"
-                            style={{ color: 'var(--text-muted)' }}
-                          >
-                            <FiX size={18} />
-                          </button>
                         </form>
                       </div>
                     )}
