@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList, FiSend, FiX } from 'react-icons/fi'
+import { FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList, FiX } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import { postsAPI, commentsAPI } from '../api'
 import { useAuthStore } from '../store'
@@ -11,7 +11,6 @@ export default function FeedPage() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState('grid')
-  const [selectedPost, setSelectedPost] = useState(null)
   const [commentCounts, setCommentCounts] = useState({})
   const [commentingPostId, setCommentingPostId] = useState(null)
   const [commentText, setCommentText] = useState('')
@@ -185,11 +184,13 @@ export default function FeedPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {posts.map((post) => {
               const imageUrl = getImageUrl(post)
-              const isSelected = selectedPost?._id === post._id
+              const isLiked = post.likes?.includes(user?._id)
+              const commentCount = commentCounts[post._id] ?? post.comments?.length ?? 0
+              
               return (
                 <div
                   key={post._id}
-                  onClick={() => setSelectedPost(isSelected ? null : post)}
+                  onClick={() => navigate(`/posts/${post._id}`)}
                   className="relative group cursor-pointer rounded-2xl overflow-hidden aspect-square shadow-sm hover:shadow-lg transition-shadow"
                   style={{ background: 'var(--bg-secondary)' }}
                 >
@@ -207,42 +208,23 @@ export default function FeedPage() {
                     </div>
                   )}
 
-                  <div className="absolute bottom-2 right-2 bg-black/70 rounded-full px-2.5 py-1 flex items-center gap-1.5">
-                    <FiHeart size={12} strokeWidth={2.5} className="text-white" />
-                    <span className="text-white text-xs font-bold">{post.likes?.length || 0}</span>
-                  </div>
-
-                  {isSelected && (
-                    <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-3">
-                      <h3 className="text-white font-bold text-xs text-center line-clamp-2 mb-1">
-                        {post.title || 'Untitled'}
-                      </h3>
-                      <div className="flex items-center gap-3 mt-1">
-                        <button
-                          onClick={e => { e.stopPropagation(); handleLike(e, post._id) }}
-                          className="flex items-center gap-1 text-white"
-                        >
-                          {post.likes?.includes(user?._id)
-                            ? <FaHeart size={14} className="text-red-400" />
-                            : <FiHeart size={14} strokeWidth={2.5} />}
-                          <span className="text-[11px] font-bold">{post.likes?.length || 0}</span>
-                        </button>
-                        <button
-                          onClick={e => { e.stopPropagation(); navigate(`/posts/${post._id}`) }}
-                          className="flex items-center gap-1 text-white"
-                        >
-                          <FiMessageCircle size={14} strokeWidth={2.5} />
-                          <span className="text-[11px] font-bold">{commentCounts[post._id] ?? post.comments?.length ?? 0}</span>
-                        </button>
-                      </div>
-                      <button
-                        onClick={e => { e.stopPropagation(); navigate(`/posts/${post._id}`) }}
-                        className="mt-3 text-amber-400 text-xs font-bold hover:underline px-4 py-1.5 rounded-full border border-amber-400/40"
-                      >
-                        View post →
-                      </button>
+                  {/* Like and comment icons overlay at bottom - Instagram style */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
+                  
+                  <div className="absolute bottom-3 right-3 flex items-center gap-3 bg-black/50 backdrop-blur-sm rounded-full px-3 py-1.5">
+                    <div className="flex items-center gap-1">
+                      {isLiked ? (
+                        <FaHeart size={14} color="#ef4444" />
+                      ) : (
+                        <FiHeart size={14} strokeWidth={2.5} className="text-white" />
+                      )}
+                      <span className="text-white text-xs font-semibold">{post.likes?.length || 0}</span>
                     </div>
-                  )}
+                    <div className="flex items-center gap-1">
+                      <FiMessageCircle size={14} strokeWidth={2.5} className="text-white" />
+                      <span className="text-white text-xs font-semibold">{commentCount}</span>
+                    </div>
+                  </div>
                 </div>
               )
             })}
@@ -253,6 +235,8 @@ export default function FeedPage() {
               const imageUrl = getImageUrl(post)
               const isLiked = post.likes?.includes(user?._id)
               const isCommenting = commentingPostId === post._id
+              const commentCount = commentCounts[post._id] ?? post.comments?.length ?? 0
+              
               return (
                 <div
                   key={post._id}
@@ -329,7 +313,7 @@ export default function FeedPage() {
                         >
                           <FiMessageCircle size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
                           <span className="text-sm font-bold" style={{ color: 'var(--text-muted)' }}>
-                            {commentCounts[post._id] ?? post.comments?.length ?? 0}
+                            {commentCount}
                           </span>
                         </button>
                       </div>
@@ -345,7 +329,7 @@ export default function FeedPage() {
                       </div>
                     )}
 
-                    {/* Comment Input - Wider and taller */}
+                    {/* Comment Input */}
                     {isCommenting && (
                       <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
                         <form onSubmit={e => handleCommentSubmit(e, post._id)} className="flex items-start gap-2">
