@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // ✅ Remove /api from the base URL
-const API_URL = 'https://media-hub-bq9w.onrender.com/api';
+const API_URL = 'https://media-hub-bq9w.onrender.com'; // Remove /api
 
 console.log('🔍 API_URL:', API_URL); // Should show: https://media-hub-bq9w.onrender.com
 
