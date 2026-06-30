@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FiImage, FiX, FiTag, FiUpload, FiPlus } from 'react-icons/fi'
+import { FiImage, FiX, FiTag, FiPlus } from 'react-icons/fi'
 import { postsAPI } from '../api'
 import toast from 'react-hot-toast'
 
@@ -9,8 +9,8 @@ export default function CreatePostPage() {
   const fileRef = useRef()
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [tags, setTags] = useState([])
-  const [tagInput, setTagInput] = useState('')
+  // const [tags, setTags] = useState([])
+  // const [tagInput, setTagInput] = useState('')
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -29,7 +29,7 @@ export default function CreatePostPage() {
     if (!content.trim() && !file) {
       e.content = 'Add some content or upload an image'
     }
-    if (tags.length > 10) e.tags = 'Maximum 10 tags allowed'
+    // if (tags.length > 10) e.tags = 'Maximum 10 tags allowed'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -57,40 +57,40 @@ export default function CreatePostPage() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  const addTag = () => {
-    const trimmed = tagInput.trim()
-    if (!trimmed) return
-    if (tags.includes(trimmed)) {
-      toast.error('Tag already added')
-      return
-    }
-    if (tags.length >= 10) {
-      toast.error('Maximum 10 tags allowed')
-      return
-    }
-    if (trimmed.length > 30) {
-      toast.error('Tag must be under 30 characters')
-      return
-    }
-    setTags([...tags, trimmed])
-    setTagInput('')
-    if (errors.tags) setErrors(p => ({ ...p, tags: '' }))
-  }
+  // const addTag = () => {
+  //   const trimmed = tagInput.trim()
+  //   if (!trimmed) return
+  //   if (tags.includes(trimmed)) {
+  //     toast.error('Tag already added')
+  //     return
+  //   }
+  //   if (tags.length >= 10) {
+  //     toast.error('Maximum 10 tags allowed')
+  //     return
+  //   }
+  //   if (trimmed.length > 30) {
+  //     toast.error('Tag must be under 30 characters')
+  //     return
+  //   }
+  //   setTags([...tags, trimmed])
+  //   setTagInput('')
+  //   if (errors.tags) setErrors(p => ({ ...p, tags: '' }))
+  // }
 
-  const removeTag = (tagToRemove) => {
-    setTags(tags.filter(t => t !== tagToRemove))
-  }
+  // const removeTag = (tagToRemove) => {
+  //   setTags(tags.filter(t => t !== tagToRemove))
+  // }
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      addTag()
-    }
-    if (e.key === ',' || e.key === ' ') {
-      e.preventDefault()
-      addTag()
-    }
-  }
+  // const handleKeyDown = (e) => {
+  //   if (e.key === 'Enter') {
+  //     e.preventDefault()
+  //     addTag()
+  //   }
+  //   if (e.key === ',' || e.key === ' ') {
+  //     e.preventDefault()
+  //     addTag()
+  //   }
+  // }
 
   const handleSubmit = async () => {
     if (!validate()) return
@@ -101,10 +101,10 @@ export default function CreatePostPage() {
       fd.append('content', content.trim() || ' ')
       if (file) fd.append('image', file)
       
-      // Send tags as JSON string
-      if (tags.length > 0) {
-        fd.append('tags', JSON.stringify(tags))
-      }
+      // Tags are commented out for now
+      // if (tags.length > 0) {
+      //   fd.append('tags', JSON.stringify(tags))
+      // }
       
       await postsAPI.create(fd)
       toast.success('Post created!')
@@ -211,8 +211,8 @@ export default function CreatePostPage() {
             {errors.content && <p className="text-xs text-red-500 mt-1">{errors.content}</p>}
           </div>
 
-          {/* Tags */}
-          <div className="mb-6">
+          {/* Tags - Commented out */}
+          {/* <div className="mb-6">
             <label className="text-sm font-medium flex items-center gap-2 mb-1.5" style={{ color: 'var(--text-secondary)' }}>
               <FiTag size={14} /> Tags <span className="font-normal text-xs" style={{ color: 'var(--text-muted)' }}>optional · max 10</span>
             </label>
@@ -241,7 +241,6 @@ export default function CreatePostPage() {
             </div>
             {errors.tags && <p className="text-xs text-red-500 mt-1">{errors.tags}</p>}
             
-            {/* Tag chips */}
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-3">
                 {tags.map(tag => (
@@ -261,9 +260,9 @@ export default function CreatePostPage() {
                 ))}
               </div>
             )}
-          </div>
+          </div> */}
 
-          {/* Actions - Buttons at bottom like the image */}
+          {/* Actions */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
             <button
               onClick={() => navigate(-1)}
