@@ -227,7 +227,7 @@ export default function FeedPage() {
                   className="rounded-3xl overflow-hidden border-2 shadow-sm hover:shadow-md transition-shadow"
                   style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
                 >
-                  {/* Image with avatar in the corner - better positioned */}
+                  {/* Image */}
                   <div className="relative" style={{ background: 'var(--bg-secondary)' }}>
                     {imageUrl ? (
                       <img
@@ -255,25 +255,31 @@ export default function FeedPage() {
                     </button>
                   </div>
 
-                  {/* Content area - avatar inline with name and icons beside heading */}
+                  {/* Content area */}
                   <div className="px-4 py-4">
-                    <div className="flex items-center justify-between">
+                    {/* Row with avatar and like/comment icons */}
+                    <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <Avatar src={post.author?.avatar} name={post.author?.name} size={40} className="flex-shrink-0" />
                         <div className="min-w-0 flex-1">
-                          <p className="font-bold text-sm truncate" style={{ color: 'var(--text-primary)' }}>
+                          <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
                             {post.author?.name || 'Unknown'}
                           </p>
                           {post.title && (
-                            <h3 className="font-extrabold font-display text-base leading-snug truncate" style={{ color: 'var(--text-primary)' }}>
+                            <h3 className="font-extrabold font-display text-lg leading-snug" style={{ color: 'var(--text-primary)' }}>
                               {post.title}
                             </h3>
+                          )}
+                          {post.content && post.content.trim() !== ' ' && post.content !== post.title && (
+                            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                              {post.content}
+                            </p>
                           )}
                         </div>
                       </div>
                       
                       {/* Like and comment icons beside the heading */}
-                      <div className="flex items-center gap-4 flex-shrink-0 ml-2">
+                      <div className="flex items-center gap-4 flex-shrink-0 ml-2 pt-0.5">
                         <button 
                           onClick={e => handleLike(e, post._id)} 
                           className="flex items-center gap-1.5"
@@ -296,12 +302,6 @@ export default function FeedPage() {
                         </button>
                       </div>
                     </div>
-
-                    {post.content && post.content.trim() !== ' ' && (
-                      <p className="text-sm line-clamp-2 mt-1.5" style={{ color: 'var(--text-secondary)' }}>
-                        {post.content}
-                      </p>
-                    )}
 
                     {post.tags?.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-3">
