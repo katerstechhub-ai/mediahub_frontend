@@ -1,5 +1,5 @@
 export { useAuthStore, default as useAuthStoreDefault } from './AuthStore'
 export { useThemeStore } from './themeStore'
 export { usePostStore } from './postStore'
-// export { useNotificationStore } from './notificationStore'
+export { useNotificationStore } from './notificationStore'
 // export { useUIStore } from './uiStore'
