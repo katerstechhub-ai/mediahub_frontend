@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { FiArrowLeft, FiHeart, FiMessageCircle, FiTrash2, FiMoreHorizontal } from 'react-icons/fi'
+import { FiArrowLeft, FiHeart, FiMessageCircle, FiTrash2, FiMoreHorizontal, FiX } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import { postsAPI, commentsAPI } from '../api'
 import { useAuthStore } from '../store'
@@ -23,13 +23,14 @@ export default function PostDetailPage() {
   const [submitting, setSubmitting] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [showCommentMenu, setShowCommentMenu] = useState(null)
+  const [showComments, setShowComments] = useState(false)
   const [showHeartAnimation, setShowHeartAnimation] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const lastTapRef = useRef(0)
   const commentInputRef = useRef()
   const commentsEndRef = useRef()
+  const sheetRef = useRef()
 
-  // Helper function to check if current user owns something
   const isCurrentUser = (author) => {
     if (!user || !author) return false
     const currentUserId = user._id || user.id
@@ -68,11 +69,28 @@ export default function PostDetailPage() {
 
   useEffect(() => { fetchPost() }, [id])
 
+  // Scroll to bottom of comments when sheet opens or new comment added
   useEffect(() => {
-    if (commentsEndRef.current) {
-      commentsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    if (showComments && commentsEndRef.current) {
+      setTimeout(() => {
+        commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      }, 100)
     }
-  }, [comments])
+  }, [comments, showComments])
+
+  // Focus input when sheet opens
+  useEffect(() => {
+    if (showComments) {
+      setTimeout(() => commentInputRef.current?.focus(), 300)
+    }
+  }, [showComments])
+
+  // Close sheet on backdrop click
+  const handleBackdropClick = (e) => {
+    if (sheetRef.current && !sheetRef.current.contains(e.target)) {
+      setShowComments(false)
+    }
+  }
 
   const handleLike = async () => {
     const wasLiked = liked
@@ -88,10 +106,8 @@ export default function PostDetailPage() {
 
   const handleImageDoubleTap = (e) => {
     e.stopPropagation()
-    
     const now = Date.now()
     const lastTap = lastTapRef.current
-    
     if (now - lastTap < 300) {
       handleLike()
       setShowHeartAnimation(true)
@@ -110,7 +126,6 @@ export default function PostDetailPage() {
       await commentsAPI.create(id, comment.trim())
       setComment('')
       await fetchComments()
-      toast.success('Comment added!')
       setTimeout(() => commentInputRef.current?.focus(), 100)
     } catch (error) {
       toast.error('Failed to post comment')
@@ -124,10 +139,9 @@ export default function PostDetailPage() {
     try {
       await commentsAPI.delete(commentId)
       toast.success('Comment deleted')
-      setComments(prevComments => prevComments.filter(c => c._id !== commentId))
+      setComments(prev => prev.filter(c => c._id !== commentId))
       setShowCommentMenu(null)
     } catch (error) {
-      console.error('Delete comment error:', error)
       toast.error(error.response?.data?.message || 'Failed to delete comment')
     }
   }
@@ -135,19 +149,15 @@ export default function PostDetailPage() {
   const handleDelete = async () => {
     if (!window.confirm('Delete this post?')) return
     setIsDeleting(true)
+    setShowMenu(false)
     try {
       await postsAPI.delete(id)
-      toast.success('Post deleted successfully')
+      toast.success('Post deleted')
       navigate('/')
     } catch (error) {
-      console.error('Delete post error:', error)
       toast.error(error.response?.data?.message || 'Failed to delete post')
       setIsDeleting(false)
     }
-  }
-
-  const focusCommentInput = () => {
-    commentInputRef.current?.focus()
   }
 
   const getImageUrl = (post) => {
@@ -173,265 +183,298 @@ export default function PostDetailPage() {
   const mediaUrl = getImageUrl(post)
   const isOwner = isCurrentUser(post.author)
 
-  const HeartAnimation = () => {
-    if (!showHeartAnimation) return null
-    
-    return (
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-        <FaHeart 
-          size={100} 
-          color="#ef4444"
-          className="animate-like-heart"
-          style={{
-            animation: 'likeHeart 0.8s ease-out forwards'
-          }}
-        />
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen pb-6" style={{ background: 'var(--bg-primary)' }}>
-      <div className="max-w-2xl mx-auto">
+    <>
+      <div className="min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+        <div className="max-w-2xl mx-auto">
 
-        {/* Header */}
-        <div
-          className="sticky top-0 z-20 border-b backdrop-blur-lg px-4 py-3"
-          style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
-        >
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-2 hover:opacity-70 transition-opacity"
-            >
-              <FiArrowLeft size={20} style={{ color: 'var(--text-primary)' }} />
-              <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Back</span>
-            </button>
-            {isOwner && (
-              <div className="relative">
-                <button
-                  onClick={() => setShowMenu(v => !v)}
-                  className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[var(--bg-secondary)] transition-colors"
-                  disabled={isDeleting}
-                >
-                  <FiMoreHorizontal size={18} style={{ color: 'var(--text-primary)' }} />
-                </button>
-                {showMenu && !isDeleting && (
-                  <div
-                    className="absolute right-0 top-10 rounded-xl shadow-lg border py-1 w-40 z-30"
-                    style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
+          {/* Header */}
+          <div
+            className="sticky top-0 z-20 border-b backdrop-blur-lg px-4 py-3"
+            style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
+          >
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => navigate(-1)}
+                className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+              >
+                <FiArrowLeft size={20} style={{ color: 'var(--text-primary)' }} />
+                <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Back</span>
+              </button>
+              {isOwner && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowMenu(v => !v)}
+                    disabled={isDeleting}
+                    className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[var(--bg-secondary)] transition-colors"
                   >
-                    <button
-                      onClick={handleDelete}
-                      disabled={isDeleting}
-                      className="w-full text-left px-4 py-2.5 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2"
+                    <FiMoreHorizontal size={18} style={{ color: 'var(--text-primary)' }} />
+                  </button>
+                  {showMenu && !isDeleting && (
+                    <div
+                      className="absolute right-0 top-10 rounded-xl shadow-lg border py-1 w-40 z-30"
+                      style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
                     >
-                      <FiTrash2 size={16} />
-                      {isDeleting ? 'Deleting...' : 'Delete Post'}
-                    </button>
-                  </div>
-                )}
+                      <button
+                        onClick={handleDelete}
+                        className="w-full text-left px-4 py-2.5 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2"
+                      >
+                        <FiTrash2 size={16} /> Delete Post
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {!isOwner && <div className="w-8" />}
+            </div>
+          </div>
+
+          {/* Image with double-tap to like */}
+          {mediaUrl && (
+            <div
+              className="w-full relative cursor-pointer select-none"
+              style={{ background: 'var(--bg-secondary)' }}
+              onClick={handleImageDoubleTap}
+            >
+              <img
+                src={mediaUrl}
+                alt={post.title || 'Post image'}
+                className="w-full h-auto"
+                style={{ maxHeight: 520, objectFit: 'cover' }}
+                onError={e => e.target.style.display = 'none'}
+              />
+              {showHeartAnimation && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <FaHeart
+                    size={100}
+                    color="#ef4444"
+                    style={{ animation: 'likeHeart 0.8s ease-out forwards' }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Post content */}
+          <div className="px-4 pt-3 pb-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Avatar src={post.author?.avatar} name={post.author?.name} size={36} className="flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                    {post.author?.name || 'Unknown'}
+                  </p>
+                  {post.title && (
+                    <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>
+                      {post.title}
+                    </h3>
+                  )}
+                  {post.content && post.content.trim() && post.content.trim() !== ' ' && post.content !== post.title && (
+                    <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                      {post.content}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Like + Comment actions */}
+              <div className="flex items-center gap-4 flex-shrink-0 ml-3 self-center">
+                <button
+                  onClick={handleLike}
+                  className="flex flex-col items-center gap-0.5 hover:opacity-80 transition-opacity"
+                >
+                  {liked
+                    ? <FaHeart size={22} color="#ef4444" />
+                    : <FiHeart size={22} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />}
+                  <span className="text-[11px] font-bold" style={{ color: liked ? '#ef4444' : 'var(--text-muted)' }}>
+                    {likeCount}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setShowComments(true)}
+                  className="flex flex-col items-center gap-0.5 hover:opacity-80 transition-opacity"
+                >
+                  <FiMessageCircle size={22} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
+                  <span className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>
+                    {comments.length}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {post.tags?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2.5">
+                {post.tags.map(tag => (
+                  <span key={tag} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+                    #{tag}
+                  </span>
+                ))}
               </div>
             )}
-            {!isOwner && <div className="w-8" />}
-          </div>
-        </div>
 
-        {/* Image - with double tap support */}
-        {mediaUrl && (
-          <div 
-            className="w-full relative cursor-pointer"
-            style={{ background: 'var(--bg-secondary)' }}
-            onClick={handleImageDoubleTap}
-          >
-            <img
-              src={mediaUrl}
-              alt={post.title || 'Post image'}
-              className="w-full h-auto"
-              style={{ maxHeight: 500, objectFit: 'cover' }}
-              onError={e => e.target.style.display = 'none'}
-            />
-            <HeartAnimation />
-          </div>
-        )}
-
-        {/* Content */}
-        <div className="px-4 py-3">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              <Avatar src={post.author?.avatar} name={post.author?.name} size={32} className="flex-shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-                  {post.author?.name || 'Unknown'}
-                </p>
-                {post.title && (
-                  <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>
-                    {post.title}
-                  </h3>
-                )}
-                {post.content && post.content.trim() && post.content.trim() !== ' ' && post.content !== post.title && (
-                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                    {post.content}
-                  </p>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3 flex-shrink-0 ml-2 self-center">
-              <button 
-                onClick={handleLike} 
-                className="flex items-center gap-1 hover:opacity-80 transition-opacity"
-              >
-                {liked
-                  ? <FaHeart size={16} color="#ef4444" />
-                  : <FiHeart size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
-                <span className="text-xs font-bold" style={{ color: liked ? '#ef4444' : 'var(--text-muted)' }}>
-                  {likeCount}
-                </span>
-              </button>
-              <button 
-                onClick={focusCommentInput}
-                className="flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer"
-              >
-                <FiMessageCircle size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
-                <span className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>
-                  {comments.length}
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {post.tags?.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {post.tags.map(tag => (
-                <span key={tag} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          )}
-
-          <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
-            {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
-          </p>
-        </div>
-
-        {/* Comments section */}
-        <div className="px-4 space-y-3 pb-6">
-          <h4 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-            Comments ({comments.length})
-          </h4>
-          
-          {comments.length === 0 ? (
-            <p className="text-sm text-center py-4" style={{ color: 'var(--text-muted)' }}>
-              No comments yet — be the first!
+            <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+              {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
             </p>
-          ) : (
-            comments.map(c => {
-              const isCommentOwner = isCurrentUser(c.author)
-              return (
-                <div key={c._id} className="flex gap-2 items-start">
-                  <Avatar src={c.author?.avatar} name={c.author?.name} size={28} className="flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className="rounded-2xl rounded-tl-none px-3 py-1.5"
-                      style={{ background: 'var(--bg-secondary)' }}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                          {c.author?.name || 'Unknown'}
-                        </p>
-                        {isCommentOwner && (
-                          <div className="relative flex-shrink-0">
-                            <button
-                              onClick={() => setShowCommentMenu(showCommentMenu === c._id ? null : c._id)}
-                              className="p-1.5 hover:bg-[var(--bg-primary)] rounded-full transition-colors"
-                              style={{ color: 'var(--text-muted)' }}
-                            >
-                              <FiMoreHorizontal size={18} strokeWidth={2.5} />
-                            </button>
-                            {showCommentMenu === c._id && (
-                              <div
-                                className="absolute right-0 top-7 rounded-lg shadow-lg border py-1 w-40 z-30"
-                                style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
-                              >
-                                <button
-                                  onClick={() => handleDeleteComment(c._id)}
-                                  className="w-full text-left px-3 py-2 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2"
-                                >
-                                  <FiTrash2 size={14} /> Delete Comment
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                        {c.content || c.text || ''}
-                      </p>
-                    </div>
-                    <p className="text-[11px] mt-0.5 ml-1" style={{ color: 'var(--text-muted)' }}>
-                      {c.createdAt ? dayjs(c.createdAt).fromNow() : 'Just now'}
-                    </p>
-                  </div>
-                </div>
-              )
-            })
-          )}
-          <div ref={commentsEndRef} />
-        </div>
 
-        {/* Comment input */}
+            {/* Tap to open comments hint */}
+            <button
+              onClick={() => setShowComments(true)}
+              className="mt-3 text-sm font-semibold hover:opacity-70 transition-opacity"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              {comments.length === 0
+                ? 'Be the first to comment…'
+                : `View all ${comments.length} comment${comments.length !== 1 ? 's' : ''}`}
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      {/* ── Comments Bottom Sheet ── */}
+      {showComments && (
         <div
-          className="sticky bottom-0 left-0 right-0 bg-[var(--bg-primary)] border-t px-4 py-3 z-10"
-          style={{ borderColor: 'var(--border)' }}
+          className="fixed inset-0 z-50 flex flex-col justify-end"
+          style={{ background: 'rgba(0,0,0,0.55)' }}
+          onClick={handleBackdropClick}
         >
-          <div className="max-w-2xl mx-auto">
-            <form onSubmit={handleComment} className="flex items-center gap-2">
-              <Avatar src={user?.avatar} name={user?.name} size={32} className="flex-shrink-0" />
-              <div className="flex-1 flex items-center bg-[var(--bg-input)] rounded-full border px-4 py-1.5 focus-within:border-amber-500 transition-all" style={{ borderColor: 'var(--border)' }}>
-                <input
-                  ref={commentInputRef}
-                  type="text"
-                  placeholder="Write a comment..."
-                  value={comment}
-                  onChange={e => setComment(e.target.value)}
-                  className="flex-1 bg-transparent outline-none text-sm py-2"
-                  style={{ color: 'var(--text-primary)' }}
-                />
+          <div
+            ref={sheetRef}
+            className="w-full rounded-t-3xl flex flex-col overflow-hidden"
+            style={{
+              background: 'var(--bg-primary)',
+              maxHeight: '82vh',
+              boxShadow: '0 -8px 32px rgba(0,0,0,0.25)',
+            }}
+          >
+            {/* Sheet handle + header */}
+            <div
+              className="flex-shrink-0 border-b"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              {/* Drag handle */}
+              <div className="flex justify-center pt-3 pb-2">
+                <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
+              </div>
+              <div className="flex items-center justify-between px-5 pb-3">
+                <h3 className="text-base font-extrabold" style={{ color: 'var(--text-primary)' }}>
+                  Comments
+                </h3>
                 <button
-                  type="submit"
-                  disabled={!comment.trim() || submitting}
-                  className="flex-shrink-0 ml-2 text-sm font-bold text-amber-500 hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  onClick={() => setShowComments(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition-colors"
+                  style={{ color: 'var(--text-muted)' }}
                 >
-                  {submitting ? 'Posting...' : 'Post'}
+                  <FiX size={18} strokeWidth={2.5} />
                 </button>
               </div>
-            </form>
+            </div>
+
+            {/* Comments list — scrollable */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+              {comments.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-2">
+                  <FiMessageCircle size={36} strokeWidth={1.5} style={{ color: 'var(--text-muted)' }} />
+                  <p className="text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>No comments yet</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Be the first to comment!</p>
+                </div>
+              ) : (
+                comments.map(c => {
+                  const isCommentOwner = isCurrentUser(c.author)
+                  return (
+                    <div key={c._id} className="flex gap-3 items-start">
+                      <Avatar src={c.author?.avatar} name={c.author?.name} size={32} className="flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-bold mr-2" style={{ color: 'var(--text-primary)' }}>
+                              {c.author?.name || 'Unknown'}
+                            </span>
+                            <span className="text-sm leading-snug" style={{ color: 'var(--text-secondary)' }}>
+                              {c.content || c.text || ''}
+                            </span>
+                          </div>
+                          {isCommentOwner && (
+                            <div className="relative flex-shrink-0">
+                              <button
+                                onClick={() => setShowCommentMenu(showCommentMenu === c._id ? null : c._id)}
+                                className="p-1 rounded-full hover:bg-[var(--bg-secondary)] transition-colors"
+                                style={{ color: 'var(--text-muted)' }}
+                              >
+                                <FiMoreHorizontal size={16} />
+                              </button>
+                              {showCommentMenu === c._id && (
+                                <div
+                                  className="absolute right-0 top-7 rounded-xl shadow-lg border py-1 w-40 z-30"
+                                  style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
+                                >
+                                  <button
+                                    onClick={() => handleDeleteComment(c._id)}
+                                    className="w-full text-left px-4 py-2 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2"
+                                  >
+                                    <FiTrash2 size={14} /> Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                          {c.createdAt ? dayjs(c.createdAt).fromNow() : 'Just now'}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+              <div ref={commentsEndRef} />
+            </div>
+
+            {/* Comment input — pinned to bottom of sheet */}
+            <div
+              className="flex-shrink-0 border-t px-4 py-3"
+              style={{
+                borderColor: 'var(--border)',
+                background: 'var(--bg-primary)',
+                paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
+              }}
+            >
+              <form onSubmit={handleComment} className="flex items-center gap-3">
+                <Avatar src={user?.avatar} name={user?.name} size={32} className="flex-shrink-0" />
+                <div
+                  className="flex-1 flex items-center rounded-full border px-4 py-2 focus-within:border-amber-500 transition-all"
+                  style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}
+                >
+                  <input
+                    ref={commentInputRef}
+                    type="text"
+                    placeholder="Add a comment…"
+                    value={comment}
+                    onChange={e => setComment(e.target.value)}
+                    className="flex-1 bg-transparent outline-none text-sm"
+                    style={{ color: 'var(--text-primary)' }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!comment.trim() || submitting}
+                    className="flex-shrink-0 ml-2 text-sm font-bold text-amber-500 hover:text-amber-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {submitting ? 'Posting…' : 'Post'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
-
-      </div>
+      )}
 
       <style>{`
         @keyframes likeHeart {
-          0% {
-            transform: scale(0.5);
-            opacity: 1;
-          }
-          50% {
-            transform: scale(1.5);
-            opacity: 1;
-          }
-          100% {
-            transform: scale(2);
-            opacity: 0;
-          }
-        }
-        .animate-like-heart {
-          animation: likeHeart 0.8s ease-out forwards;
+          0%   { transform: scale(0.5); opacity: 1; }
+          50%  { transform: scale(1.5); opacity: 1; }
+          100% { transform: scale(2);   opacity: 0; }
         }
       `}</style>
-    </div>
+    </>
   )
 }
