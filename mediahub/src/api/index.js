@@ -47,12 +47,11 @@ api.interceptors.response.use(
   }
 );
 
-// Auth API
 export const authAPI = {
   login: (credentials) => api.post('/api/auth/login', credentials),
   register: (userData) => api.post('/api/auth/register', userData),
   getProfile: () => api.get('/api/auth/me'),
-  getMe: () => api.get('/api/auth/me'), // Add this alias for consistency
+  getMe: () => api.get('/api/auth/me'),
   logout: () => api.post('/api/auth/logout'),
   updateProfile: (data) => api.put('/api/auth/me', data),
   updateAvatar: (file) => {
@@ -62,6 +61,8 @@ export const authAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  changePassword: (data) => api.put('/api/auth/me/password', data), // { currentPassword, newPassword }
+  deleteAccount: () => api.delete('/api/auth/me'),
 };
 
 // Posts API
