@@ -102,7 +102,7 @@ export default function RegisterPage() {
               />
             </svg>
             <span className="text-sm font-extrabold font-display tracking-wide text-white/90">
-              MediaHub
+              Eventpulse
             </span>
           </div>
 

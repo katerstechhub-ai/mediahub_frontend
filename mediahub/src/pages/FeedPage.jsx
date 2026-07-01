@@ -335,8 +335,66 @@ export default function FeedPage() {
         <div className="sticky top-0 z-10 border-b backdrop-blur-lg px-4 sm:px-6 py-4" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-extrabold font-display tracking-tight truncate" style={{ color: 'var(--text-primary)' }}>MediaHub</h1>
-              <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{posts.length} posts</p>
+              <svg viewBox="330 300 590 590" width="44" height="44" xmlns="http://www.w3.org/2000/svg" className="rounded-full shadow-sm flex-shrink-0">
+                <defs>
+                  <linearGradient id="epFeedRibbonE" x1="300" y1="380" x2="620" y2="820" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#f3e6d8" />
+                    <stop offset="55%" stopColor="#f3e6d8" />
+                    <stop offset="100%" stopColor="#8a6a4f" />
+                  </linearGradient>
+                  <linearGradient id="epFeedRibbonP" x1="900" y1="380" x2="580" y2="820" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#f3e6d8" />
+                    <stop offset="55%" stopColor="#f3e6d8" />
+                    <stop offset="100%" stopColor="#8a6a4f" />
+                  </linearGradient>
+                </defs>
+
+                <rect x="330" y="300" width="590" height="590" fill="#3c2f27" />
+
+                <path
+                  d="M600 320
+                     C 470 320, 355 400, 355 500
+                     C 355 545, 385 575, 430 590
+                     C 385 605, 355 635, 355 680
+                     C 355 780, 470 860, 600 860
+                     L 600 790
+                     C 500 790, 425 740, 425 685
+                     C 425 655, 460 630, 520 615
+                     L 520 565
+                     C 460 550, 425 525, 425 495
+                     C 425 440, 500 390, 600 390
+                     Z"
+                  fill="url(#epFeedRibbonE)"
+                />
+
+                <path
+                  d="M600 320
+                     C 600 320, 600 460, 600 490
+                     C 600 545, 645 585, 715 590
+                     C 645 595, 600 620, 600 665
+                     C 600 700, 600 860, 600 860
+                     L 670 860
+                     C 670 860, 670 710, 670 680
+                     C 670 650, 700 630, 760 625
+                     C 830 620, 890 585, 890 530
+                     C 890 470, 820 425, 730 415
+                     C 700 411, 670 405, 670 380
+                     C 670 350, 670 320, 670 320
+                     Z"
+                  fill="url(#epFeedRibbonP)"
+                />
+
+                <path
+                  d="M520 605 L555 605 L568 585 L582 625 L596 605 L640 605"
+                  fill="none"
+                  stroke="#3c2f27"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="0.55"
+                />
+              </svg>
+              <p className="text-xs font-semibold mt-1" style={{ color: 'var(--text-muted)' }}>{posts.length} posts</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <div className="flex items-center rounded-full p-1 flex-shrink-0 shadow-sm" style={{ background: 'var(--bg-secondary)' }}>
