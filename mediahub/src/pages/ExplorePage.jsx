@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiSearch, FiX, FiGrid } from 'react-icons/fi'
-import { usePostStore } from '../store'
+import { usePostStore, useAuthStore } from '../store'
 import { EmptyState, Avatar } from '../components/ui'
 
 export default function ExplorePage() {
   const { posts, isLoading, fetchPosts } = usePostStore()
+  const { user } = useAuthStore()
   const [filtered, setFiltered] = useState([])
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
@@ -42,6 +43,19 @@ export default function ExplorePage() {
     if (post.thumbnail) return post.thumbnail
     if (post.url) return post.url
     return null
+  }
+
+  // Own avatar -> /profile, everyone else -> /users/:id
+  const goToProfile = (e, author) => {
+    e.stopPropagation()
+    const authorId = author?._id || author?.id || author
+    if (!authorId) return
+    const myId = user?._id || user?.id
+    if (String(authorId) === String(myId)) {
+      navigate('/profile')
+    } else {
+      navigate(`/users/${authorId}`)
+    }
   }
 
   if (isLoading) {
@@ -145,7 +159,9 @@ export default function ExplorePage() {
 
                       {/* Avatar + likes overlaid on the image — no name text on the photo */}
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent pt-8 pb-2.5 px-2.5 flex items-center">
-                        <Avatar src={post.author?.avatar} name={post.author?.name} size={26} ring />
+                        <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer">
+                          <Avatar src={post.author?.avatar} name={post.author?.name} size={26} ring />
+                        </div>
                         {post.likes && post.likes.length > 0 && (
                           <span className="text-white text-xs font-bold ml-auto drop-shadow-sm">
                             ❤️ {post.likes.length}
@@ -159,8 +175,14 @@ export default function ExplorePage() {
                         {displayText}
                       </p>
                       <div className="flex items-center gap-1.5 pt-3 mt-3 border-t" style={{ borderColor: 'var(--border)' }}>
-                        <Avatar src={post.author?.avatar} name={post.author?.name} size={22} />
-                        <span className="text-xs font-semibold truncate" style={{ color: 'var(--text-secondary)' }}>
+                        <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
+                          <Avatar src={post.author?.avatar} name={post.author?.name} size={22} />
+                        </div>
+                        <span
+                          className="text-xs font-semibold truncate cursor-pointer hover:underline"
+                          style={{ color: 'var(--text-secondary)' }}
+                          onClick={(e) => goToProfile(e, post.author)}
+                        >
                           {post.author?.name || 'Unknown'}
                         </span>
                         {post.likes && post.likes.length > 0 && (

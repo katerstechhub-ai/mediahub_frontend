@@ -12,6 +12,7 @@ import ProfilePage from './pages/ProfilePage'
 import PostDetailPage from './pages/PostDetailPage'
 import SettingsPage from './pages/SettingsPage'
 import NotFoundPage from './pages/NotFoundPage'
+import UserProfilePage from './pages/Userprofilepage'
 
 function App() {
   const { theme } = useThemeStore()
@@ -53,6 +54,7 @@ function App() {
             <Route path="posts/:id" element={<PostDetailPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFoundPage />} />
+            <Route path="/users/:userId" element={<UserProfilePage />} />
           </Route>
         </Routes>
       </div>
@@ -61,3 +63,5 @@ function App() {
 }
 
 export default App
+
+

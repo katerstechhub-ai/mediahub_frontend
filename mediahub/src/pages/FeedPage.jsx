@@ -11,7 +11,7 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
 
 // ── Shared Comments Bottom Sheet ──────────────────────────────────────────────
-function CommentsSheet({ postId, open, onClose, user }) {
+function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
   const [comments, setComments] = useState([])
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -130,11 +130,19 @@ function CommentsSheet({ postId, open, onClose, user }) {
               const isCommentOwner = isCurrentUser(c.author)
               return (
                 <div key={c._id} className="flex gap-3 items-start">
-                  <Avatar src={c.author?.avatar} name={c.author?.name} size={32} className="flex-shrink-0 mt-0.5" />
+                  <div onClick={() => onGoToProfile(c.author)} className="cursor-pointer flex-shrink-0">
+                    <Avatar src={c.author?.avatar} name={c.author?.name} size={32} className="mt-0.5" />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm leading-snug flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>
-                        <span className="font-bold mr-1.5" style={{ color: 'var(--text-primary)' }}>{c.author?.name || 'Unknown'}</span>
+                        <span
+                          className="font-bold mr-1.5 cursor-pointer hover:underline"
+                          style={{ color: 'var(--text-primary)' }}
+                          onClick={() => onGoToProfile(c.author)}
+                        >
+                          {c.author?.name || 'Unknown'}
+                        </span>
                         {c.content || c.text || ''}
                       </p>
                       {isCommentOwner && (
@@ -265,6 +273,19 @@ export default function FeedPage() {
     setActiveCommentPostId(postId)
   }
 
+  // Navigate to a user's profile — own avatar goes to /profile, others go to /users/:id
+  const goToProfile = (e, author) => {
+    e?.stopPropagation()
+    const authorId = author?._id || author?.id || author
+    if (!authorId) return
+    const myId = user?._id || user?.id
+    if (String(authorId) === String(myId)) {
+      navigate('/profile')
+    } else {
+      navigate(`/users/${authorId}`)
+    }
+  }
+
   const getImageUrl = (post) => {
     if (!post) return null
     if (post.image?.url) return post.image.url
@@ -358,6 +379,20 @@ export default function FeedPage() {
                         <FiImage size={26} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
                       </div>
                     )}
+
+                    {/* Author avatar badge (top-left) — click goes to their profile */}
+                    <div
+                      onClick={(e) => goToProfile(e, post.author)}
+                      className="absolute top-2.5 left-2.5 cursor-pointer"
+                    >
+                      <Avatar
+                        src={post.author?.avatar}
+                        name={post.author?.name}
+                        size={28}
+                        className="ring-2 ring-white/70 shadow-md"
+                      />
+                    </div>
+
                     <HeartAnimation postId={post._id} />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
                     <div className="absolute bottom-3 right-3 flex items-center gap-3">
@@ -393,10 +428,18 @@ export default function FeedPage() {
                       )}
                       <div className="px-1">
                         <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-2 min-w-0 flex-1" onClick={() => navigate(`/posts/${post._id}`)} style={{ cursor: 'pointer' }}>
-                            <Avatar src={post.author?.avatar} name={post.author?.name} size={32} className="flex-shrink-0" />
-                            <div className="min-w-0 flex-1">
-                              <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{post.author?.name || 'Unknown'}</p>
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
+                              <Avatar src={post.author?.avatar} name={post.author?.name} size={32} />
+                            </div>
+                            <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
+                              <p
+                                className="font-bold text-sm hover:underline inline-block"
+                                style={{ color: 'var(--text-primary)' }}
+                                onClick={(e) => goToProfile(e, post.author)}
+                              >
+                                {post.author?.name || 'Unknown'}
+                              </p>
                               {post.title && <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>{post.title}</h3>}
                               {post.content && post.content.trim() !== ' ' && post.content !== post.title && (
                                 <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
@@ -446,9 +489,17 @@ export default function FeedPage() {
                       )}
                       <div className="p-3">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
-                            <Avatar src={post.author?.avatar} name={post.author?.name} size={28} className="flex-shrink-0" />
-                            <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{post.author?.name || 'Unknown'}</p>
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
+                              <Avatar src={post.author?.avatar} name={post.author?.name} size={28} />
+                            </div>
+                            <p
+                              className="font-semibold text-sm truncate cursor-pointer hover:underline"
+                              style={{ color: 'var(--text-primary)' }}
+                              onClick={(e) => goToProfile(e, post.author)}
+                            >
+                              {post.author?.name || 'Unknown'}
+                            </p>
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">
                             <button onClick={e => handleLike(e, post._id)} className="flex items-center gap-0.5">
@@ -491,6 +542,7 @@ export default function FeedPage() {
         open={!!activeCommentPostId}
         onClose={() => setActiveCommentPostId(null)}
         user={user}
+        onGoToProfile={(author) => goToProfile(null, author)}
       />
 
       <style>{`
