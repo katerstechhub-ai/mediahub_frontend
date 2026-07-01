@@ -1,9 +1,11 @@
+import { useState, useEffect } from 'react'
 import { useAuthStore, useThemeStore } from '../../store'
 import {
   FiHome, FiCompass, FiPlusSquare,
   FiBell, FiUser, FiLogOut, FiMoon, FiSun
 } from 'react-icons/fi'
 import { NavLink, useNavigate } from 'react-router-dom'
+import { notificationsAPI } from '../../api'
 
 const navItems = [
   { to: '/', icon: FiHome, label: 'Home' },
@@ -17,6 +19,21 @@ export default function Sidebar() {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
   const { theme, toggleTheme } = useThemeStore()
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await notificationsAPI.getAll(1, 1)
+        setUnreadCount(res.data?.unreadCount || 0)
+      } catch {
+        // silent — nav badge isn't worth surfacing an error toast for
+      }
+    }
+    fetchUnread()
+    const interval = setInterval(fetchUnread, 30000) // refresh every 30s
+    return () => clearInterval(interval)
+  }, [])
 
   const handleLogout = () => {
     logout()
@@ -51,7 +68,7 @@ export default function Sidebar() {
             to={to}
             end={to === '/'}
             className={({ isActive }) =>
-              `flex items-center justify-center w-14 h-14 mx-auto rounded-full transition-all duration-200 ${
+              `relative flex items-center justify-center w-14 h-14 mx-auto rounded-full transition-all duration-200 ${
                 isActive
                   ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30 scale-105'
                   : 'hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:scale-105'
@@ -60,6 +77,14 @@ export default function Sidebar() {
             title={label}
           >
             <Icon size={26} strokeWidth={2.5} />
+            {to === '/notifications' && unreadCount > 0 && (
+              <span
+                className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+                style={{ background: '#ef4444' }}
+              >
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

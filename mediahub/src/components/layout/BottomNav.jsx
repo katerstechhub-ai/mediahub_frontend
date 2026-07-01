@@ -1,14 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { FiHome, FiCompass, FiPlusSquare, FiBell, FiUser, FiMoon, FiSun, FiLogOut, FiSettings, FiX } from 'react-icons/fi'
 import { useAuthStore, useThemeStore } from '../../store'
+import { notificationsAPI } from '../../api'
 
 const tabs = [
   { to: '/', icon: FiHome, label: 'Feed' },
   { to: '/explore', icon: FiCompass, label: 'Explore' },
   { to: '/create', icon: FiPlusSquare, label: 'Create' },
   { to: '/notifications', icon: FiBell, label: 'Alerts' },
-  { to: '/profile', icon: FiUser, label: 'Profile' },
 ]
 
 export default function BottomNav() {
@@ -16,6 +16,21 @@ export default function BottomNav() {
   const { user, logout } = useAuthStore()
   const { theme, toggleTheme } = useThemeStore()
   const [showMore, setShowMore] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await notificationsAPI.getAll(1, 1)
+        setUnreadCount(res.data?.unreadCount || 0)
+      } catch {
+        // silent — nav badge isn't worth surfacing an error toast for
+      }
+    }
+    fetchUnread()
+    const interval = setInterval(fetchUnread, 30000) // refresh every 30s
+    return () => clearInterval(interval)
+  }, [])
 
   const handleLogout = () => {
     setShowMore(false)
@@ -25,42 +40,58 @@ export default function BottomNav() {
 
   return (
     <>
-      {/* Bottom nav bar */}
+      {/* Floating pill nav — leaves the edges of the page visible instead of a full-width bar */}
       <nav
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center border-t"
-        style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
+        className="lg:hidden fixed bottom-4 left-4 right-4 z-50 flex items-center justify-between px-2 py-2 rounded-full shadow-lg"
+        style={{
+          background: 'var(--bg-primary)',
+          border: '1px solid var(--border)',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+        }}
       >
         {tabs.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
-            className="flex-1 flex flex-col items-center py-3 gap-0.5"
+            className="relative flex items-center justify-center w-11 h-11 rounded-full transition-all duration-200"
           >
             {({ isActive }) => (
               <>
-                <Icon size={22} color={isActive ? '#f59e0b' : 'var(--text-muted)'} />
-                <span className="text-[10px]" style={{ color: isActive ? '#f59e0b' : 'var(--text-muted)' }}>
-                  {label}
-                </span>
+                <div
+                  className="flex items-center justify-center w-11 h-11 rounded-full transition-all duration-200"
+                  style={{
+                    background: isActive ? '#f59e0b' : 'transparent',
+                    boxShadow: isActive ? '0 4px 14px rgba(245,158,11,0.4)' : 'none',
+                  }}
+                >
+                  <Icon size={20} color={isActive ? '#ffffff' : 'var(--text-muted)'} strokeWidth={2.5} />
+                </div>
+                {to === '/notifications' && unreadCount > 0 && (
+                  <span
+                    className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+                    style={{ background: '#ef4444' }}
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </>
             )}
           </NavLink>
         ))}
 
-        {/* More button */}
+        {/* Avatar / More button */}
         <button
           onClick={() => setShowMore(true)}
-          className="flex-1 flex flex-col items-center py-3 gap-0.5"
+          className="flex items-center justify-center w-11 h-11 rounded-full"
         >
           {user?.avatar ? (
-            <img src={user.avatar} alt={user.name} className="w-6 h-6 rounded-full object-cover" />
+            <img src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full object-cover ring-2 ring-amber-500/40" />
           ) : (
-            <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center text-white text-[10px] font-bold">
+            <div className="w-9 h-9 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-bold">
               {user?.name?.[0]?.toUpperCase() || 'U'}
             </div>
           )}
-          <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>More</span>
         </button>
       </nav>
 
@@ -70,19 +101,15 @@ export default function BottomNav() {
           className="lg:hidden fixed inset-0 z-50 flex items-end"
           onClick={() => setShowMore(false)}
         >
-          {/* Backdrop */}
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
-          {/* Sheet */}
           <div
             className="relative w-full rounded-t-2xl p-5 pb-8 flex flex-col gap-2"
             style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Handle */}
             <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600 mx-auto mb-3" />
 
-            {/* User info */}
             {user && (
               <div className="flex items-center gap-3 px-2 pb-3 mb-1 border-b" style={{ borderColor: 'var(--border)' }}>
                 {user.avatar ? (
@@ -99,7 +126,14 @@ export default function BottomNav() {
               </div>
             )}
 
-            {/* Settings */}
+            <button
+              onClick={() => { setShowMore(false); navigate('/profile') }}
+              className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[var(--bg-secondary)] transition-colors w-full text-left"
+            >
+              <FiUser size={20} style={{ color: 'var(--text-secondary)' }} />
+              <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Profile</span>
+            </button>
+
             <button
               onClick={() => { setShowMore(false); navigate('/settings') }}
               className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[var(--bg-secondary)] transition-colors w-full text-left"
@@ -108,7 +142,6 @@ export default function BottomNav() {
               <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Settings</span>
             </button>
 
-            {/* Theme toggle */}
             <button
               onClick={() => { toggleTheme(); setShowMore(false) }}
               className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[var(--bg-secondary)] transition-colors w-full text-left"
@@ -121,7 +154,6 @@ export default function BottomNav() {
               </span>
             </button>
 
-            {/* Logout */}
             <button
               onClick={handleLogout}
               className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors w-full text-left"
@@ -130,7 +162,6 @@ export default function BottomNav() {
               <span className="text-sm font-medium text-red-500">Log Out</span>
             </button>
 
-            {/* Close */}
             <button
               onClick={() => setShowMore(false)}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition-colors"
