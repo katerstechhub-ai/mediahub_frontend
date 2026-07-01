@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { FiArrowLeft, FiHeart, FiMessageCircle, FiTrash2, FiMoreHorizontal, FiX, FiAlertTriangle } from 'react-icons/fi'
+import { FiArrowLeft, FiHeart, FiMessageCircle, FiTrash2, FiMoreHorizontal, FiX } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import { postsAPI, commentsAPI } from '../api'
 import { useAuthStore } from '../store'
@@ -419,7 +419,7 @@ export default function PostDetailPage() {
         onClick={() => !isDeletingActive && setDeleteTarget(null)}
       >
         <div
-          className="w-full max-w-sm rounded-3xl p-6 transition-transform duration-200"
+          className="relative h-40 w-full max-w-sm rounded-3xl px-8 flex flex-col items-center justify-center transition-transform duration-200"
           style={{
             background: 'var(--bg-primary)',
             border: '1px solid var(--border)',
@@ -428,38 +428,43 @@ export default function PostDetailPage() {
           }}
           onClick={e => e.stopPropagation()}
         >
+          {/* Close button */}
+          <button
+            onClick={() => !isDeletingActive && setDeleteTarget(null)}
+            disabled={isDeletingActive}
+            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition-colors disabled:opacity-50"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            <FiX size={18} strokeWidth={2.5} />
+          </button>
+
           <div
-            className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+            className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
             style={{ background: 'rgba(239,68,68,0.12)' }}
           >
-            <FiAlertTriangle size={22} color="#ef4444" />
+            <FiTrash2 size={28} color="#ef4444" strokeWidth={2.5} />
           </div>
 
-          <h3 className="text-lg font-extrabold text-center font-display" style={{ color: 'var(--text-primary)' }}>
-            {deleteTarget?.type === 'post' ? 'Delete this post?' : 'Delete this comment?'}
+          <h3 className="text-base font-extrabold text-center font-display px-2" style={{ color: 'var(--text-primary)' }}>
+            Are you sure you want to delete this {deleteTarget?.type === 'post' ? 'post' : 'comment'}?
           </h3>
-          <p className="text-sm text-center mt-2" style={{ color: 'var(--text-muted)' }}>
-            {deleteTarget?.type === 'post'
-              ? "This can't be undone. The post and its comments will be permanently removed."
-              : "This can't be undone."}
-          </p>
 
-          <div className="flex gap-3 mt-6">
+          <div className="flex items-center justify-center gap-6 mt-6">
             <button
               onClick={() => setDeleteTarget(null)}
               disabled={isDeletingActive}
-              className="flex-1 py-3 rounded-full font-bold text-sm transition-colors disabled:opacity-50"
-              style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+              className="px-6 py-2.5 rounded-full font-bold text-sm border transition-colors disabled:opacity-50"
+              style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
             >
-              Cancel
+              No, cancel
             </button>
             <button
               onClick={confirmDelete}
               disabled={isDeletingActive}
-              className="flex-1 py-3 rounded-full font-bold text-sm text-white transition-colors disabled:opacity-60"
-              style={{ background: '#ef4444' }}
+              className="font-bold text-sm transition-colors disabled:opacity-60"
+              style={{ color: '#ef4444' }}
             >
-              {isDeletingActive ? 'Deleting…' : 'Delete'}
+              {isDeletingActive ? 'Deleting…' : "Yes, I'm sure"}
             </button>
           </div>
         </div>
