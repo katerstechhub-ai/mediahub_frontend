@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { FiArrowLeft, FiHeart, FiMessageCircle, FiTrash2, FiMoreHorizontal, FiX } from 'react-icons/fi'
+import { FiArrowLeft, FiHeart, FiMessageCircle, FiTrash2, FiMoreHorizontal, FiX, FiAlertTriangle } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import { postsAPI, commentsAPI } from '../api'
 import { useAuthStore } from '../store'
@@ -26,6 +26,9 @@ export default function PostDetailPage() {
   const [showComments, setShowComments] = useState(false)
   const [showHeartAnimation, setShowHeartAnimation] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  // deleteTarget: { type: 'post' } | { type: 'comment', id: string } | null
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deletingComment, setDeletingComment] = useState(false)
   const lastTapRef = useRef(0)
   const commentInputRef = useRef()
   const commentsEndRef = useRef()
@@ -128,22 +131,37 @@ export default function PostDetailPage() {
     finally { setSubmitting(false) }
   }
 
-  const handleDeleteComment = async (commentId) => {
-    if (!window.confirm('Delete this comment?')) return
-    try {
-      await commentsAPI.delete(commentId)
-      toast.success('Comment deleted')
-      setComments(prev => prev.filter(c => c._id !== commentId))
-      setShowCommentMenu(null)
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to delete comment')
-    }
+  // Opens the modal instead of window.confirm — used for both post + comment
+  const requestDeleteComment = (commentId) => {
+    setShowCommentMenu(null)
+    setDeleteTarget({ type: 'comment', id: commentId })
   }
 
-  const handleDelete = async () => {
-    if (!window.confirm('Delete this post?')) return
-    setIsDeleting(true)
+  const requestDeletePost = () => {
     setShowMenu(false)
+    setDeleteTarget({ type: 'post' })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+
+    if (deleteTarget.type === 'comment') {
+      setDeletingComment(true)
+      try {
+        await commentsAPI.delete(deleteTarget.id)
+        toast.success('Comment deleted')
+        setComments(prev => prev.filter(c => c._id !== deleteTarget.id))
+      } catch (error) {
+        toast.error(error.response?.data?.message || 'Failed to delete comment')
+      } finally {
+        setDeletingComment(false)
+        setDeleteTarget(null)
+      }
+      return
+    }
+
+    // post
+    setIsDeleting(true)
     try {
       await postsAPI.delete(id)
       toast.success('Post deleted')
@@ -151,6 +169,7 @@ export default function PostDetailPage() {
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to delete post')
       setIsDeleting(false)
+      setDeleteTarget(null)
     }
   }
 
@@ -176,6 +195,7 @@ export default function PostDetailPage() {
 
   const mediaUrl = getImageUrl(post)
   const isOwner = isCurrentUser(post.author)
+  const isDeletingActive = deleteTarget?.type === 'post' ? isDeleting : deletingComment
 
   return (
     <>
@@ -196,7 +216,7 @@ export default function PostDetailPage() {
                   </button>
                   {showMenu && !isDeleting && (
                     <div className="absolute right-0 top-10 rounded-xl shadow-lg border py-1 w-40 z-30" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
-                      <button onClick={handleDelete} className="w-full text-left px-4 py-2.5 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2">
+                      <button onClick={requestDeletePost} className="w-full text-left px-4 py-2.5 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2">
                         <FiTrash2 size={16} /> Delete Post
                       </button>
                     </div>
@@ -345,7 +365,7 @@ export default function PostDetailPage() {
                             </button>
                             {showCommentMenu === c._id && (
                               <div className="absolute right-0 top-7 rounded-xl shadow-lg border py-1 w-36 z-10" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
-                                <button onClick={() => handleDeleteComment(c._id)} className="w-full text-left px-4 py-2 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2">
+                                <button onClick={() => requestDeleteComment(c._id)} className="w-full text-left px-4 py-2 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2">
                                   <FiTrash2 size={14} /> Delete
                                 </button>
                               </div>
@@ -383,6 +403,64 @@ export default function PostDetailPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Delete Confirmation Modal — replaces window.confirm for both post + comment deletes ── */}
+      <div
+        className="fixed inset-0 flex items-center justify-center px-4 transition-opacity duration-200"
+        style={{
+          zIndex: 10000,
+          background: 'rgba(0,0,0,0.6)',
+          opacity: deleteTarget ? 1 : 0,
+          pointerEvents: deleteTarget ? 'all' : 'none',
+        }}
+        onClick={() => !isDeletingActive && setDeleteTarget(null)}
+      >
+        <div
+          className="w-full max-w-sm rounded-3xl p-6 transition-transform duration-200"
+          style={{
+            background: 'var(--bg-primary)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            transform: deleteTarget ? 'scale(1)' : 'scale(0.95)',
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div
+            className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+            style={{ background: 'rgba(239,68,68,0.12)' }}
+          >
+            <FiAlertTriangle size={22} color="#ef4444" />
+          </div>
+
+          <h3 className="text-lg font-extrabold text-center font-display" style={{ color: 'var(--text-primary)' }}>
+            {deleteTarget?.type === 'post' ? 'Delete this post?' : 'Delete this comment?'}
+          </h3>
+          <p className="text-sm text-center mt-2" style={{ color: 'var(--text-muted)' }}>
+            {deleteTarget?.type === 'post'
+              ? "This can't be undone. The post and its comments will be permanently removed."
+              : "This can't be undone."}
+          </p>
+
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={() => setDeleteTarget(null)}
+              disabled={isDeletingActive}
+              className="flex-1 py-3 rounded-full font-bold text-sm transition-colors disabled:opacity-50"
+              style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDelete}
+              disabled={isDeletingActive}
+              className="flex-1 py-3 rounded-full font-bold text-sm text-white transition-colors disabled:opacity-60"
+              style={{ background: '#ef4444' }}
+            >
+              {isDeletingActive ? 'Deleting…' : 'Delete'}
+            </button>
           </div>
         </div>
       </div>
