@@ -395,12 +395,20 @@ export default function FeedPage() {
 
                     <HeartAnimation postId={post._id} />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
-                    <div className="absolute bottom-3 right-3 flex items-center gap-3">
-                      <button onClick={e => { e.stopPropagation(); handleLike(e, post._id) }} className="flex items-center gap-1 text-white">
+
+                    {/* Like / comment — padded, rounded hit-areas so they're easy to tap over the image */}
+                    <div className="absolute bottom-2 right-2 flex items-center gap-0.5">
+                      <button
+                        onClick={e => { e.stopPropagation(); handleLike(e, post._id) }}
+                        className="flex items-center gap-1 text-white rounded-full px-2.5 py-1.5 hover:bg-black/30 active:scale-95 transition-all"
+                      >
                         {isLiked ? <FaHeart size={15} color="#ef4444" /> : <FiHeart size={15} strokeWidth={2.5} className="drop-shadow-lg" />}
                         <span className="text-xs font-semibold drop-shadow-lg">{post.likes?.length || 0}</span>
                       </button>
-                      <button onClick={e => openComments(e, post._id)} className="flex items-center gap-1 text-white">
+                      <button
+                        onClick={e => openComments(e, post._id)}
+                        className="flex items-center gap-1 text-white rounded-full px-2.5 py-1.5 hover:bg-black/30 active:scale-95 transition-all"
+                      >
                         <FiMessageCircle size={15} strokeWidth={2.5} className="drop-shadow-lg" />
                         <span className="text-xs font-semibold drop-shadow-lg">{commentCount}</span>
                       </button>
@@ -427,7 +435,7 @@ export default function FeedPage() {
                         </div>
                       )}
                       <div className="px-1">
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between gap-1">
                           <div className="flex items-center gap-2 min-w-0 flex-1">
                             <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
                               <Avatar src={post.author?.avatar} name={post.author?.name} size={32} />
@@ -446,12 +454,18 @@ export default function FeedPage() {
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-3 flex-shrink-0 ml-2 self-center">
-                            <button onClick={e => handleLike(e, post._id)} className="flex items-center gap-1">
+                          <div className="flex items-center gap-0.5 flex-shrink-0 self-center -mr-1.5">
+                            <button
+                              onClick={e => handleLike(e, post._id)}
+                              className="flex items-center gap-1 rounded-full px-2.5 py-2 hover:bg-[var(--bg-secondary)] active:scale-95 transition-all"
+                            >
                               {isLiked ? <FaHeart size={16} color="#ef4444" /> : <FiHeart size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
                               <span className="text-xs font-bold" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>{post.likes?.length || 0}</span>
                             </button>
-                            <button onClick={e => openComments(e, post._id)} className="flex items-center gap-1">
+                            <button
+                              onClick={e => openComments(e, post._id)}
+                              className="flex items-center gap-1 rounded-full px-2.5 py-2 hover:bg-[var(--bg-secondary)] active:scale-95 transition-all"
+                            >
                               <FiMessageCircle size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
                               <span className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>{commentCount}</span>
                             </button>
@@ -488,7 +502,7 @@ export default function FeedPage() {
                         </div>
                       )}
                       <div className="p-3">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-1">
                           <div className="flex items-center gap-2 min-w-0 flex-1">
                             <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
                               <Avatar src={post.author?.avatar} name={post.author?.name} size={28} />
@@ -501,12 +515,18 @@ export default function FeedPage() {
                               {post.author?.name || 'Unknown'}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <button onClick={e => handleLike(e, post._id)} className="flex items-center gap-0.5">
+                          <div className="flex items-center gap-0.5 flex-shrink-0 -mr-1">
+                            <button
+                              onClick={e => handleLike(e, post._id)}
+                              className="flex items-center gap-0.5 rounded-full px-2 py-1.5 hover:bg-[var(--bg-primary)] active:scale-95 transition-all"
+                            >
                               {isLiked ? <FaHeart size={14} color="#ef4444" /> : <FiHeart size={14} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
                               <span className="text-xs font-semibold" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>{post.likes?.length || 0}</span>
                             </button>
-                            <button onClick={e => openComments(e, post._id)} className="flex items-center gap-0.5">
+                            <button
+                              onClick={e => openComments(e, post._id)}
+                              className="flex items-center gap-0.5 rounded-full px-2 py-1.5 hover:bg-[var(--bg-primary)] active:scale-95 transition-all"
+                            >
                               <FiMessageCircle size={14} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
                               <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{commentCount}</span>
                             </button>

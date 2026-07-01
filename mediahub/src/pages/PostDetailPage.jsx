@@ -37,6 +37,19 @@ export default function PostDetailPage() {
     return String(currentUserId) === String(authorId)
   }
 
+  // Own avatar -> /profile, everyone else -> /users/:id
+  const goToProfile = (e, author) => {
+    e?.stopPropagation()
+    const authorId = author?._id || author?.id || author
+    if (!authorId) return
+    const myId = user?._id || user?.id
+    if (String(authorId) === String(myId)) {
+      navigate('/profile')
+    } else {
+      navigate(`/users/${authorId}`)
+    }
+  }
+
   const fetchComments = async () => {
     try {
       const response = await commentsAPI.getByPost(id)
@@ -208,23 +221,39 @@ export default function PostDetailPage() {
 
           {/* Post content */}
           <div className="px-4 pt-3 pb-8">
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <Avatar src={post.author?.avatar} name={post.author?.name} size={36} className="flex-shrink-0" />
+                <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
+                  <Avatar src={post.author?.avatar} name={post.author?.name} size={36} />
+                </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{post.author?.name || 'Unknown'}</p>
+                  <p
+                    className="font-bold text-sm cursor-pointer hover:underline inline-block"
+                    style={{ color: 'var(--text-primary)' }}
+                    onClick={(e) => goToProfile(e, post.author)}
+                  >
+                    {post.author?.name || 'Unknown'}
+                  </p>
                   {post.title && <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>{post.title}</h3>}
                   {post.content && post.content.trim() && post.content.trim() !== ' ' && post.content !== post.title && (
                     <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-4 flex-shrink-0 ml-3 self-center">
-                <button onClick={handleLike} className="flex flex-col items-center gap-0.5 hover:opacity-80 transition-opacity">
+
+              {/* Like / comment — padded, rounded hit-areas instead of bare icons */}
+              <div className="flex items-center gap-1 flex-shrink-0 self-center -mr-2">
+                <button
+                  onClick={handleLike}
+                  className="flex flex-col items-center gap-0.5 rounded-2xl px-3 py-2 hover:bg-[var(--bg-secondary)] active:scale-95 transition-all"
+                >
                   {liked ? <FaHeart size={22} color="#ef4444" /> : <FiHeart size={22} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />}
                   <span className="text-[11px] font-bold" style={{ color: liked ? '#ef4444' : 'var(--text-muted)' }}>{likeCount}</span>
                 </button>
-                <button onClick={() => setShowComments(true)} className="flex flex-col items-center gap-0.5 hover:opacity-80 transition-opacity">
+                <button
+                  onClick={() => setShowComments(true)}
+                  className="flex flex-col items-center gap-0.5 rounded-2xl px-3 py-2 hover:bg-[var(--bg-secondary)] active:scale-95 transition-all"
+                >
                   <FiMessageCircle size={22} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
                   <span className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>{comments.length}</span>
                 </button>
@@ -294,11 +323,19 @@ export default function PostDetailPage() {
                 const isCommentOwner = isCurrentUser(c.author)
                 return (
                   <div key={c._id} className="flex gap-3 items-start">
-                    <Avatar src={c.author?.avatar} name={c.author?.name} size={32} className="flex-shrink-0 mt-0.5" />
+                    <div onClick={(e) => goToProfile(e, c.author)} className="cursor-pointer flex-shrink-0">
+                      <Avatar src={c.author?.avatar} name={c.author?.name} size={32} className="mt-0.5" />
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm leading-snug flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>
-                          <span className="font-bold mr-1.5" style={{ color: 'var(--text-primary)' }}>{c.author?.name || 'Unknown'}</span>
+                          <span
+                            className="font-bold mr-1.5 cursor-pointer hover:underline"
+                            style={{ color: 'var(--text-primary)' }}
+                            onClick={(e) => goToProfile(e, c.author)}
+                          >
+                            {c.author?.name || 'Unknown'}
+                          </span>
                           {c.content || c.text || ''}
                         </p>
                         {isCommentOwner && (
