@@ -578,16 +578,39 @@ export default function FeedPage() {
                       {imageUrl && (
                         <div className="w-full mb-3 relative cursor-pointer" style={{ background: 'var(--bg-secondary)' }} onClick={e => handleDoubleTap(e, post._id, true)}>
                           <img src={imageUrl} alt={post.title || 'Post'} className="w-full h-auto" style={{ maxHeight: 400, objectFit: 'cover' }} loading="lazy" onError={e => e.target.style.display = 'none'} />
+                          {/* Author avatar badge overlaid top-left on the image */}
+                          <div
+                            onClick={(e) => goToProfile(e, post.author)}
+                            className="absolute top-2.5 left-2.5 cursor-pointer"
+                          >
+                            <Avatar
+                              src={post.author?.avatar}
+                              name={post.author?.name}
+                              size={32}
+                              className="ring-2 ring-white/70 shadow-md"
+                            />
+                          </div>
                           <HeartAnimation postId={post._id} />
                         </div>
                       )}
                       <div className="px-1">
-                        <div className="flex items-start justify-between gap-1">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
-                              <Avatar src={post.author?.avatar} name={post.author?.name} size={32} />
-                            </div>
-                            <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
+                            {!imageUrl && (
+                              <div className="flex items-center gap-2 mb-1">
+                                <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
+                                  <Avatar src={post.author?.avatar} name={post.author?.name} size={28} />
+                                </div>
+                                <p
+                                  className="font-bold text-sm hover:underline inline-block"
+                                  style={{ color: 'var(--text-primary)' }}
+                                  onClick={(e) => goToProfile(e, post.author)}
+                                >
+                                  {post.author?.name || 'Unknown'}
+                                </p>
+                              </div>
+                            )}
+                            {imageUrl && (
                               <p
                                 className="font-bold text-sm hover:underline inline-block"
                                 style={{ color: 'var(--text-primary)' }}
@@ -595,13 +618,13 @@ export default function FeedPage() {
                               >
                                 {post.author?.name || 'Unknown'}
                               </p>
-                              {post.title && <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>{post.title}</h3>}
-                              {post.content && post.content.trim() !== ' ' && post.content !== post.title && (
-                                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
-                              )}
-                            </div>
+                            )}
+                            {post.title && <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>{post.title}</h3>}
+                            {post.content && post.content.trim() !== ' ' && post.content !== post.title && (
+                              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
+                            )}
                           </div>
-                          <div className="flex items-center gap-0.5 flex-shrink-0 self-center -mr-1.5">
+                          <div className="flex items-center gap-0.5 flex-shrink-0 self-start -mr-1.5">
                             <button
                               onClick={e => handleLike(e, post._id)}
                               className="flex items-center gap-1 rounded-full px-2.5 py-2 hover:bg-[var(--bg-secondary)] active:scale-95 transition-all"
@@ -645,22 +668,51 @@ export default function FeedPage() {
                       {imageUrl && (
                         <div className="w-full relative cursor-pointer" onClick={e => handleDoubleTap(e, post._id, true)}>
                           <img src={imageUrl} alt={post.title || 'Post'} className="w-full aspect-square object-cover" loading="lazy" onError={e => e.target.style.display = 'none'} />
+                          {/* Author avatar badge overlaid top-left on the image */}
+                          <div
+                            onClick={(e) => goToProfile(e, post.author)}
+                            className="absolute top-2.5 left-2.5 cursor-pointer"
+                          >
+                            <Avatar
+                              src={post.author?.avatar}
+                              name={post.author?.name}
+                              size={28}
+                              className="ring-2 ring-white/70 shadow-md"
+                            />
+                          </div>
                           <HeartAnimation postId={post._id} />
                         </div>
                       )}
                       <div className="p-3">
-                        <div className="flex items-center justify-between gap-1">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
-                              <Avatar src={post.author?.avatar} name={post.author?.name} size={28} />
-                            </div>
-                            <p
-                              className="font-semibold text-sm truncate cursor-pointer hover:underline"
-                              style={{ color: 'var(--text-primary)' }}
-                              onClick={(e) => goToProfile(e, post.author)}
-                            >
-                              {post.author?.name || 'Unknown'}
-                            </p>
+                        <div className="flex items-start justify-between gap-1">
+                          <div className="min-w-0 flex-1">
+                            {!imageUrl && (
+                              <div className="flex items-center gap-2 mb-1">
+                                <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
+                                  <Avatar src={post.author?.avatar} name={post.author?.name} size={28} />
+                                </div>
+                                <p
+                                  className="font-semibold text-sm truncate cursor-pointer hover:underline"
+                                  style={{ color: 'var(--text-primary)' }}
+                                  onClick={(e) => goToProfile(e, post.author)}
+                                >
+                                  {post.author?.name || 'Unknown'}
+                                </p>
+                              </div>
+                            )}
+                            {imageUrl && (
+                              <p
+                                className="font-semibold text-sm truncate cursor-pointer hover:underline"
+                                style={{ color: 'var(--text-primary)' }}
+                                onClick={(e) => goToProfile(e, post.author)}
+                              >
+                                {post.author?.name || 'Unknown'}
+                              </p>
+                            )}
+                            {post.title && <h3 className="font-extrabold font-display text-sm mt-1 leading-snug line-clamp-2" style={{ color: 'var(--text-primary)' }}>{post.title}</h3>}
+                            {post.content && post.content.trim() !== ' ' && post.content !== post.title && (
+                              <p className="text-xs mt-0.5 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
+                            )}
                           </div>
                           <div className="flex items-center gap-0.5 flex-shrink-0 -mr-1">
                             <button
@@ -679,10 +731,6 @@ export default function FeedPage() {
                             </button>
                           </div>
                         </div>
-                        {post.title && <h3 className="font-extrabold font-display text-sm mt-1 leading-snug line-clamp-2" style={{ color: 'var(--text-primary)' }}>{post.title}</h3>}
-                        {post.content && post.content.trim() !== ' ' && post.content !== post.title && (
-                          <p className="text-xs mt-0.5 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
-                        )}
                         {post.tags?.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
                             {post.tags.slice(0, 2).map(tag => (
