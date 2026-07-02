@@ -276,7 +276,7 @@ export default function PostDetailPage() {
                 {post.title && <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>{post.title}</h3>}
                 {post.content && post.content.trim() && post.content.trim() !== ' ' && post.content !== post.title && (
                   <p
-                    className="text-sm mt-0.5 whitespace-pre-wrap overflow-y-auto pr-1"
+                    className="post-content-scroll text-sm mt-0.5 whitespace-pre-wrap overflow-y-auto pr-3"
                     style={{ color: 'var(--text-secondary)', maxHeight: '9rem' }}
                   >
                     {post.content}
@@ -513,6 +513,23 @@ export default function PostDetailPage() {
           0%   { transform: scale(0.5); opacity: 1; }
           50%  { transform: scale(1.5); opacity: 1; }
           100% { transform: scale(2);   opacity: 0; }
+        }
+        .post-content-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: var(--border) transparent;
+        }
+        .post-content-scroll::-webkit-scrollbar {
+          width: 5px;
+        }
+        .post-content-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .post-content-scroll::-webkit-scrollbar-thumb {
+          background-color: var(--border);
+          border-radius: 999px;
+        }
+        .post-content-scroll::-webkit-scrollbar-thumb:hover {
+          background-color: var(--text-muted);
         }
       `}</style>
     </>
