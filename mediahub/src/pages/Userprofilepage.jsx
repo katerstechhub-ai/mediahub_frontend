@@ -85,7 +85,7 @@ export default function UserProfilePage() {
       <div className="max-w-3xl mx-auto">
         {/* Header with soft gradient backdrop */}
         <div
-          className="relative px-4 pt-5 pb-24"
+          className="relative px-4 pt-5 pb-16"
           style={{
             background: 'linear-gradient(135deg, rgba(245,158,11,0.18) 0%, rgba(245,158,11,0.04) 55%, transparent 100%)',
           }}
@@ -99,13 +99,10 @@ export default function UserProfilePage() {
               <FiArrowLeft size={18} />
             </button>
           </div>
-          <h1 className="text-2xl font-extrabold font-display mt-5" style={{ color: 'var(--text-primary)' }}>
-            Profile
-          </h1>
         </div>
 
         {/* Profile card — overlaps the gradient header */}
-        <div className="px-4 -mt-16">
+        <div className="px-4 -mt-12">
           <div
             className="rounded-3xl shadow-sm px-6 py-7 flex flex-col items-center text-center"
             style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
