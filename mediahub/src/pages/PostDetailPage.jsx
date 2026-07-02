@@ -275,7 +275,12 @@ export default function PostDetailPage() {
                 </div>
                 {post.title && <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>{post.title}</h3>}
                 {post.content && post.content.trim() && post.content.trim() !== ' ' && post.content !== post.title && (
-                  <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
+                  <p
+                    className="text-sm mt-0.5 whitespace-pre-wrap overflow-y-auto pr-1"
+                    style={{ color: 'var(--text-secondary)', maxHeight: '9rem' }}
+                  >
+                    {post.content}
+                  </p>
                 )}
               </div>
 
