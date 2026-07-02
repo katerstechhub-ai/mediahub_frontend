@@ -90,7 +90,7 @@ export default function ExplorePage() {
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.05 }}
-          className="relative max-w-2xl mb-8 sm:mb-10"
+          className="relative max-w-6xl mb-8 sm:mb-10"
         >
           <FiSearch
             size={24}
@@ -109,7 +109,7 @@ export default function ExplorePage() {
               background: 'var(--bg-input)',
               color: 'var(--text-primary)',
               borderColor: 'var(--border)',
-              padding: '18px 60px',
+              padding: '12px 60px',
             }}
           />
           <AnimatePresence>
