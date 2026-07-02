@@ -42,9 +42,9 @@ export default function BottomNav() {
     <>
       {/* Floating pill nav — leaves the edges of the page visible instead of a full-width bar */}
       <nav
-        className="lg:hidden fixed bottom-4 left-4 right-4 z-50 flex items-center justify-between px-2 py-2 rounded-full shadow-lg"
+        className="lg:hidden fixed bottom-4 left-4 right-4 z-50 flex items-center justify-between px-2 py-2 rounded-full shadow-lg backdrop-blur-lg"
         style={{
-          background: 'var(--bg-primary)',
+          background: 'color-mix(in srgb, var(--bg-primary) 55%, transparent)',
           border: '1px solid var(--border)',
           boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
         }}

@@ -309,7 +309,7 @@ export default function PostDetailPage() {
           className="w-full flex flex-col rounded-t-3xl transition-transform duration-300"
           style={{
             background: 'var(--bg-primary)',
-            maxHeight: '80vh',
+            maxHeight: '92vh',
             boxShadow: '0 -8px 40px rgba(0,0,0,0.3)',
             transform: showComments ? 'translateY(0)' : 'translateY(100%)',
           }}
@@ -384,11 +384,25 @@ export default function PostDetailPage() {
             <div ref={commentsEndRef} />
           </div>
 
+          {/* Quick reactions */}
+          <div className="flex-shrink-0 flex items-center gap-4 px-4 py-2.5 border-t overflow-x-auto" style={{ borderColor: 'var(--border)' }}>
+            {['💙', '🙌', '🔥', '👏', '😢', '😍', '😭', '😂'].map(emoji => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => setComment(c => c + emoji)}
+                className="text-2xl flex-shrink-0 hover:scale-125 active:scale-95 transition-transform"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+
           {/* Comment input */}
           <div className="flex-shrink-0 border-t px-4 py-3" style={{ borderColor: 'var(--border)', background: 'var(--bg-primary)', paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
             <form onSubmit={handleComment} className="flex items-center gap-3">
               <Avatar src={user?.avatar} name={user?.name} size={32} className="flex-shrink-0" />
-              <div className="flex-1 flex items-center rounded-full border px-4 py-2 focus-within:border-amber-500 transition-all" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+              <div className="flex-1 flex items-center rounded-full border px-4 py-3.5 focus-within:border-amber-500 transition-all" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
                 <input
                   ref={commentInputRef}
                   type="text"

@@ -17,6 +17,8 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
   const [submitting, setSubmitting] = useState(false)
   const [loadingComments, setLoadingComments] = useState(false)
   const [showCommentMenu, setShowCommentMenu] = useState(null)
+  const [deleteCommentTarget, setDeleteCommentTarget] = useState(null)
+  const [deletingComment, setDeletingComment] = useState(false)
   const commentInputRef = useRef()
   const commentsEndRef = useRef()
 
@@ -47,6 +49,7 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
       setComments([])
       setComment('')
       setShowCommentMenu(null)
+      setDeleteCommentTarget(null)
     }
     return () => { document.body.style.overflow = '' }
   }, [open, postId])
@@ -70,19 +73,28 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
     finally { setSubmitting(false) }
   }
 
-  const handleDeleteComment = async (commentId) => {
-    if (!window.confirm('Delete this comment?')) return
+  const requestDeleteComment = (commentId) => {
+    setShowCommentMenu(null)
+    setDeleteCommentTarget(commentId)
+  }
+
+  const confirmDeleteComment = async () => {
+    if (!deleteCommentTarget) return
+    setDeletingComment(true)
     try {
-      await commentsAPI.delete(commentId)
+      await commentsAPI.delete(deleteCommentTarget)
       toast.success('Comment deleted')
-      setComments(prev => prev.filter(c => c._id !== commentId))
-      setShowCommentMenu(null)
+      setComments(prev => prev.filter(c => c._id !== deleteCommentTarget))
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to delete comment')
+    } finally {
+      setDeletingComment(false)
+      setDeleteCommentTarget(null)
     }
   }
 
   return (
+    <>
     <div
       className="fixed inset-0 flex flex-col justify-end transition-opacity duration-300"
       style={{ zIndex: 9999, background: 'rgba(0,0,0,0.6)', opacity: open ? 1 : 0, pointerEvents: open ? 'all' : 'none' }}
@@ -92,7 +104,7 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
         className="w-full flex flex-col rounded-t-3xl transition-transform duration-300"
         style={{
           background: 'var(--bg-primary)',
-          maxHeight: '80vh',
+          maxHeight: '92vh',
           boxShadow: '0 -8px 40px rgba(0,0,0,0.3)',
           transform: open ? 'translateY(0)' : 'translateY(100%)',
         }}
@@ -152,7 +164,7 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
                           </button>
                           {showCommentMenu === c._id && (
                             <div className="absolute right-0 top-7 rounded-xl shadow-lg border py-1 w-36 z-10" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
-                              <button onClick={() => handleDeleteComment(c._id)} className="w-full text-left px-4 py-2 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2">
+                              <button onClick={() => requestDeleteComment(c._id)} className="w-full text-left px-4 py-2 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2">
                                 <FiTrash2 size={14} /> Delete
                               </button>
                             </div>
@@ -171,11 +183,25 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
           <div ref={commentsEndRef} />
         </div>
 
+        {/* Quick reactions */}
+        <div className="flex-shrink-0 flex items-center gap-4 px-4 py-2.5 border-t overflow-x-auto" style={{ borderColor: 'var(--border)' }}>
+          {['💙', '🙌', '🔥', '👏', '😢', '😍', '😭', '😂'].map(emoji => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => setComment(c => c + emoji)}
+              className="text-2xl flex-shrink-0 hover:scale-125 active:scale-95 transition-transform"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+
         {/* Input */}
         <div className="flex-shrink-0 border-t px-4 py-3" style={{ borderColor: 'var(--border)', background: 'var(--bg-primary)', paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
           <form onSubmit={handleComment} className="flex items-center gap-3">
             <Avatar src={user?.avatar} name={user?.name} size={32} className="flex-shrink-0" />
-            <div className="flex-1 flex items-center rounded-full border px-4 py-2 focus-within:border-amber-500 transition-all" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+            <div className="flex-1 flex items-center rounded-full border px-4 py-3.5 focus-within:border-amber-500 transition-all" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
               <input
                 ref={commentInputRef}
                 type="text"
@@ -193,6 +219,69 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
         </div>
       </div>
     </div>
+
+    {/* ── Delete Comment Confirmation Modal — matches PostDetailPage's modal ── */}
+    <div
+        className="fixed inset-0 flex items-center justify-center px-4 transition-opacity duration-200"
+        style={{
+          zIndex: 10000,
+          background: 'rgba(0,0,0,0.6)',
+          opacity: deleteCommentTarget ? 1 : 0,
+          pointerEvents: deleteCommentTarget ? 'all' : 'none',
+        }}
+        onClick={() => !deletingComment && setDeleteCommentTarget(null)}
+      >
+        <div
+          className="relative h-40 w-full max-w-sm rounded-3xl px-8 flex flex-col items-center justify-center transition-transform duration-200"
+          style={{
+            background: 'var(--bg-primary)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            transform: deleteCommentTarget ? 'scale(1)' : 'scale(0.95)',
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={() => !deletingComment && setDeleteCommentTarget(null)}
+            disabled={deletingComment}
+            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition-colors disabled:opacity-50"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            <FiX size={18} strokeWidth={2.5} />
+          </button>
+
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
+            style={{ background: 'rgba(239,68,68,0.12)' }}
+          >
+            <FiTrash2 size={28} color="#ef4444" strokeWidth={2.5} />
+          </div>
+
+          <h3 className="text-base font-extrabold text-center font-display px-2" style={{ color: 'var(--text-primary)' }}>
+            Are you sure you want to delete this comment?
+          </h3>
+
+          <div className="flex items-center justify-center gap-6 mt-6">
+            <button
+              onClick={() => setDeleteCommentTarget(null)}
+              disabled={deletingComment}
+              className="px-6 py-2.5 rounded-full font-bold text-sm border transition-colors disabled:opacity-50"
+              style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+            >
+              No, cancel
+            </button>
+            <button
+              onClick={confirmDeleteComment}
+              disabled={deletingComment}
+              className="font-bold text-sm transition-colors disabled:opacity-60"
+              style={{ color: '#ef4444' }}
+            >
+              {deletingComment ? 'Deleting…' : "Yes, I'm sure"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -487,7 +576,7 @@ export default function FeedPage() {
                   return (
                     <div key={post._id} className="border-b pb-4" style={{ borderColor: 'var(--border)' }}>
                       {imageUrl && (
-                        <div className="w-full mb-3 relative cursor-pointer" style={{ background: 'var(--bg-secondary)' }} onClick={e => handleDoubleTap(e, post._id)}>
+                        <div className="w-full mb-3 relative cursor-pointer" style={{ background: 'var(--bg-secondary)' }} onClick={e => handleDoubleTap(e, post._id, true)}>
                           <img src={imageUrl} alt={post.title || 'Post'} className="w-full h-auto" style={{ maxHeight: 400, objectFit: 'cover' }} loading="lazy" onError={e => e.target.style.display = 'none'} />
                           <HeartAnimation postId={post._id} />
                         </div>
@@ -554,7 +643,7 @@ export default function FeedPage() {
                   return (
                     <div key={post._id} className="border rounded-xl overflow-hidden hover:shadow-lg transition-shadow" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
                       {imageUrl && (
-                        <div className="w-full relative cursor-pointer" onClick={e => handleDoubleTap(e, post._id)}>
+                        <div className="w-full relative cursor-pointer" onClick={e => handleDoubleTap(e, post._id, true)}>
                           <img src={imageUrl} alt={post.title || 'Post'} className="w-full aspect-square object-cover" loading="lazy" onError={e => e.target.style.display = 'none'} />
                           <HeartAnimation postId={post._id} />
                         </div>
