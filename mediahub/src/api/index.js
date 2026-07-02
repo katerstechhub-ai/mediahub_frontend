@@ -80,6 +80,7 @@ export const postsAPI = {
   dislike: (id) => api.post(`/api/posts/${id}/dislike`),
   comment: (id, content) => api.post(`/api/comments/${id}`, { content }),
   getMyPosts: () => api.get('/api/posts/my-posts'),
+  getLikers: (postId) => api.get(`/api/posts/${postId}/likes`),
 };
 
 // Notifications API

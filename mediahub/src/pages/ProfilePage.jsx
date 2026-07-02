@@ -154,11 +154,15 @@ export default function ProfilePage() {
 
             <div className="flex gap-10 mt-5 mb-1">
               {[
-                { label: 'Posts', value: userPosts.length },
-                { label: 'Likes', value: totalLikes },
-                { label: 'Comments', value: totalComments },
-              ].map(({ label, value }) => (
-                <div key={label} className="text-center">
+                { label: 'Posts', value: userPosts.length, onClick: null },
+                { label: 'Likes', value: totalLikes, onClick: () => navigate('/likes') },
+                { label: 'Comments', value: totalComments, onClick: () => navigate('/comments') },
+              ].map(({ label, value, onClick }) => (
+                <div
+                  key={label}
+                  onClick={onClick || undefined}
+                  className={`text-center ${onClick ? 'cursor-pointer hover:opacity-70 transition-opacity' : ''}`}
+                >
                   <p className="text-lg font-extrabold font-display" style={{ color: 'var(--text-primary)' }}>{value}</p>
                   <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--text-muted)' }}>{label}</p>
                 </div>

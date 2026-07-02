@@ -341,6 +341,7 @@ export default function PostDetailPage() {
             ) : (
               comments.map(c => {
                 const isCommentOwner = isCurrentUser(c.author)
+                const canDelete = isCommentOwner || isOwner
                 return (
                   <div key={c._id} className="flex gap-3 items-start">
                     <div onClick={(e) => goToProfile(e, c.author)} className="cursor-pointer flex-shrink-0">
@@ -358,7 +359,7 @@ export default function PostDetailPage() {
                           </span>
                           {c.content || c.text || ''}
                         </p>
-                        {isCommentOwner && (
+                        {canDelete && (
                           <div className="relative flex-shrink-0">
                             <button onClick={() => setShowCommentMenu(showCommentMenu === c._id ? null : c._id)} className="p-1 rounded-full hover:bg-[var(--bg-secondary)] transition-colors" style={{ color: 'var(--text-muted)' }}>
                               <FiMoreHorizontal size={16} />

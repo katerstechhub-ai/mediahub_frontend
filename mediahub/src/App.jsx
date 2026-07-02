@@ -13,6 +13,8 @@ import PostDetailPage from './pages/PostDetailPage'
 import SettingsPage from './pages/SettingsPage'
 import NotFoundPage from './pages/NotFoundPage'
 import UserProfilePage from './pages/Userprofilepage'
+import LikesPage from './pages/Likespage';
+import CommentsPage from './pages/CommentsPage'
 
 function App() {
   const { theme } = useThemeStore()
@@ -55,6 +57,8 @@ function App() {
             <Route path="settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFoundPage />} />
             <Route path="/users/:userId" element={<UserProfilePage />} />
+            <Route path="/likes" element={<LikesPage />} />
+            <Route path="comments" element={<CommentsPage />} />
           </Route>
         </Routes>
       </div>
