@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiGrid, FiArrowLeft, FiHeart, FiMessageCircle, FiUser, FiEdit2, FiSettings
 } from 'react-icons/fi'
@@ -93,10 +94,20 @@ export default function ProfilePage() {
   if (loading || isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen" style={{ background: 'var(--bg-primary)' }}>
-        <div className="animate-spin rounded-full h-10 w-10 border-4 border-amber-500 border-t-transparent" />
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+          className="rounded-full h-10 w-10 border-4 border-amber-500 border-t-transparent"
+        />
       </div>
     )
   }
+
+  const stats = [
+    { label: 'Posts', value: userPosts.length, onClick: null },
+    { label: 'Likes', value: totalLikes, onClick: () => navigate('/likes') },
+    { label: 'Comments', value: totalComments, onClick: () => navigate('/comments') },
+  ]
 
   return (
     <div className="min-h-screen pb-20 fade-in" style={{ background: 'var(--bg-primary)' }}>
@@ -104,25 +115,48 @@ export default function ProfilePage() {
 
         {/* Top bar */}
         <div className="flex items-center justify-between mb-10">
-          <button onClick={() => navigate(-1)} style={{ color: 'var(--text-primary)' }}>
+          <motion.button whileHover={{ x: -2 }} whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} style={{ color: 'var(--text-primary)' }}>
             <FiArrowLeft size={20} />
-          </button>
-          <button onClick={() => navigate('/settings')} style={{ color: 'var(--text-primary)' }}>
+          </motion.button>
+          <motion.button whileHover={{ rotate: 45 }} whileTap={{ scale: 0.9 }} onClick={() => navigate('/settings')} style={{ color: 'var(--text-primary)' }}>
             <FiSettings size={20} />
-          </button>
+          </motion.button>
         </div>
 
         {/* Avatar + name + stats, side by side, flat */}
-        <div className="flex items-start gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="flex items-start gap-4"
+        >
           <div className="relative shrink-0">
             <Avatar src={user?.avatar} name={user?.name} size={72} />
-            <label
+            <motion.label
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.9 }}
               htmlFor="avatar-upload"
               className="absolute -bottom-1 -right-1 w-6 h-6 flex items-center justify-center rounded-full cursor-pointer text-white shadow-sm"
               style={{ background: '#f59e0b' }}
             >
-              {uploadingAvatar ? '…' : <FiEdit2 size={11} />}
-            </label>
+              <AnimatePresence mode="wait" initial={false}>
+                {uploadingAvatar ? (
+                  <motion.span
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1, rotate: 360 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ rotate: { repeat: Infinity, duration: 0.8, ease: 'linear' } }}
+                  >
+                    …
+                  </motion.span>
+                ) : (
+                  <motion.span key="edit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <FiEdit2 size={11} />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.label>
             <input id="avatar-upload" type="file" accept="image/*" className="hidden" disabled={uploadingAvatar} onChange={handleAvatarChange} />
           </div>
 
@@ -133,23 +167,24 @@ export default function ProfilePage() {
             <p className="text-xs mb-2.5" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
 
             <div className="flex gap-5">
-              {[
-                { label: 'Posts', value: userPosts.length, onClick: null },
-                { label: 'Likes', value: totalLikes, onClick: () => navigate('/likes') },
-                { label: 'Comments', value: totalComments, onClick: () => navigate('/comments') },
-              ].map(({ label, value, onClick }) => (
-                <div
+              {stats.map(({ label, value, onClick }, i) => (
+                <motion.div
                   key={label}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 + i * 0.06 }}
+                  whileHover={onClick ? { scale: 1.06 } : {}}
+                  whileTap={onClick ? { scale: 0.94 } : {}}
                   onClick={onClick || undefined}
-                  className={onClick ? 'cursor-pointer hover:opacity-70 transition-opacity' : ''}
+                  className={onClick ? 'cursor-pointer' : ''}
                 >
                   <p className="text-base font-extrabold font-display leading-tight" style={{ color: 'var(--text-primary)' }}>{value}</p>
                   <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{label}</p>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Posts */}
         <div className="mt-12">
@@ -166,49 +201,63 @@ export default function ProfilePage() {
               title="No posts yet"
               description="Share your first post with the community!"
               action={
-                <button onClick={() => navigate('/create')} className="text-sm font-semibold hover:text-amber-500 transition-colors" style={{ color: 'var(--text-primary)' }}>
+                <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} onClick={() => navigate('/create')} className="text-sm font-semibold hover:text-amber-500" style={{ color: 'var(--text-primary)' }}>
                   Create Post
-                </button>
+                </motion.button>
               }
             />
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
-              {userPosts.map(post => {
-                const imageUrl = getImageUrl(post)
-                return (
-                  <div
-                    key={post._id || post.id}
-                    onClick={() => navigate(`/posts/${post._id || post.id}`)}
-                    className="cursor-pointer rounded-lg overflow-hidden group relative"
-                    style={{ aspectRatio: '1/1', background: 'var(--bg-secondary)' }}
-                  >
-                    <button
-                      onClick={e => handleDeletePost(post._id || post.id, e)}
-                      className="absolute top-1.5 right-1.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs"
-                      style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))' }}
+            <motion.div
+              initial="hidden"
+              animate="show"
+              variants={{ hidden: {}, show: { transition: { staggerChildren: 0.03 } } }}
+              className="grid grid-cols-3 sm:grid-cols-4 gap-1.5"
+            >
+              <AnimatePresence>
+                {userPosts.map(post => {
+                  const imageUrl = getImageUrl(post)
+                  return (
+                    <motion.div
+                      key={post._id || post.id}
+                      layout
+                      variants={{ hidden: { opacity: 0, scale: 0.9 }, show: { opacity: 1, scale: 1 } }}
+                      exit={{ opacity: 0, scale: 0.85 }}
+                      whileHover={{ scale: 1.03 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+                      onClick={() => navigate(`/posts/${post._id || post.id}`)}
+                      className="cursor-pointer rounded-lg overflow-hidden group relative"
+                      style={{ aspectRatio: '1/1', background: 'var(--bg-secondary)' }}
                     >
-                      ✕
-                    </button>
+                      <motion.button
+                        whileHover={{ scale: 1.2 }}
+                        whileTap={{ scale: 0.85 }}
+                        onClick={e => handleDeletePost(post._id || post.id, e)}
+                        className="absolute top-1.5 right-1.5 z-10 opacity-0 group-hover:opacity-100 text-white text-xs"
+                        style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))' }}
+                      >
+                        ✕
+                      </motion.button>
 
-                    {imageUrl ? (
-                      <img
-                        src={imageUrl}
-                        alt={post.title || 'Post'}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        loading="lazy"
-                        onError={e => e.target.style.display = 'none'}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center p-2">
-                        <p className="text-[11px] text-center line-clamp-3" style={{ color: 'var(--text-secondary)' }}>
-                          {post.title || post.content || 'Untitled'}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={post.title || 'Post'}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          loading="lazy"
+                          onError={e => e.target.style.display = 'none'}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center p-2">
+                          <p className="text-[11px] text-center line-clamp-3" style={{ color: 'var(--text-secondary)' }}>
+                            {post.title || post.content || 'Untitled'}
+                          </p>
+                        </div>
+                      )}
+                    </motion.div>
+                  )
+                })}
+              </AnimatePresence>
+            </motion.div>
           )}
         </div>
       </div>

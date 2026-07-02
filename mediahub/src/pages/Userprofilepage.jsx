@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { FiGrid, FiArrowLeft, FiUser } from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
@@ -75,10 +76,20 @@ export default function UserProfilePage() {
   if (loading || isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen" style={{ background: 'var(--bg-primary)' }}>
-        <div className="animate-spin rounded-full h-10 w-10 border-4 border-amber-500 border-t-transparent" />
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+          className="rounded-full h-10 w-10 border-4 border-amber-500 border-t-transparent"
+        />
       </div>
     )
   }
+
+  const stats = [
+    { label: 'Posts', value: userPosts.length },
+    { label: 'Likes', value: totalLikes },
+    { label: 'Comments', value: totalComments },
+  ]
 
   return (
     <div className="min-h-screen pb-20 fade-in" style={{ background: 'var(--bg-primary)' }}>
@@ -86,13 +97,18 @@ export default function UserProfilePage() {
 
         {/* Top bar */}
         <div className="flex items-center justify-between mb-10">
-          <button onClick={() => navigate(-1)} style={{ color: 'var(--text-primary)' }}>
+          <motion.button whileHover={{ x: -2 }} whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} style={{ color: 'var(--text-primary)' }}>
             <FiArrowLeft size={20} />
-          </button>
+          </motion.button>
         </div>
 
         {/* Avatar + name + stats, side by side, flat */}
-        <div className="flex items-start gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="flex items-start gap-4"
+        >
           <div className="shrink-0">
             <Avatar src={profileUser?.avatar} name={profileUser?.name} size={72} />
           </div>
@@ -109,19 +125,20 @@ export default function UserProfilePage() {
             )}
 
             <div className="flex gap-5">
-              {[
-                { label: 'Posts', value: userPosts.length },
-                { label: 'Likes', value: totalLikes },
-                { label: 'Comments', value: totalComments },
-              ].map(({ label, value }) => (
-                <div key={label}>
+              {stats.map(({ label, value }, i) => (
+                <motion.div
+                  key={label}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 + i * 0.06 }}
+                >
                   <p className="text-base font-extrabold font-display leading-tight" style={{ color: 'var(--text-primary)' }}>{value}</p>
                   <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{label}</p>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Posts */}
         <div className="mt-12">
@@ -139,35 +156,47 @@ export default function UserProfilePage() {
               description={`${profileUser?.name || 'This user'} hasn't shared anything yet.`}
             />
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
-              {userPosts.map(post => {
-                const imageUrl = getImageUrl(post)
-                return (
-                  <div
-                    key={post._id || post.id}
-                    onClick={() => navigate(`/posts/${post._id || post.id}`)}
-                    className="cursor-pointer rounded-lg overflow-hidden group relative"
-                    style={{ aspectRatio: '1/1', background: 'var(--bg-secondary)' }}
-                  >
-                    {imageUrl ? (
-                      <img
-                        src={imageUrl}
-                        alt={post.title || 'Post'}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        loading="lazy"
-                        onError={e => e.target.style.display = 'none'}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center p-2">
-                        <p className="text-[11px] text-center line-clamp-3" style={{ color: 'var(--text-secondary)' }}>
-                          {post.title || post.content || 'Untitled'}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+            <motion.div
+              initial="hidden"
+              animate="show"
+              variants={{ hidden: {}, show: { transition: { staggerChildren: 0.03 } } }}
+              className="grid grid-cols-3 sm:grid-cols-4 gap-1.5"
+            >
+              <AnimatePresence>
+                {userPosts.map(post => {
+                  const imageUrl = getImageUrl(post)
+                  return (
+                    <motion.div
+                      key={post._id || post.id}
+                      layout
+                      variants={{ hidden: { opacity: 0, scale: 0.9 }, show: { opacity: 1, scale: 1 } }}
+                      exit={{ opacity: 0, scale: 0.85 }}
+                      whileHover={{ scale: 1.03 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+                      onClick={() => navigate(`/posts/${post._id || post.id}`)}
+                      className="cursor-pointer rounded-lg overflow-hidden group relative"
+                      style={{ aspectRatio: '1/1', background: 'var(--bg-secondary)' }}
+                    >
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={post.title || 'Post'}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          loading="lazy"
+                          onError={e => e.target.style.display = 'none'}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center p-2">
+                          <p className="text-[11px] text-center line-clamp-3" style={{ color: 'var(--text-secondary)' }}>
+                            {post.title || post.content || 'Untitled'}
+                          </p>
+                        </div>
+                      )}
+                    </motion.div>
+                  )
+                })}
+              </AnimatePresence>
+            </motion.div>
           )}
         </div>
       </div>

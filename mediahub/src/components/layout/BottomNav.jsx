@@ -1,6 +1,7 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { FiHome, FiCompass, FiPlusSquare, FiBell } from 'react-icons/fi'
 import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '../../store'
 import { notificationsAPI } from '../../api'
 
@@ -13,6 +14,7 @@ const tabs = [
 
 export default function BottomNav() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuthStore()
   const [unreadCount, setUnreadCount] = useState(0)
 
@@ -26,12 +28,17 @@ export default function BottomNav() {
       }
     }
     fetchUnread()
-    const interval = setInterval(fetchUnread, 30000) // refresh every 30s
+    const interval = setInterval(fetchUnread, 30000)
     return () => clearInterval(interval)
   }, [])
 
+  const isActiveTab = (to) => (to === '/' ? location.pathname === '/' : location.pathname.startsWith(to))
+
   return (
-    <nav
+    <motion.nav
+      initial={{ y: 80, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 28 }}
       className="lg:hidden fixed bottom-4 left-4 right-4 z-50 flex items-center justify-between px-2 py-2 rounded-full shadow-lg backdrop-blur-lg"
       style={{
         background: 'color-mix(in srgb, var(--bg-primary) 55%, transparent)',
@@ -39,40 +46,60 @@ export default function BottomNav() {
         boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
       }}
     >
-      {tabs.map(({ to, icon: Icon, label }) => (
-        <NavLink
-          key={to}
-          to={to}
-          end={to === '/'}
-          className="relative flex items-center justify-center w-11 h-11 rounded-full transition-all duration-200"
-        >
-          {({ isActive }) => (
-            <>
-              <div
-                className="flex items-center justify-center w-11 h-11 rounded-full transition-all duration-200"
-                style={{
-                  background: isActive ? '#f59e0b' : 'transparent',
-                  boxShadow: isActive ? '0 4px 14px rgba(245,158,11,0.4)' : 'none',
-                }}
-              >
-                <Icon size={20} color={isActive ? '#ffffff' : 'var(--text-muted)'} strokeWidth={2.5} />
-              </div>
-              {to === '/notifications' && unreadCount > 0 && (
-                <span
-                  className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
-                  style={{ background: '#ef4444' }}
-                >
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
+      {tabs.map(({ to, icon: Icon, label }) => {
+        const active = isActiveTab(to)
+        return (
+          <NavLink
+            key={to}
+            to={to}
+            end={to === '/'}
+            className="relative flex items-center justify-center w-11 h-11 rounded-full"
+          >
+            <motion.div
+              whileTap={{ scale: 0.85 }}
+              className="relative flex items-center justify-center w-11 h-11 rounded-full"
+            >
+              {active && (
+                <motion.div
+                  layoutId="bottomNavActivePill"
+                  className="absolute inset-0 rounded-full"
+                  style={{ background: '#f59e0b', boxShadow: '0 4px 14px rgba(245,158,11,0.4)' }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                />
               )}
-            </>
-          )}
-        </NavLink>
-      ))}
+
+              <motion.div
+                animate={{ scale: active ? 1.1 : 1 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                className="relative z-10"
+              >
+                <Icon size={20} color={active ? '#ffffff' : 'var(--text-muted)'} strokeWidth={2.5} />
+              </motion.div>
+
+              <AnimatePresence>
+                {to === '/notifications' && unreadCount > 0 && (
+                  <motion.span
+                    key="badge"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                    className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white z-20"
+                    style={{ background: '#ef4444' }}
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          </NavLink>
+        )
+      })}
 
       {/* Avatar — goes straight to profile, no sheet */}
-      <button
+      <motion.button
         onClick={() => navigate('/profile')}
+        whileTap={{ scale: 0.85 }}
         className="flex items-center justify-center w-11 h-11 rounded-full"
       >
         {user?.avatar ? (
@@ -82,7 +109,7 @@ export default function BottomNav() {
             {user?.name?.[0]?.toUpperCase() || 'U'}
           </div>
         )}
-      </button>
-    </nav>
+      </motion.button>
+    </motion.nav>
   )
 }

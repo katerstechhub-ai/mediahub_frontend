@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore, useThemeStore } from '../../store'
 import {
   FiHome, FiCompass, FiPlusSquare,
   FiBell, FiUser, FiLogOut, FiMoon, FiSun
 } from 'react-icons/fi'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { notificationsAPI } from '../../api'
 
 const navItems = [
@@ -17,6 +18,7 @@ const navItems = [
 
 export default function Sidebar() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, logout } = useAuthStore()
   const { theme, toggleTheme } = useThemeStore()
   const [unreadCount, setUnreadCount] = useState(0)
@@ -40,6 +42,8 @@ export default function Sidebar() {
     navigate('/login')
   }
 
+  const isActiveTab = (to) => (to === '/' ? location.pathname === '/' : location.pathname.startsWith(to))
+
   return (
     <aside
       className="fixed top-0 left-0 h-screen flex flex-col"
@@ -55,7 +59,14 @@ export default function Sidebar() {
         className="h-20 flex items-center justify-center border-b"
         style={{ borderColor: 'var(--border)' }}
       >
-        <div className="w-12 h-12 rounded-full shadow-lg overflow-hidden" title="EventPulse">
+        <motion.div
+          initial={{ scale: 0, rotate: -15 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+          whileHover={{ scale: 1.08, rotate: 4 }}
+          className="w-12 h-12 rounded-full shadow-lg overflow-hidden"
+          title="EventPulse"
+        >
           <svg viewBox="330 300 590 590" width="48" height="48" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <linearGradient id="epSidebarRibbonE" x1="300" y1="380" x2="620" y2="820" gradientUnits="userSpaceOnUse">
@@ -115,37 +126,75 @@ export default function Sidebar() {
               opacity="0.55"
             />
           </svg>
-        </div>
+        </motion.div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-5 space-y-3 overflow-y-auto">
-        {navItems.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            className={({ isActive }) =>
-              `relative flex items-center justify-center w-14 h-14 mx-auto rounded-full transition-all duration-200 ${
-                isActive
-                  ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30 scale-105'
-                  : 'hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:scale-105'
-              }`
-            }
-            title={label}
-          >
-            <Icon size={26} strokeWidth={2.5} />
-            {to === '/notifications' && unreadCount > 0 && (
-              <span
-                className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                style={{ background: '#ef4444' }}
+      <motion.nav
+        initial="hidden"
+        animate="show"
+        variants={{
+          hidden: {},
+          show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } },
+        }}
+        className="flex-1 px-3 py-5 space-y-3 overflow-y-auto"
+      >
+        {navItems.map(({ to, icon: Icon, label }) => {
+          const active = isActiveTab(to)
+          return (
+            <motion.div
+              key={to}
+              variants={{
+                hidden: { opacity: 0, x: -16 },
+                show: { opacity: 1, x: 0 },
+              }}
+            >
+              <NavLink
+                to={to}
+                end={to === '/'}
+                title={label}
+                className="relative flex items-center justify-center w-14 h-14 mx-auto rounded-full"
               >
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </NavLink>
-        ))}
-      </nav>
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.88 }}
+                  className="relative flex items-center justify-center w-14 h-14 rounded-full"
+                >
+                  {active && (
+                    <motion.div
+                      layoutId="sidebarActivePill"
+                      className="absolute inset-0 rounded-full"
+                      style={{ background: '#f59e0b', boxShadow: '0 4px 14px rgba(245,158,11,0.35)' }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                  <Icon
+                    size={26}
+                    strokeWidth={2.5}
+                    className="relative z-10"
+                    color={active ? '#ffffff' : 'var(--text-secondary)'}
+                  />
+                  <AnimatePresence>
+                    {to === '/notifications' && unreadCount > 0 && (
+                      <motion.span
+                        key="badge"
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0, opacity: 0 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                        className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-bold text-white z-20"
+                        style={{ background: '#ef4444' }}
+                      >
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              </NavLink>
+            </motion.div>
+          )
+        })}
+      </motion.nav>
 
       {/* Bottom actions */}
       <div
@@ -153,19 +202,34 @@ export default function Sidebar() {
         style={{ borderColor: 'var(--border)' }}
       >
         {/* Theme toggle */}
-        <button
+        <motion.button
           onClick={toggleTheme}
-          className="w-14 h-14 mx-auto flex items-center justify-center rounded-full transition-all duration-200 hover:bg-[var(--bg-secondary)] hover:scale-105 text-[var(--text-secondary)]"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.88 }}
+          className="w-14 h-14 mx-auto flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)]"
           title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
         >
-          {theme === 'dark' ? <FiSun size={24} strokeWidth={2.5} /> : <FiMoon size={24} strokeWidth={2.5} />}
-        </button>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span
+              key={theme}
+              initial={{ rotate: -90, opacity: 0, scale: 0.6 }}
+              animate={{ rotate: 0, opacity: 1, scale: 1 }}
+              exit={{ rotate: 90, opacity: 0, scale: 0.6 }}
+              transition={{ duration: 0.2 }}
+              className="flex items-center justify-center"
+            >
+              {theme === 'dark' ? <FiSun size={24} strokeWidth={2.5} /> : <FiMoon size={24} strokeWidth={2.5} />}
+            </motion.span>
+          </AnimatePresence>
+        </motion.button>
 
         {/* User avatar */}
         {user && (
-          <button
+          <motion.button
             onClick={() => navigate('/profile')}
-            className="w-14 h-14 mx-auto flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] hover:scale-105 transition-all duration-200"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.88 }}
+            className="w-14 h-14 mx-auto flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)]"
             title="Profile"
           >
             {user.avatar ? (
@@ -179,17 +243,18 @@ export default function Sidebar() {
                 {user.name?.[0]?.toUpperCase() || 'U'}
               </div>
             )}
-          </button>
+          </motion.button>
         )}
 
         {/* Logout */}
-        <button
+        <motion.button
           onClick={handleLogout}
-          className="w-14 h-14 mx-auto flex items-center justify-center rounded-full transition-all duration-200 text-red-500 hover:bg-red-50 hover:scale-105 dark:hover:bg-red-900/20"
-          title="Logout"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.88 }}
+          className="w-14 h-14 mx-auto flex items-center justify-center rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
         >
           <FiLogOut size={24} strokeWidth={2.5} />
-        </button>
+        </motion.button>
       </div>
     </aside>
   )

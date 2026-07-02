@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import { FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList, FiX, FiMoreHorizontal, FiTrash2 } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import { postsAPI, commentsAPI } from '../api'
@@ -95,192 +96,227 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
 
   return (
     <>
-    <div
-      className="fixed inset-0 flex flex-col justify-end transition-opacity duration-300"
-      style={{ zIndex: 9999, background: 'rgba(0,0,0,0.6)', opacity: open ? 1 : 0, pointerEvents: open ? 'all' : 'none' }}
-      onClick={onClose}
-    >
-      <div
-        className="w-full flex flex-col rounded-t-3xl transition-transform duration-300"
-        style={{
-          background: 'var(--bg-primary)',
-          maxHeight: '92vh',
-          boxShadow: '0 -8px 40px rgba(0,0,0,0.3)',
-          transform: open ? 'translateY(0)' : 'translateY(100%)',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-          <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
-        </div>
+      {/* ── Bottom sheet — only mounted while open, animates in/out ── */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="fixed inset-0 flex flex-col justify-end"
+            style={{ zIndex: 9999, background: 'rgba(0,0,0,0.6)' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            onClick={onClose}
+          >
+            <motion.div
+              className="w-full flex flex-col rounded-t-3xl"
+              style={{ background: 'var(--bg-primary)', maxHeight: '92vh', boxShadow: '0 -8px 40px rgba(0,0,0,0.3)' }}
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 32, stiffness: 300 }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Handle */}
+              <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+                <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
+              </div>
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
-          <h3 className="text-base font-extrabold" style={{ color: 'var(--text-primary)' }}>
-            Comments{comments.length > 0 && <span className="font-normal text-sm ml-1.5" style={{ color: 'var(--text-muted)' }}>({comments.length})</span>}
-          </h3>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition-colors" style={{ color: 'var(--text-muted)' }}>
-            <FiX size={18} strokeWidth={2.5} />
-          </button>
-        </div>
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+                <h3 className="text-base font-extrabold" style={{ color: 'var(--text-primary)' }}>
+                  Comments{comments.length > 0 && <span className="font-normal text-sm ml-1.5" style={{ color: 'var(--text-muted)' }}>({comments.length})</span>}
+                </h3>
+                <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition-colors" style={{ color: 'var(--text-muted)' }}>
+                  <FiX size={18} strokeWidth={2.5} />
+                </button>
+              </div>
 
-        {/* Comments list */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 overscroll-contain">
-          {loadingComments ? (
-            <div className="flex justify-center py-10">
-              <div className="animate-spin rounded-full h-8 w-8 border-4 border-amber-500 border-t-transparent" />
-            </div>
-          ) : comments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-14 gap-2">
-              <FiMessageCircle size={36} strokeWidth={1.5} style={{ color: 'var(--text-muted)' }} />
-              <p className="text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>No comments yet</p>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Be the first to comment!</p>
-            </div>
-          ) : (
-            comments.map(c => {
-              const isCommentOwner = isCurrentUser(c.author)
-              return (
-                <div key={c._id} className="flex gap-3 items-start">
-                  <div onClick={() => onGoToProfile(c.author)} className="cursor-pointer flex-shrink-0">
-                    <Avatar src={c.author?.avatar} name={c.author?.name} size={32} className="mt-0.5" />
+              {/* Comments list */}
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 overscroll-contain">
+                {loadingComments ? (
+                  <div className="flex justify-center py-10">
+                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-amber-500 border-t-transparent" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm leading-snug flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>
-                        <span
-                          className="font-bold mr-1.5 cursor-pointer hover:underline"
-                          style={{ color: 'var(--text-primary)' }}
-                          onClick={() => onGoToProfile(c.author)}
+                ) : comments.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-14 gap-2">
+                    <FiMessageCircle size={36} strokeWidth={1.5} style={{ color: 'var(--text-muted)' }} />
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>No comments yet</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Be the first to comment!</p>
+                  </div>
+                ) : (
+                  <AnimatePresence initial={false}>
+                    {comments.map(c => {
+                      const isCommentOwner = isCurrentUser(c.author)
+                      return (
+                        <motion.div
+                          key={c._id}
+                          layout
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, height: 0, marginBottom: 0, overflow: 'hidden' }}
+                          transition={{ duration: 0.2 }}
+                          className="flex gap-3 items-start"
                         >
-                          {c.author?.name || 'Unknown'}
-                        </span>
-                        {c.content || c.text || ''}
-                      </p>
-                      {isCommentOwner && (
-                        <div className="relative flex-shrink-0">
-                          <button onClick={() => setShowCommentMenu(showCommentMenu === c._id ? null : c._id)} className="p-1 rounded-full hover:bg-[var(--bg-secondary)] transition-colors" style={{ color: 'var(--text-muted)' }}>
-                            <FiMoreHorizontal size={16} />
-                          </button>
-                          {showCommentMenu === c._id && (
-                            <div className="absolute right-0 top-7 rounded-xl shadow-lg border py-1 w-36 z-10" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
-                              <button onClick={() => requestDeleteComment(c._id)} className="w-full text-left px-4 py-2 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2">
-                                <FiTrash2 size={14} /> Delete
-                              </button>
+                          <div onClick={() => onGoToProfile(c.author)} className="cursor-pointer flex-shrink-0">
+                            <Avatar src={c.author?.avatar} name={c.author?.name} size={32} className="mt-0.5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm leading-snug flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>
+                                <span
+                                  className="font-bold mr-1.5 cursor-pointer hover:underline"
+                                  style={{ color: 'var(--text-primary)' }}
+                                  onClick={() => onGoToProfile(c.author)}
+                                >
+                                  {c.author?.name || 'Unknown'}
+                                </span>
+                                {c.content || c.text || ''}
+                              </p>
+                              {isCommentOwner && (
+                                <div className="relative flex-shrink-0">
+                                  <button onClick={() => setShowCommentMenu(showCommentMenu === c._id ? null : c._id)} className="p-1 rounded-full hover:bg-[var(--bg-secondary)] transition-colors" style={{ color: 'var(--text-muted)' }}>
+                                    <FiMoreHorizontal size={16} />
+                                  </button>
+                                  <AnimatePresence>
+                                    {showCommentMenu === c._id && (
+                                      <motion.div
+                                        initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                                        transition={{ duration: 0.12 }}
+                                        className="absolute right-0 top-7 rounded-xl shadow-lg border py-1 w-36 z-10"
+                                        style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
+                                      >
+                                        <button onClick={() => requestDeleteComment(c._id)} className="w-full text-left px-4 py-2 text-sm font-bold text-red-500 hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2">
+                                          <FiTrash2 size={14} /> Delete
+                                        </button>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                      {c.createdAt ? dayjs(c.createdAt).fromNow() : 'Just now'}
-                    </p>
+                            <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                              {c.createdAt ? dayjs(c.createdAt).fromNow() : 'Just now'}
+                            </p>
+                          </div>
+                        </motion.div>
+                      )
+                    })}
+                  </AnimatePresence>
+                )}
+                <div ref={commentsEndRef} />
+              </div>
+
+              {/* Quick reactions */}
+              <div className="flex-shrink-0 flex items-center gap-4 px-4 py-2.5 border-t overflow-x-auto" style={{ borderColor: 'var(--border)' }}>
+                {['💙', '🙌', '🔥', '👏', '😢', '😍', '😭', '😂'].map(emoji => (
+                  <motion.button
+                    key={emoji}
+                    type="button"
+                    onClick={() => setComment(c => c + emoji)}
+                    whileHover={{ scale: 1.25 }}
+                    whileTap={{ scale: 0.9 }}
+                    className="text-2xl flex-shrink-0"
+                  >
+                    {emoji}
+                  </motion.button>
+                ))}
+              </div>
+
+              {/* Input */}
+              <div className="flex-shrink-0 border-t px-4 py-3" style={{ borderColor: 'var(--border)', background: 'var(--bg-primary)', paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+                <form onSubmit={handleComment} className="flex items-center gap-3">
+                  <Avatar src={user?.avatar} name={user?.name} size={32} className="flex-shrink-0" />
+                  <div className="flex-1 flex items-center rounded-full border px-4 py-3.5 focus-within:border-amber-500 transition-all" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+                    <input
+                      ref={commentInputRef}
+                      type="text"
+                      placeholder="Add a comment…"
+                      value={comment}
+                      onChange={e => setComment(e.target.value)}
+                      className="flex-1 bg-transparent outline-none text-sm"
+                      style={{ color: 'var(--text-primary)' }}
+                    />
+                    <button type="submit" disabled={!comment.trim() || submitting} className="flex-shrink-0 ml-2 text-sm font-bold text-amber-500 hover:text-amber-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                      {submitting ? 'Posting…' : 'Post'}
+                    </button>
                   </div>
-                </div>
-              )
-            })
-          )}
-          <div ref={commentsEndRef} />
-        </div>
+                </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        {/* Quick reactions */}
-        <div className="flex-shrink-0 flex items-center gap-4 px-4 py-2.5 border-t overflow-x-auto" style={{ borderColor: 'var(--border)' }}>
-          {['💙', '🙌', '🔥', '👏', '😢', '😍', '😭', '😂'].map(emoji => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => setComment(c => c + emoji)}
-              className="text-2xl flex-shrink-0 hover:scale-125 active:scale-95 transition-transform"
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
-
-        {/* Input */}
-        <div className="flex-shrink-0 border-t px-4 py-3" style={{ borderColor: 'var(--border)', background: 'var(--bg-primary)', paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
-          <form onSubmit={handleComment} className="flex items-center gap-3">
-            <Avatar src={user?.avatar} name={user?.name} size={32} className="flex-shrink-0" />
-            <div className="flex-1 flex items-center rounded-full border px-4 py-3.5 focus-within:border-amber-500 transition-all" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
-              <input
-                ref={commentInputRef}
-                type="text"
-                placeholder="Add a comment…"
-                value={comment}
-                onChange={e => setComment(e.target.value)}
-                className="flex-1 bg-transparent outline-none text-sm"
-                style={{ color: 'var(--text-primary)' }}
-              />
-              <button type="submit" disabled={!comment.trim() || submitting} className="flex-shrink-0 ml-2 text-sm font-bold text-amber-500 hover:text-amber-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                {submitting ? 'Posting…' : 'Post'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    {/* ── Delete Comment Confirmation Modal — matches PostDetailPage's modal ── */}
-    <div
-        className="fixed inset-0 flex items-center justify-center px-4 transition-opacity duration-200"
-        style={{
-          zIndex: 10000,
-          background: 'rgba(0,0,0,0.6)',
-          opacity: deleteCommentTarget ? 1 : 0,
-          pointerEvents: deleteCommentTarget ? 'all' : 'none',
-        }}
-        onClick={() => !deletingComment && setDeleteCommentTarget(null)}
-      >
-        <div
-          className="relative h-40 w-full max-w-sm rounded-3xl px-8 flex flex-col items-center justify-center transition-transform duration-200"
-          style={{
-            background: 'var(--bg-primary)',
-            border: '1px solid var(--border)',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-            transform: deleteCommentTarget ? 'scale(1)' : 'scale(0.95)',
-          }}
-          onClick={e => e.stopPropagation()}
-        >
-          <button
+      {/* ── Delete Comment Confirmation Modal ── */}
+      <AnimatePresence>
+        {deleteCommentTarget && (
+          <motion.div
+            className="fixed inset-0 flex items-center justify-center px-4"
+            style={{ zIndex: 10000, background: 'rgba(0,0,0,0.6)' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             onClick={() => !deletingComment && setDeleteCommentTarget(null)}
-            disabled={deletingComment}
-            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition-colors disabled:opacity-50"
-            style={{ color: 'var(--text-muted)' }}
           >
-            <FiX size={18} strokeWidth={2.5} />
-          </button>
-
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
-            style={{ background: 'rgba(239,68,68,0.12)' }}
-          >
-            <FiTrash2 size={28} color="#ef4444" strokeWidth={2.5} />
-          </div>
-
-          <h3 className="text-base font-extrabold text-center font-display px-2" style={{ color: 'var(--text-primary)' }}>
-            Are you sure you want to delete this comment?
-          </h3>
-
-          <div className="flex items-center justify-center gap-6 mt-6">
-            <button
-              onClick={() => setDeleteCommentTarget(null)}
-              disabled={deletingComment}
-              className="px-6 py-2.5 rounded-full font-bold text-sm border transition-colors disabled:opacity-50"
-              style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+            <motion.div
+              className="relative h-40 w-full max-w-sm rounded-3xl px-8 flex flex-col items-center justify-center"
+              style={{
+                background: 'var(--bg-primary)',
+                border: '1px solid var(--border)',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              }}
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              onClick={e => e.stopPropagation()}
             >
-              No, cancel
-            </button>
-            <button
-              onClick={confirmDeleteComment}
-              disabled={deletingComment}
-              className="font-bold text-sm transition-colors disabled:opacity-60"
-              style={{ color: '#ef4444' }}
-            >
-              {deletingComment ? 'Deleting…' : "Yes, I'm sure"}
-            </button>
-          </div>
-        </div>
-      </div>
+              <button
+                onClick={() => !deletingComment && setDeleteCommentTarget(null)}
+                disabled={deletingComment}
+                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition-colors disabled:opacity-50"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <FiX size={18} strokeWidth={2.5} />
+              </button>
+
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
+                style={{ background: 'rgba(239,68,68,0.12)' }}
+              >
+                <FiTrash2 size={28} color="#ef4444" strokeWidth={2.5} />
+              </div>
+
+              <h3 className="text-base font-extrabold text-center font-display px-2" style={{ color: 'var(--text-primary)' }}>
+                Are you sure you want to delete this comment?
+              </h3>
+
+              <div className="flex items-center justify-center gap-6 mt-6">
+                <button
+                  onClick={() => setDeleteCommentTarget(null)}
+                  disabled={deletingComment}
+                  className="px-6 py-2.5 rounded-full font-bold text-sm border transition-colors disabled:opacity-50"
+                  style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+                >
+                  No, cancel
+                </button>
+                <button
+                  onClick={confirmDeleteComment}
+                  disabled={deletingComment}
+                  className="font-bold text-sm transition-colors disabled:opacity-60"
+                  style={{ color: '#ef4444' }}
+                >
+                  {deletingComment ? 'Deleting…' : "Yes, I'm sure"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }
@@ -385,14 +421,22 @@ export default function FeedPage() {
     return null
   }
 
-  const HeartAnimation = ({ postId }) => {
-    if (showHeartAnimation !== postId) return null
-    return (
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-        <FaHeart size={80} color="#ef4444" style={{ animation: 'likeHeart 0.8s ease-out forwards' }} />
-      </div>
-    )
-  }
+  // Heart burst — replaces manual CSS keyframes with an AnimatePresence exit animation
+  const HeartAnimation = ({ postId }) => (
+    <AnimatePresence>
+      {showHeartAnimation === postId && (
+        <motion.div
+          className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
+          initial={{ scale: 0.5, opacity: 1 }}
+          animate={{ scale: 1.4, opacity: 1 }}
+          exit={{ scale: 1.8, opacity: 0 }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+        >
+          <FaHeart size={80} color="#ef4444" />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
 
   if (loading) {
     return (
@@ -404,17 +448,37 @@ export default function FeedPage() {
 
   if (posts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen text-center px-4" style={{ background: 'var(--bg-primary)' }}>
+      <motion.div
+        className="flex flex-col items-center justify-center h-screen text-center px-4"
+        style={{ background: 'var(--bg-primary)' }}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+      >
         <div className="w-24 h-24 rounded-full flex items-center justify-center mb-5" style={{ background: 'var(--bg-secondary)' }}>
           <FiImage size={40} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
         </div>
         <h3 className="text-2xl font-extrabold font-display" style={{ color: 'var(--text-primary)' }}>No posts yet</h3>
         <p className="text-sm mt-2 mb-6" style={{ color: 'var(--text-muted)' }}>Share something with the world</p>
-        <button onClick={() => navigate('/create')} className="flex items-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-400 text-white font-bold rounded-full transition-colors text-sm shadow-lg shadow-amber-500/30">
+        <motion.button
+          onClick={() => navigate('/create')}
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          className="flex items-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-400 text-white font-bold rounded-full transition-colors text-sm shadow-lg shadow-amber-500/30"
+        >
           <FiPlusSquare size={20} strokeWidth={2.5} /> Create Post
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
     )
+  }
+
+  // Stagger config for the grid/list entrance
+  const gridContainer = {
+    animate: { transition: { staggerChildren: 0.035 } }
+  }
+  const gridItem = {
+    initial: { opacity: 0, y: 14 },
+    animate: { opacity: 1, y: 0, transition: { duration: 0.25 } }
   }
 
   return (
@@ -486,11 +550,18 @@ export default function FeedPage() {
               <p className="text-xs font-semibold mt-1" style={{ color: 'var(--text-muted)' }}>{posts.length} posts</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <div className="flex items-center rounded-full p-1 flex-shrink-0 shadow-sm" style={{ background: 'var(--bg-secondary)' }}>
-                <button onClick={() => setViewMode('grid')} aria-label="Grid view" className="w-10 h-10 flex items-center justify-center rounded-full transition-all flex-shrink-0" style={{ background: viewMode === 'grid' ? '#f59e0b' : 'transparent', color: viewMode === 'grid' ? '#fff' : 'var(--text-muted)' }}>
+              {/* View mode pill with a sliding active indicator — grid-based so the indicator always matches each button's box */}
+              <div className="relative grid grid-cols-2 rounded-full p-1 flex-shrink-0 shadow-sm w-[88px]" style={{ background: 'var(--bg-secondary)' }}>
+                <motion.div
+                  className="absolute top-1 bottom-1 rounded-full bg-amber-500"
+                  style={{ left: 4, width: 'calc(50% - 4px)' }}
+                  animate={{ x: viewMode === 'grid' ? 0 : '100%' }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+                />
+                <button onClick={() => setViewMode('grid')} aria-label="Grid view" className="relative z-10 h-10 flex items-center justify-center rounded-full" style={{ color: viewMode === 'grid' ? '#fff' : 'var(--text-muted)' }}>
                   <FiGrid size={19} strokeWidth={2.5} />
                 </button>
-                <button onClick={() => setViewMode('list')} aria-label="List view" className="w-10 h-10 flex items-center justify-center rounded-full transition-all flex-shrink-0" style={{ background: viewMode === 'list' ? '#f59e0b' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--text-muted)' }}>
+                <button onClick={() => setViewMode('list')} aria-label="List view" className="relative z-10 h-10 flex items-center justify-center rounded-full" style={{ color: viewMode === 'list' ? '#fff' : 'var(--text-muted)' }}>
                   <FiList size={19} strokeWidth={2.5} />
                 </button>
               </div>
@@ -505,103 +576,125 @@ export default function FeedPage() {
         <div className="max-w-7xl mx-auto px-3 sm:px-5 pb-3">
           <div className="h-6" />
 
-          {/* Grid View */}
-          {viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {posts.map((post) => {
-                const imageUrl = getImageUrl(post)
-                const isLiked = post.likes?.includes(user?._id)
-                const commentCount = commentCounts[post._id] ?? post.comments?.length ?? 0
-                return (
-                  <div
-                    key={post._id}
-                    onClick={(e) => handleDoubleTap(e, post._id, true)}
-                    className="relative group cursor-pointer rounded-2xl overflow-hidden aspect-square shadow-sm hover:shadow-lg transition-shadow"
-                    style={{ background: 'var(--bg-secondary)' }}
-                  >
-                    {imageUrl ? (
-                      <img src={imageUrl} alt={post.title || 'Post'} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" loading="lazy" onError={e => e.target.style.display = 'none'} />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <FiImage size={26} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
-                      </div>
-                    )}
-
-                    {/* Author avatar badge (top-left) — click goes to their profile */}
-                    <div
-                      onClick={(e) => goToProfile(e, post.author)}
-                      className="absolute top-2.5 left-2.5 cursor-pointer"
-                    >
-                      <Avatar
-                        src={post.author?.avatar}
-                        name={post.author?.name}
-                        size={28}
-                        className="ring-2 ring-white/70 shadow-md"
-                      />
-                    </div>
-
-                    <HeartAnimation postId={post._id} />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
-
-                    {/* Like / comment — padded, rounded hit-areas so they're easy to tap over the image */}
-                    <div className="absolute bottom-2 right-2 flex items-center gap-0.5">
-                      <button
-                        onClick={e => { e.stopPropagation(); handleLike(e, post._id) }}
-                        className="flex items-center gap-1 text-white rounded-full px-2.5 py-1.5 hover:bg-black/30 active:scale-95 transition-all"
-                      >
-                        {isLiked ? <FaHeart size={15} color="#ef4444" /> : <FiHeart size={15} strokeWidth={2.5} className="drop-shadow-lg" />}
-                        <span className="text-xs font-semibold drop-shadow-lg">{post.likes?.length || 0}</span>
-                      </button>
-                      <button
-                        onClick={e => openComments(e, post._id)}
-                        className="flex items-center gap-1 text-white rounded-full px-2.5 py-1.5 hover:bg-black/30 active:scale-95 transition-all"
-                      >
-                        <FiMessageCircle size={15} strokeWidth={2.5} className="drop-shadow-lg" />
-                        <span className="text-xs font-semibold drop-shadow-lg">{commentCount}</span>
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            // List view
-            <>
-              {/* Mobile single column */}
-              <div className="block md:hidden space-y-6">
+          <LayoutGroup>
+            {/* Grid View */}
+            {viewMode === 'grid' ? (
+              <motion.div
+                className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"
+                variants={gridContainer}
+                initial="initial"
+                animate="animate"
+              >
                 {posts.map((post) => {
                   const imageUrl = getImageUrl(post)
                   const isLiked = post.likes?.includes(user?._id)
                   const commentCount = commentCounts[post._id] ?? post.comments?.length ?? 0
                   return (
-                    <div key={post._id} className="border-b pb-4" style={{ borderColor: 'var(--border)' }}>
-                      {imageUrl && (
-                        <div className="w-full mb-3 relative cursor-pointer" style={{ background: 'var(--bg-secondary)' }} onClick={e => handleDoubleTap(e, post._id, true)}>
-                          <img src={imageUrl} alt={post.title || 'Post'} className="w-full h-auto" style={{ maxHeight: 400, objectFit: 'cover' }} loading="lazy" onError={e => e.target.style.display = 'none'} />
-                          {/* Author avatar badge overlaid top-left on the image — same treatment as grid view */}
-                          <div
-                            onClick={(e) => goToProfile(e, post.author)}
-                            className="absolute top-2.5 left-2.5 cursor-pointer z-10"
-                          >
-                            <Avatar
-                              src={post.author?.avatar}
-                              name={post.author?.name}
-                              size={32}
-                              className="ring-2 ring-white/70 shadow-md"
-                            />
-                          </div>
-                          <HeartAnimation postId={post._id} />
+                    <motion.div
+                      key={post._id}
+                      layoutId={`post-${post._id}`}
+                      variants={gridItem}
+                      whileHover={{ scale: 1.02 }}
+                      transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}
+                      onClick={(e) => handleDoubleTap(e, post._id, true)}
+                      className="relative group cursor-pointer rounded-2xl overflow-hidden aspect-square shadow-sm hover:shadow-lg"
+                      style={{ background: 'var(--bg-secondary)' }}
+                    >
+                      {imageUrl ? (
+                        <img src={imageUrl} alt={post.title || 'Post'} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" loading="lazy" onError={e => e.target.style.display = 'none'} />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <FiImage size={26} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
                         </div>
                       )}
-                      <div className="px-1">
-                        <div className="flex items-start justify-between gap-2">
-                          {/* Heading + content — pinned left */}
-                          <div className="min-w-0 flex-1 text-left cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
-                            {!imageUrl && (
-                              <div className="flex items-center gap-2 mb-1">
-                                <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
-                                  <Avatar src={post.author?.avatar} name={post.author?.name} size={28} />
+
+                      {/* Author avatar badge (top-left) — click goes to their profile */}
+                      <div
+                        onClick={(e) => goToProfile(e, post.author)}
+                        className="absolute top-2.5 left-2.5 cursor-pointer"
+                      >
+                        <Avatar
+                          src={post.author?.avatar}
+                          name={post.author?.name}
+                          size={28}
+                          className="ring-2 ring-white/70 shadow-md"
+                        />
+                      </div>
+
+                      <HeartAnimation postId={post._id} />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
+
+                      {/* Like / comment — padded, rounded hit-areas so they're easy to tap over the image */}
+                      <div className="absolute bottom-2 right-2 flex items-center gap-0.5">
+                        <motion.button
+                          onClick={e => { e.stopPropagation(); handleLike(e, post._id) }}
+                          whileTap={{ scale: 0.9 }}
+                          className="flex items-center justify-center gap-1 h-8 min-w-[44px] px-2.5 text-white rounded-full hover:bg-black/30 transition-all leading-none"
+                        >
+                          {isLiked ? <FaHeart size={15} color="#ef4444" /> : <FiHeart size={15} strokeWidth={2.5} className="drop-shadow-lg" />}
+                          <span className="text-xs font-semibold drop-shadow-lg leading-none">{post.likes?.length || 0}</span>
+                        </motion.button>
+                        <motion.button
+                          onClick={e => openComments(e, post._id)}
+                          whileTap={{ scale: 0.9 }}
+                          className="flex items-center justify-center gap-1 h-8 min-w-[44px] px-2.5 text-white rounded-full hover:bg-black/30 transition-all leading-none"
+                        >
+                          <FiMessageCircle size={15} strokeWidth={2.5} className="drop-shadow-lg" />
+                          <span className="text-xs font-semibold drop-shadow-lg leading-none">{commentCount}</span>
+                        </motion.button>
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </motion.div>
+            ) : (
+              // List view
+              <>
+                {/* Mobile single column */}
+                <motion.div className="block md:hidden space-y-6" variants={gridContainer} initial="initial" animate="animate">
+                  {posts.map((post) => {
+                    const imageUrl = getImageUrl(post)
+                    const isLiked = post.likes?.includes(user?._id)
+                    const commentCount = commentCounts[post._id] ?? post.comments?.length ?? 0
+                    return (
+                      <motion.div key={post._id} layoutId={`post-${post._id}`} variants={gridItem} className="border-b pb-4" style={{ borderColor: 'var(--border)' }}>
+                        {imageUrl && (
+                          <div className="w-full mb-3 relative cursor-pointer" style={{ background: 'var(--bg-secondary)' }} onClick={e => handleDoubleTap(e, post._id, true)}>
+                            <img src={imageUrl} alt={post.title || 'Post'} className="w-full h-auto" style={{ maxHeight: 400, objectFit: 'cover' }} loading="lazy" onError={e => e.target.style.display = 'none'} />
+                            {/* Author avatar badge overlaid top-left on the image — same treatment as grid view */}
+                            <div
+                              onClick={(e) => goToProfile(e, post.author)}
+                              className="absolute top-2.5 left-2.5 cursor-pointer z-10"
+                            >
+                              <Avatar
+                                src={post.author?.avatar}
+                                name={post.author?.name}
+                                size={32}
+                                className="ring-2 ring-white/70 shadow-md"
+                              />
+                            </div>
+                            <HeartAnimation postId={post._id} />
+                          </div>
+                        )}
+                        <div className="px-1">
+                          <div className="flex items-start justify-between gap-2">
+                            {/* Heading + content — pinned left */}
+                            <div className="min-w-0 flex-1 text-left cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
+                              {!imageUrl && (
+                                <div className="flex items-center gap-2 mb-1">
+                                  <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
+                                    <Avatar src={post.author?.avatar} name={post.author?.name} size={28} />
+                                  </div>
+                                  <p
+                                    className="font-bold text-sm hover:underline inline-block"
+                                    style={{ color: 'var(--text-primary)' }}
+                                    onClick={(e) => goToProfile(e, post.author)}
+                                  >
+                                    {post.author?.name || 'Unknown'}
+                                  </p>
                                 </div>
+                              )}
+                              {imageUrl && (
                                 <p
                                   className="font-bold text-sm hover:underline inline-block"
                                   style={{ color: 'var(--text-primary)' }}
@@ -609,91 +702,93 @@ export default function FeedPage() {
                                 >
                                   {post.author?.name || 'Unknown'}
                                 </p>
-                              </div>
-                            )}
-                            {imageUrl && (
-                              <p
-                                className="font-bold text-sm hover:underline inline-block"
-                                style={{ color: 'var(--text-primary)' }}
-                                onClick={(e) => goToProfile(e, post.author)}
+                              )}
+                              {post.title && <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>{post.title}</h3>}
+                              {post.content && post.content.trim() !== ' ' && post.content !== post.title && (
+                                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
+                              )}
+                            </div>
+                            {/* Icons — shifted upward, margin from the right edge */}
+                            <div className="flex items-center gap-1 flex-shrink-0 self-start -mt-1 mr-2">
+                              <motion.button
+                                onClick={e => handleLike(e, post._id)}
+                                whileTap={{ scale: 0.9 }}
+                                className="flex items-center justify-center gap-1 h-8 min-w-[44px] px-2.5 rounded-full hover:bg-[var(--bg-secondary)] transition-all leading-none"
                               >
-                                {post.author?.name || 'Unknown'}
-                              </p>
-                            )}
-                            {post.title && <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>{post.title}</h3>}
-                            {post.content && post.content.trim() !== ' ' && post.content !== post.title && (
-                              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
-                            )}
+                                {isLiked ? <FaHeart size={16} color="#ef4444" /> : <FiHeart size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
+                                <span className="text-xs font-bold leading-none" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>{post.likes?.length || 0}</span>
+                              </motion.button>
+                              <motion.button
+                                onClick={e => openComments(e, post._id)}
+                                whileTap={{ scale: 0.9 }}
+                                className="flex items-center justify-center gap-1 h-8 min-w-[44px] px-2.5 rounded-full hover:bg-[var(--bg-secondary)] transition-all leading-none"
+                              >
+                                <FiMessageCircle size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+                                <span className="text-xs font-bold leading-none" style={{ color: 'var(--text-muted)' }}>{commentCount}</span>
+                              </motion.button>
+                            </div>
                           </div>
-                          {/* Icons — shifted upward, margin from the right edge */}
-                          <div className="flex items-center gap-1 flex-shrink-0 self-start -mt-1 mr-2">
-                            <button
-                              onClick={e => handleLike(e, post._id)}
-                              className="flex items-center gap-1 rounded-full px-2.5 py-2 hover:bg-[var(--bg-secondary)] active:scale-95 transition-all"
-                            >
-                              {isLiked ? <FaHeart size={16} color="#ef4444" /> : <FiHeart size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
-                              <span className="text-xs font-bold" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>{post.likes?.length || 0}</span>
-                            </button>
-                            <button
-                              onClick={e => openComments(e, post._id)}
-                              className="flex items-center gap-1 rounded-full px-2.5 py-2 hover:bg-[var(--bg-secondary)] active:scale-95 transition-all"
-                            >
-                              <FiMessageCircle size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
-                              <span className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>{commentCount}</span>
-                            </button>
-                          </div>
+                          {post.tags?.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {post.tags.slice(0, 3).map(tag => (
+                                <span key={tag} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>#{tag}</span>
+                              ))}
+                            </div>
+                          )}
+                          <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                            {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
+                          </p>
                         </div>
-                        {post.tags?.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {post.tags.slice(0, 3).map(tag => (
-                              <span key={tag} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>#{tag}</span>
-                            ))}
+                      </motion.div>
+                    )
+                  })}
+                </motion.div>
+
+                {/* Desktop 3-column */}
+                <motion.div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-6" variants={gridContainer} initial="initial" animate="animate">
+                  {posts.map((post) => {
+                    const imageUrl = getImageUrl(post)
+                    const isLiked = post.likes?.includes(user?._id)
+                    const commentCount = commentCounts[post._id] ?? post.comments?.length ?? 0
+                    return (
+                      <motion.div key={post._id} layoutId={`post-desktop-${post._id}`} variants={gridItem} whileHover={{ y: -2 }} className="border rounded-xl overflow-hidden hover:shadow-lg" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
+                        {imageUrl && (
+                          <div className="w-full relative cursor-pointer" onClick={e => handleDoubleTap(e, post._id, true)}>
+                            <img src={imageUrl} alt={post.title || 'Post'} className="w-full aspect-square object-cover" loading="lazy" onError={e => e.target.style.display = 'none'} />
+                            {/* Author avatar badge overlaid top-left on the image — same treatment as grid view */}
+                            <div
+                              onClick={(e) => goToProfile(e, post.author)}
+                              className="absolute top-2.5 left-2.5 cursor-pointer z-10"
+                            >
+                              <Avatar
+                                src={post.author?.avatar}
+                                name={post.author?.name}
+                                size={28}
+                                className="ring-2 ring-white/70 shadow-md"
+                              />
+                            </div>
+                            <HeartAnimation postId={post._id} />
                           </div>
                         )}
-                        <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
-                          {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
-                        </p>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* Desktop 3-column */}
-              <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-6">
-                {posts.map((post) => {
-                  const imageUrl = getImageUrl(post)
-                  const isLiked = post.likes?.includes(user?._id)
-                  const commentCount = commentCounts[post._id] ?? post.comments?.length ?? 0
-                  return (
-                    <div key={post._id} className="border rounded-xl overflow-hidden hover:shadow-lg transition-shadow" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
-                      {imageUrl && (
-                        <div className="w-full relative cursor-pointer" onClick={e => handleDoubleTap(e, post._id, true)}>
-                          <img src={imageUrl} alt={post.title || 'Post'} className="w-full aspect-square object-cover" loading="lazy" onError={e => e.target.style.display = 'none'} />
-                          {/* Author avatar badge overlaid top-left on the image — same treatment as grid view */}
-                          <div
-                            onClick={(e) => goToProfile(e, post.author)}
-                            className="absolute top-2.5 left-2.5 cursor-pointer z-10"
-                          >
-                            <Avatar
-                              src={post.author?.avatar}
-                              name={post.author?.name}
-                              size={28}
-                              className="ring-2 ring-white/70 shadow-md"
-                            />
-                          </div>
-                          <HeartAnimation postId={post._id} />
-                        </div>
-                      )}
-                      <div className="p-3">
-                        <div className="flex items-start justify-between gap-1">
-                          {/* Heading + content — pinned left */}
-                          <div className="min-w-0 flex-1 text-left">
-                            {!imageUrl && (
-                              <div className="flex items-center gap-2 mb-1">
-                                <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
-                                  <Avatar src={post.author?.avatar} name={post.author?.name} size={28} />
+                        <div className="p-3">
+                          <div className="flex items-start justify-between gap-1">
+                            {/* Heading + content — pinned left */}
+                            <div className="min-w-0 flex-1 text-left">
+                              {!imageUrl && (
+                                <div className="flex items-center gap-2 mb-1">
+                                  <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
+                                    <Avatar src={post.author?.avatar} name={post.author?.name} size={28} />
+                                  </div>
+                                  <p
+                                    className="font-semibold text-sm truncate cursor-pointer hover:underline"
+                                    style={{ color: 'var(--text-primary)' }}
+                                    onClick={(e) => goToProfile(e, post.author)}
+                                  >
+                                    {post.author?.name || 'Unknown'}
+                                  </p>
                                 </div>
+                              )}
+                              {imageUrl && (
                                 <p
                                   className="font-semibold text-sm truncate cursor-pointer hover:underline"
                                   style={{ color: 'var(--text-primary)' }}
@@ -701,57 +796,50 @@ export default function FeedPage() {
                                 >
                                   {post.author?.name || 'Unknown'}
                                 </p>
-                              </div>
-                            )}
-                            {imageUrl && (
-                              <p
-                                className="font-semibold text-sm truncate cursor-pointer hover:underline"
-                                style={{ color: 'var(--text-primary)' }}
-                                onClick={(e) => goToProfile(e, post.author)}
+                              )}
+                              {post.title && <h3 className="font-extrabold font-display text-sm mt-1 leading-snug line-clamp-2" style={{ color: 'var(--text-primary)' }}>{post.title}</h3>}
+                              {post.content && post.content.trim() !== ' ' && post.content !== post.title && (
+                                <p className="text-xs mt-0.5 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
+                              )}
+                            </div>
+                            {/* Icons — shifted upward, margin from the right edge */}
+                            <div className="flex items-center gap-0.5 flex-shrink-0 self-start -mt-1 mr-1.5">
+                              <motion.button
+                                onClick={e => handleLike(e, post._id)}
+                                whileTap={{ scale: 0.9 }}
+                                className="flex items-center justify-center gap-0.5 h-7 min-w-[38px] px-2 rounded-full hover:bg-[var(--bg-primary)] transition-all leading-none"
                               >
-                                {post.author?.name || 'Unknown'}
-                              </p>
-                            )}
-                            {post.title && <h3 className="font-extrabold font-display text-sm mt-1 leading-snug line-clamp-2" style={{ color: 'var(--text-primary)' }}>{post.title}</h3>}
-                            {post.content && post.content.trim() !== ' ' && post.content !== post.title && (
-                              <p className="text-xs mt-0.5 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
-                            )}
+                                {isLiked ? <FaHeart size={14} color="#ef4444" /> : <FiHeart size={14} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
+                                <span className="text-xs font-semibold leading-none" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>{post.likes?.length || 0}</span>
+                              </motion.button>
+                              <motion.button
+                                onClick={e => openComments(e, post._id)}
+                                whileTap={{ scale: 0.9 }}
+                                className="flex items-center justify-center gap-0.5 h-7 min-w-[38px] px-2 rounded-full hover:bg-[var(--bg-primary)] transition-all leading-none"
+                              >
+                                <FiMessageCircle size={14} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+                                <span className="text-xs font-semibold leading-none" style={{ color: 'var(--text-muted)' }}>{commentCount}</span>
+                              </motion.button>
+                            </div>
                           </div>
-                          {/* Icons — shifted upward, margin from the right edge */}
-                          <div className="flex items-center gap-0.5 flex-shrink-0 self-start -mt-1 mr-1.5">
-                            <button
-                              onClick={e => handleLike(e, post._id)}
-                              className="flex items-center gap-0.5 rounded-full px-2 py-1.5 hover:bg-[var(--bg-primary)] active:scale-95 transition-all"
-                            >
-                              {isLiked ? <FaHeart size={14} color="#ef4444" /> : <FiHeart size={14} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
-                              <span className="text-xs font-semibold" style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>{post.likes?.length || 0}</span>
-                            </button>
-                            <button
-                              onClick={e => openComments(e, post._id)}
-                              className="flex items-center gap-0.5 rounded-full px-2 py-1.5 hover:bg-[var(--bg-primary)] active:scale-95 transition-all"
-                            >
-                              <FiMessageCircle size={14} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
-                              <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{commentCount}</span>
-                            </button>
-                          </div>
+                          {post.tags?.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {post.tags.slice(0, 2).map(tag => (
+                                <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-primary)', color: 'var(--text-muted)' }}>#{tag}</span>
+                              ))}
+                            </div>
+                          )}
+                          <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                            {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
+                          </p>
                         </div>
-                        {post.tags?.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {post.tags.slice(0, 2).map(tag => (
-                              <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-primary)', color: 'var(--text-muted)' }}>#{tag}</span>
-                            ))}
-                          </div>
-                        )}
-                        <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
-                          {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
-                        </p>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </>
-          )}
+                      </motion.div>
+                    )
+                  })}
+                </motion.div>
+              </>
+            )}
+          </LayoutGroup>
         </div>
       </div>
 
@@ -763,14 +851,6 @@ export default function FeedPage() {
         user={user}
         onGoToProfile={(author) => goToProfile(null, author)}
       />
-
-      <style>{`
-        @keyframes likeHeart {
-          0%   { transform: scale(0.5); opacity: 1; }
-          50%  { transform: scale(1.5); opacity: 1; }
-          100% { transform: scale(2);   opacity: 0; }
-        }
-      `}</style>
     </>
   )
 }
