@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  FiGrid, FiArrowLeft, FiHeart, FiMessageCircle, FiUser, FiEdit2
+  FiGrid, FiArrowLeft, FiHeart, FiMessageCircle, FiUser, FiEdit2, FiSettings
 } from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
@@ -103,7 +103,7 @@ export default function ProfilePage() {
       <div className="max-w-3xl mx-auto">
         {/* Header with soft gradient backdrop */}
         <div
-          className="relative px-4 pt-5 pb-24"
+          className="relative px-4 pt-5 pb-16"
           style={{
             background: 'linear-gradient(135deg, rgba(245,158,11,0.18) 0%, rgba(245,158,11,0.04) 55%, transparent 100%)',
           }}
@@ -118,19 +118,16 @@ export default function ProfilePage() {
             </button>
             <button
               onClick={() => navigate('/settings')}
-              className="text-sm font-semibold hover:text-amber-500 transition-colors"
-              style={{ color: 'var(--text-primary)' }}
+              className="w-10 h-10 flex items-center justify-center rounded-full shadow-sm hover:text-amber-500 transition-colors"
+              style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
             >
-              Settings
+              <FiSettings size={18} />
             </button>
           </div>
-          <h1 className="text-2xl font-extrabold font-display mt-5" style={{ color: 'var(--text-primary)' }}>
-            Profile
-          </h1>
         </div>
 
         {/* Profile card — overlaps the gradient header */}
-        <div className="px-4 -mt-16">
+        <div className="px-4 -mt-12">
           <div
             className="rounded-3xl shadow-sm px-6 py-7 flex flex-col items-center text-center"
             style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
