@@ -205,9 +205,12 @@ export default function PostDetailPage() {
           {/* Header */}
           <div className="sticky top-0 z-20 border-b backdrop-blur-lg px-4 py-3" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
             <div className="flex items-center justify-between">
-              <button onClick={() => navigate(-1)} className="flex items-center gap-2 hover:opacity-70 transition-opacity">
-                <FiArrowLeft size={20} style={{ color: 'var(--text-primary)' }} />
-                <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Back</span>
+              <button
+                onClick={() => navigate(-1)}
+                aria-label="Go back"
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] active:scale-90 transition-all"
+              >
+                <FiArrowLeft size={20} strokeWidth={2.5} style={{ color: 'var(--text-primary)' }} />
               </button>
               {isOwner && (
                 <div className="relative">
@@ -231,6 +234,18 @@ export default function PostDetailPage() {
           {mediaUrl && (
             <div className="w-full relative cursor-pointer select-none" style={{ background: 'var(--bg-secondary)' }} onClick={handleImageDoubleTap}>
               <img src={mediaUrl} alt={post.title || 'Post image'} className="w-full h-auto" style={{ maxHeight: 520, objectFit: 'cover' }} onError={e => e.target.style.display = 'none'} />
+              {/* Author avatar badge overlaid top-left on the image — same treatment as feed */}
+              <div
+                onClick={(e) => goToProfile(e, post.author)}
+                className="absolute top-2.5 left-2.5 cursor-pointer z-10"
+              >
+                <Avatar
+                  src={post.author?.avatar}
+                  name={post.author?.name}
+                  size={36}
+                  className="ring-2 ring-white/70 shadow-md"
+                />
+              </div>
               {showHeartAnimation && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <FaHeart size={100} color="#ef4444" style={{ animation: 'likeHeart 0.8s ease-out forwards' }} />
@@ -242,11 +257,14 @@ export default function PostDetailPage() {
           {/* Post content */}
           <div className="px-4 pt-3 pb-8">
             <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
-                  <Avatar src={post.author?.avatar} name={post.author?.name} size={36} />
-                </div>
-                <div className="min-w-0 flex-1">
+              {/* Heading + content — pinned left. Avatar only shown inline when there's no image to overlay it on. */}
+              <div className="min-w-0 flex-1 text-left">
+                <div className="flex items-center gap-2 min-w-0">
+                  {!mediaUrl && (
+                    <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
+                      <Avatar src={post.author?.avatar} name={post.author?.name} size={36} />
+                    </div>
+                  )}
                   <p
                     className="font-bold text-sm cursor-pointer hover:underline inline-block"
                     style={{ color: 'var(--text-primary)' }}
@@ -254,15 +272,15 @@ export default function PostDetailPage() {
                   >
                     {post.author?.name || 'Unknown'}
                   </p>
-                  {post.title && <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>{post.title}</h3>}
-                  {post.content && post.content.trim() && post.content.trim() !== ' ' && post.content !== post.title && (
-                    <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
-                  )}
                 </div>
+                {post.title && <h3 className="font-extrabold font-display text-base leading-snug" style={{ color: 'var(--text-primary)' }}>{post.title}</h3>}
+                {post.content && post.content.trim() && post.content.trim() !== ' ' && post.content !== post.title && (
+                  <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
+                )}
               </div>
 
-              {/* Like / comment — padded, rounded hit-areas instead of bare icons */}
-              <div className="flex items-center gap-1 flex-shrink-0 self-center -mr-2">
+              {/* Like / comment — shifted upward, margin from the right edge */}
+              <div className="flex items-center gap-1 flex-shrink-0 self-start -mt-1 mr-2">
                 <button
                   onClick={handleLike}
                   className="flex flex-col items-center gap-0.5 rounded-2xl px-3 py-2 hover:bg-[var(--bg-secondary)] active:scale-95 transition-all"

@@ -578,10 +578,10 @@ export default function FeedPage() {
                       {imageUrl && (
                         <div className="w-full mb-3 relative cursor-pointer" style={{ background: 'var(--bg-secondary)' }} onClick={e => handleDoubleTap(e, post._id, true)}>
                           <img src={imageUrl} alt={post.title || 'Post'} className="w-full h-auto" style={{ maxHeight: 400, objectFit: 'cover' }} loading="lazy" onError={e => e.target.style.display = 'none'} />
-                          {/* Author avatar badge overlaid top-left on the image */}
+                          {/* Author avatar badge overlaid top-left on the image — same treatment as grid view */}
                           <div
                             onClick={(e) => goToProfile(e, post.author)}
-                            className="absolute top-2.5 left-2.5 cursor-pointer"
+                            className="absolute top-2.5 left-2.5 cursor-pointer z-10"
                           >
                             <Avatar
                               src={post.author?.avatar}
@@ -595,7 +595,8 @@ export default function FeedPage() {
                       )}
                       <div className="px-1">
                         <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
+                          {/* Heading + content — pinned left */}
+                          <div className="min-w-0 flex-1 text-left cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
                             {!imageUrl && (
                               <div className="flex items-center gap-2 mb-1">
                                 <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
@@ -624,7 +625,8 @@ export default function FeedPage() {
                               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
                             )}
                           </div>
-                          <div className="flex items-center gap-0.5 flex-shrink-0 self-start -mr-1.5">
+                          {/* Icons — shifted upward, margin from the right edge */}
+                          <div className="flex items-center gap-1 flex-shrink-0 self-start -mt-1 mr-2">
                             <button
                               onClick={e => handleLike(e, post._id)}
                               className="flex items-center gap-1 rounded-full px-2.5 py-2 hover:bg-[var(--bg-secondary)] active:scale-95 transition-all"
@@ -668,10 +670,10 @@ export default function FeedPage() {
                       {imageUrl && (
                         <div className="w-full relative cursor-pointer" onClick={e => handleDoubleTap(e, post._id, true)}>
                           <img src={imageUrl} alt={post.title || 'Post'} className="w-full aspect-square object-cover" loading="lazy" onError={e => e.target.style.display = 'none'} />
-                          {/* Author avatar badge overlaid top-left on the image */}
+                          {/* Author avatar badge overlaid top-left on the image — same treatment as grid view */}
                           <div
                             onClick={(e) => goToProfile(e, post.author)}
-                            className="absolute top-2.5 left-2.5 cursor-pointer"
+                            className="absolute top-2.5 left-2.5 cursor-pointer z-10"
                           >
                             <Avatar
                               src={post.author?.avatar}
@@ -685,7 +687,8 @@ export default function FeedPage() {
                       )}
                       <div className="p-3">
                         <div className="flex items-start justify-between gap-1">
-                          <div className="min-w-0 flex-1">
+                          {/* Heading + content — pinned left */}
+                          <div className="min-w-0 flex-1 text-left">
                             {!imageUrl && (
                               <div className="flex items-center gap-2 mb-1">
                                 <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
@@ -714,7 +717,8 @@ export default function FeedPage() {
                               <p className="text-xs mt-0.5 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{post.content}</p>
                             )}
                           </div>
-                          <div className="flex items-center gap-0.5 flex-shrink-0 -mr-1">
+                          {/* Icons — shifted upward, margin from the right edge */}
+                          <div className="flex items-center gap-0.5 flex-shrink-0 self-start -mt-1 mr-1.5">
                             <button
                               onClick={e => handleLike(e, post._id)}
                               className="flex items-center gap-0.5 rounded-full px-2 py-1.5 hover:bg-[var(--bg-primary)] active:scale-95 transition-all"
