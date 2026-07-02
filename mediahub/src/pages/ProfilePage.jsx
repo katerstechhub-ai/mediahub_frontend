@@ -100,56 +100,39 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen pb-20 fade-in" style={{ background: 'var(--bg-primary)' }}>
-      <div className="max-w-3xl mx-auto">
-        {/* Header with soft gradient backdrop */}
-        <div
-          className="relative px-4 pt-5 pb-16"
-          style={{
-            background: 'linear-gradient(135deg, rgba(245,158,11,0.18) 0%, rgba(245,158,11,0.04) 55%, transparent 100%)',
-          }}
-        >
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => navigate(-1)}
-              className="w-10 h-10 flex items-center justify-center rounded-full shadow-sm"
-              style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-            >
-              <FiArrowLeft size={18} />
-            </button>
-            <button
-              onClick={() => navigate('/settings')}
-              className="w-10 h-10 flex items-center justify-center rounded-full shadow-sm hover:text-amber-500 transition-colors"
-              style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-            >
-              <FiSettings size={18} />
-            </button>
-          </div>
+      <div className="max-w-3xl mx-auto px-5 pt-6">
+
+        {/* Top bar */}
+        <div className="flex items-center justify-between mb-10">
+          <button onClick={() => navigate(-1)} style={{ color: 'var(--text-primary)' }}>
+            <FiArrowLeft size={20} />
+          </button>
+          <button onClick={() => navigate('/settings')} style={{ color: 'var(--text-primary)' }}>
+            <FiSettings size={20} />
+          </button>
         </div>
 
-        {/* Profile card — overlaps the gradient header */}
-        <div className="px-4 -mt-12">
-          <div
-            className="rounded-3xl shadow-sm px-6 py-7 flex flex-col items-center text-center"
-            style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
-          >
-            <div className="relative">
-              <Avatar src={user?.avatar} name={user?.name} size={84} ring />
-              <label
-                htmlFor="avatar-upload"
-                className="absolute -bottom-1 -right-1 w-7 h-7 flex items-center justify-center rounded-full cursor-pointer text-white shadow-sm"
-                style={{ background: '#f59e0b' }}
-              >
-                {uploadingAvatar ? '…' : <FiEdit2 size={12} />}
-              </label>
-              <input id="avatar-upload" type="file" accept="image/*" className="hidden" disabled={uploadingAvatar} onChange={handleAvatarChange} />
-            </div>
+        {/* Avatar + name + stats, side by side, flat */}
+        <div className="flex items-start gap-4">
+          <div className="relative shrink-0">
+            <Avatar src={user?.avatar} name={user?.name} size={72} />
+            <label
+              htmlFor="avatar-upload"
+              className="absolute -bottom-1 -right-1 w-6 h-6 flex items-center justify-center rounded-full cursor-pointer text-white shadow-sm"
+              style={{ background: '#f59e0b' }}
+            >
+              {uploadingAvatar ? '…' : <FiEdit2 size={11} />}
+            </label>
+            <input id="avatar-upload" type="file" accept="image/*" className="hidden" disabled={uploadingAvatar} onChange={handleAvatarChange} />
+          </div>
 
-            <h2 className="text-xl font-extrabold font-display mt-4" style={{ color: 'var(--text-primary)' }}>
+          <div className="pt-1 flex-1">
+            <h2 className="text-lg font-extrabold font-display" style={{ color: 'var(--text-primary)' }}>
               {user?.name || 'User'}
             </h2>
-            <p className="text-sm font-semibold mt-0.5" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
+            <p className="text-xs mb-2.5" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
 
-            <div className="flex gap-10 mt-5 mb-1">
+            <div className="flex gap-5">
               {[
                 { label: 'Posts', value: userPosts.length, onClick: null },
                 { label: 'Likes', value: totalLikes, onClick: () => navigate('/likes') },
@@ -158,24 +141,23 @@ export default function ProfilePage() {
                 <div
                   key={label}
                   onClick={onClick || undefined}
-                  className={`text-center ${onClick ? 'cursor-pointer hover:opacity-70 transition-opacity' : ''}`}
+                  className={onClick ? 'cursor-pointer hover:opacity-70 transition-opacity' : ''}
                 >
-                  <p className="text-lg font-extrabold font-display" style={{ color: 'var(--text-primary)' }}>{value}</p>
-                  <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--text-muted)' }}>{label}</p>
+                  <p className="text-base font-extrabold font-display leading-tight" style={{ color: 'var(--text-primary)' }}>{value}</p>
+                  <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{label}</p>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Posts grid */}
-        <div className="px-4 py-6">
-          <div className="flex items-center gap-2 mb-3 px-1">
-            <FiGrid size={14} style={{ color: 'var(--text-muted)' }} />
-            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-primary)' }}>My Posts</span>
-            <span className="text-[10px] ml-1 px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
-              {userPosts.length}
-            </span>
+        {/* Posts */}
+        <div className="mt-12">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <FiGrid size={14} style={{ color: 'var(--text-muted)' }} />
+              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>My Posts</span>
+            </div>
           </div>
 
           {userPosts.length === 0 ? (
@@ -197,31 +179,25 @@ export default function ProfilePage() {
                   <div
                     key={post._id || post.id}
                     onClick={() => navigate(`/posts/${post._id || post.id}`)}
-                    className="cursor-pointer rounded-xl overflow-hidden group relative"
+                    className="cursor-pointer rounded-lg overflow-hidden group relative"
                     style={{ aspectRatio: '1/1', background: 'var(--bg-secondary)' }}
                   >
                     <button
                       onClick={e => handleDeletePost(post._id || post.id, e)}
-                      className="absolute top-1 right-1 z-10 text-[10px] px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-all hover:text-red-400"
-                      style={{ background: 'rgba(0,0,0,0.6)', color: 'white' }}
+                      className="absolute top-1.5 right-1.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs"
+                      style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))' }}
                     >
                       ✕
                     </button>
 
                     {imageUrl ? (
-                      <>
-                        <img
-                          src={imageUrl}
-                          alt={post.title || 'Post'}
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          loading="lazy"
-                          onError={e => e.target.style.display = 'none'}
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 text-white text-xs font-semibold">
-                          <span className="flex items-center gap-1"><FiHeart size={12} /> {post.likes?.length || 0}</span>
-                          <span className="flex items-center gap-1"><FiMessageCircle size={12} /> {commentCounts[post._id] ?? 0}</span>
-                        </div>
-                      </>
+                      <img
+                        src={imageUrl}
+                        alt={post.title || 'Post'}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        loading="lazy"
+                        onError={e => e.target.style.display = 'none'}
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center p-2">
                         <p className="text-[11px] text-center line-clamp-3" style={{ color: 'var(--text-secondary)' }}>
