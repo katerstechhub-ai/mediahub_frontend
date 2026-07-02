@@ -100,7 +100,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen pb-20 fade-in" style={{ background: 'var(--bg-primary)' }}>
-      <div className="max-w-3xl mx-auto px-5 pt-6">
+      <div className="max-w-3xl lg:max-w-5xl mx-auto px-5 pt-6">
 
         {/* Top bar */}
         <div className="flex items-center justify-between mb-10">
@@ -172,7 +172,7 @@ export default function ProfilePage() {
               }
             />
           ) : (
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
               {userPosts.map(post => {
                 const imageUrl = getImageUrl(post)
                 return (

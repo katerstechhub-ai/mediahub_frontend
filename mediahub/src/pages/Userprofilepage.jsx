@@ -82,10 +82,10 @@ export default function UserProfilePage() {
 
   return (
     <div className="min-h-screen pb-20 fade-in" style={{ background: 'var(--bg-primary)' }}>
-      <div className="max-w-3xl mx-auto px-5 pt-6">
+      <div className="max-w-3xl lg:max-w-5xl mx-auto px-5 pt-6">
 
         {/* Top bar */}
-        <div className="mb-10">
+        <div className="flex items-center justify-between mb-10">
           <button onClick={() => navigate(-1)} style={{ color: 'var(--text-primary)' }}>
             <FiArrowLeft size={20} />
           </button>
@@ -125,9 +125,11 @@ export default function UserProfilePage() {
 
         {/* Posts */}
         <div className="mt-12">
-          <div className="flex items-center gap-2 mb-3">
-            <FiGrid size={14} style={{ color: 'var(--text-muted)' }} />
-            <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Posts</span>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <FiGrid size={14} style={{ color: 'var(--text-muted)' }} />
+              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Posts</span>
+            </div>
           </div>
 
           {userPosts.length === 0 ? (
@@ -137,7 +139,7 @@ export default function UserProfilePage() {
               description={`${profileUser?.name || 'This user'} hasn't shared anything yet.`}
             />
           ) : (
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
               {userPosts.map(post => {
                 const imageUrl = getImageUrl(post)
                 return (
