@@ -13,7 +13,7 @@ import PostDetailPage from './pages/PostDetailPage'
 import SettingsPage from './pages/SettingsPage'
 import NotFoundPage from './pages/NotFoundPage'
 import UserProfilePage from './pages/Userprofilepage'
-import LikesPage from './pages/Likespage';
+import LikesPage from './pages/LikesPage';
 import CommentsPage from './pages/CommentsPage'
 
 function App() {
