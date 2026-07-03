@@ -6,116 +6,12 @@ import { FaHeart } from 'react-icons/fa'
 import { postsAPI, commentsAPI } from '../api'
 import { useAuthStore } from '../store'
 import { Avatar } from '../components/ui'
+import { getImageUrls, MultiImage, ImageSlider } from '../components/PostMedia'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
-// ── Helper: normalize a post's images into an array of URLs ──────────────────
-function getImageUrls(post) {
-  if (!post) return []
-  const urls = []
-  // New multi-image field (preferred)
-  if (Array.isArray(post.images)) {
-    post.images.forEach(img => {
-      if (typeof img === 'string') urls.push(img)
-      else if (img?.url) urls.push(img.url)
-    })
-  }
-  // Media array
-  if (Array.isArray(post.media)) {
-    post.media.forEach(m => {
-      const u = typeof m === 'string' ? m : m?.url
-      if (u && !urls.includes(u)) urls.push(u)
-    })
-  }
-  // Single image fallbacks
-  if (urls.length === 0) {
-    if (post.image?.url) urls.push(post.image.url)
-    else if (typeof post.image === 'string') urls.push(post.image)
-    else if (post.imageUrl) urls.push(post.imageUrl)
-    else if (post.thumbnail) urls.push(post.thumbnail)
-  }
-  return urls.filter(Boolean)
-}
-// ── MultiImage — animated collage for 1 or up to 4 images ────────────────────
-// 1 image  → full frame
-// 2 images → 2 columns
-// 3 images → 1 large left, 2 stacked right
-// 4+       → 2×2 grid (extra images collapsed under a "+N" chip on the last tile)
-function MultiImage({ urls, title, postId, onDoubleTap, children }) {
-  const count = Math.min(urls.length, 4)
-  const extra = urls.length - 4
-  const tileVariants = {
-    initial: { opacity: 0, scale: 0.92 },
-    animate: (i) => ({
-      opacity: 1,
-      scale: 1,
-      transition: { delay: i * 0.06, type: 'spring', stiffness: 320, damping: 26 }
-    }),
-  }
-  const renderTile = (url, i, className = '', showExtra = false) => (
-    <motion.div
-      key={`${postId}-${i}`}
-      custom={i}
-      variants={tileVariants}
-      initial="initial"
-      animate="animate"
-      whileHover={{ scale: 1.015 }}
-      className={`relative overflow-hidden ${className}`}
-      style={{ background: 'var(--bg-secondary)' }}
-    >
-      <img
-        src={url}
-        alt={`${title || 'Post'} ${i + 1}`}
-        className="w-full h-full object-cover transition-transform duration-200"
-        loading="lazy"
-        onError={(e) => (e.target.style.display = 'none')}
-      />
-      {showExtra && extra > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.35 }}
-          className="absolute inset-0 flex items-center justify-center bg-black/55 backdrop-blur-[2px]"
-        >
-          <span className="text-white text-lg sm:text-2xl font-extrabold drop-shadow-lg">+{extra}</span>
-        </motion.div>
-      )}
-    </motion.div>
-  )
-  return (
-    <div
-      onClick={onDoubleTap}
-      className="relative w-full h-full grid gap-[3px] cursor-pointer"
-      style={{
-        gridTemplateColumns:
-          count === 1 ? '1fr' :
-          count === 2 ? '1fr 1fr' :
-          count === 3 ? '2fr 1fr' :
-          '1fr 1fr',
-        gridTemplateRows:
-          count === 1 ? '1fr' :
-          count === 2 ? '1fr' :
-          count === 3 ? '1fr 1fr' :
-          '1fr 1fr',
-      }}
-    >
-      {count === 1 && renderTile(urls[0], 0, 'w-full h-full')}
-      {count === 2 && urls.slice(0, 2).map((u, i) => renderTile(u, i, 'w-full h-full'))}
-      {count === 3 && (
-        <>
-          {renderTile(urls[0], 0, 'row-span-2 w-full h-full')}
-          {renderTile(urls[1], 1, 'w-full h-full')}
-          {renderTile(urls[2], 2, 'w-full h-full')}
-        </>
-      )}
-      {count === 4 && urls.slice(0, 4).map((u, i) =>
-        renderTile(u, i, 'w-full h-full', i === 3)
-      )}
-      {children}
-    </div>
-  )
-}
+
 // ── Shared Comments Bottom Sheet ──────────────────────────────────────────────
 function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
   const navigate = useNavigate()
@@ -128,12 +24,14 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
   const [deletingComment, setDeletingComment] = useState(false)
   const commentInputRef = useRef()
   const commentsEndRef = useRef()
+  
   const isCurrentUser = (author) => {
     if (!user || !author) return false
     const currentUserId = user._id || user.id
     const authorId = author._id || author.id || author
     return String(currentUserId) === String(authorId)
   }
+  
   const fetchComments = async () => {
     if (!postId) return
     setLoadingComments(true)
@@ -143,6 +41,7 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
     } catch { setComments([]) }
     finally { setLoadingComments(false) }
   }
+  
   useEffect(() => {
     if (open && postId) {
       fetchComments()
@@ -157,11 +56,13 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
     }
     return () => { document.body.style.overflow = '' }
   }, [open, postId])
+  
   useEffect(() => {
     if (open && commentsEndRef.current) {
       setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 150)
     }
   }, [comments, open])
+  
   const handleComment = async (e) => {
     e.preventDefault()
     if (!comment.trim()) return
@@ -180,10 +81,12 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
     } catch { toast.error('Failed to post comment') }
     finally { setSubmitting(false) }
   }
+  
   const requestDeleteComment = (commentId) => {
     setShowCommentMenu(null)
     setDeleteCommentTarget(commentId)
   }
+  
   const confirmDeleteComment = async () => {
     if (!deleteCommentTarget) return
     setDeletingComment(true)
@@ -198,6 +101,7 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
       setDeleteCommentTarget(null)
     }
   }
+  
   return (
     <>
       <AnimatePresence>
@@ -338,6 +242,7 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
     </>
   )
 }
+
 // ── FeedPage ──────────────────────────────────────────────────────────────────
 export default function FeedPage() {
   const [posts, setPosts] = useState([])
@@ -349,7 +254,9 @@ export default function FeedPage() {
   const lastTapRef = useRef({})
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  
   useEffect(() => { fetchPosts() }, [])
+  
   const fetchPosts = async () => {
     try {
       const response = await postsAPI.getAll()
@@ -377,6 +284,7 @@ export default function FeedPage() {
       setLoading(false)
     }
   }
+  
   const handleLike = async (e, postId) => {
     e?.stopPropagation()
     if (!user) {
@@ -391,6 +299,7 @@ export default function FeedPage() {
       console.error('Like failed:', err)
     }
   }
+  
   const handleDoubleTap = (e, postId, navigateOnSingle = false) => {
     e.stopPropagation()
     const now = Date.now()
@@ -409,10 +318,12 @@ export default function FeedPage() {
       }
     }
   }
+  
   const openComments = (e, postId) => {
     e.stopPropagation()
     setActiveCommentPostId(postId)
   }
+  
   const goToProfile = (e, author) => {
     e?.stopPropagation()
     const authorId = author?._id || author?.id || author
@@ -421,6 +332,7 @@ export default function FeedPage() {
     if (String(authorId) === String(myId)) navigate('/profile')
     else navigate(`/users/${authorId}`)
   }
+  
   const HeartAnimation = ({ postId }) => (
     <AnimatePresence>
       {showHeartAnimation === postId && (
@@ -434,6 +346,7 @@ export default function FeedPage() {
       )}
     </AnimatePresence>
   )
+  
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen" style={{ background: 'var(--bg-primary)' }}>
@@ -441,6 +354,7 @@ export default function FeedPage() {
       </div>
     )
   }
+  
   if (posts.length === 0) {
     return (
       <motion.div className="flex flex-col items-center justify-center h-screen text-center px-4" style={{ background: 'var(--bg-primary)' }} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
@@ -455,8 +369,10 @@ export default function FeedPage() {
       </motion.div>
     )
   }
+  
   const gridContainer = { animate: { transition: { staggerChildren: 0.035 } } }
   const gridItem = { initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0, transition: { duration: 0.25 } } }
+  
   return (
     <>
       <div className="min-h-screen pb-20" style={{ background: 'var(--bg-primary)' }}>
@@ -523,6 +439,8 @@ export default function FeedPage() {
                           title={post.title}
                           postId={post._id}
                           onDoubleTap={(e) => handleDoubleTap(e, post._id, true)}
+                          tileRadius="rounded-lg"
+                          gapClass="gap-1"
                         />
                       ) : (
                         <div onClick={(e) => handleDoubleTap(e, post._id, true)} className="w-full h-full flex items-center justify-center">
@@ -549,24 +467,24 @@ export default function FeedPage() {
                 })}
               </motion.div>
             ) : (
-              // List view
+              // List view - styled like PostDetailPage (no rounded containers, just clean layout)
               <>
                 {/* Mobile single column */}
-                <motion.div className="block md:hidden space-y-6" variants={gridContainer} initial="initial" animate="animate">
+                <motion.div className="block md:hidden space-y-8" variants={gridContainer} initial="initial" animate="animate">
                   {posts.map((post) => {
                     const urls = getImageUrls(post)
                     const isLiked = post.likes?.includes(user?._id)
                     const commentCount = commentCounts[post._id] ?? post.comments?.length ?? 0
                     return (
-                      <motion.div key={post._id} layoutId={`post-${post._id}`} variants={gridItem} className="border-b pb-4" style={{ borderColor: 'var(--border)' }}>
+                      <motion.div key={post._id} layoutId={`post-${post._id}`} variants={gridItem} className="border-b pb-6" style={{ borderColor: 'var(--border)' }}>
                         {urls.length > 0 && (
-                          <div className="w-full mb-3 relative cursor-pointer rounded-xl overflow-hidden" style={{ background: 'var(--bg-secondary)', height: urls.length === 1 ? 'auto' : 380 }}>
+                          <div className="w-full mb-4 relative cursor-pointer rounded-xl overflow-hidden" style={{ background: 'var(--bg-secondary)', height: urls.length === 1 ? 'auto' : 380 }}>
                             {urls.length === 1 ? (
                               <div onClick={e => handleDoubleTap(e, post._id, true)}>
                                 <img src={urls[0]} alt={post.title || 'Post'} className="w-full h-auto" style={{ maxHeight: 400, objectFit: 'cover' }} loading="lazy" onError={e => e.target.style.display = 'none'} />
                               </div>
                             ) : (
-                              <MultiImage urls={urls} title={post.title} postId={post._id} onDoubleTap={(e) => handleDoubleTap(e, post._id, true)} />
+                              <ImageSlider urls={urls} title={post.title} postId={post._id} onDoubleTap={(e) => handleDoubleTap(e, post._id, true)} rounded="" className="w-full h-full" />
                             )}
                             <div onClick={(e) => goToProfile(e, post.author)} className="absolute top-2.5 left-2.5 cursor-pointer z-10">
                               <Avatar src={post.author?.avatar} name={post.author?.name} size={32} className="ring-2 ring-white/70 shadow-md" />
@@ -623,22 +541,22 @@ export default function FeedPage() {
                     )
                   })}
                 </motion.div>
-                {/* Desktop 3-column */}
+                {/* Desktop 3-column - styled like PostDetailPage */}
                 <motion.div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-6" variants={gridContainer} initial="initial" animate="animate">
                   {posts.map((post) => {
                     const urls = getImageUrls(post)
                     const isLiked = post.likes?.includes(user?._id)
                     const commentCount = commentCounts[post._id] ?? post.comments?.length ?? 0
                     return (
-                      <motion.div key={post._id} layoutId={`post-desktop-${post._id}`} variants={gridItem} whileHover={{ y: -2 }} className="border rounded-xl overflow-hidden hover:shadow-lg" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
+                      <motion.div key={post._id} layoutId={`post-desktop-${post._id}`} variants={gridItem} className="border-b pb-4" style={{ borderColor: 'var(--border)' }}>
                         {urls.length > 0 && (
-                          <div className="w-full relative cursor-pointer aspect-square">
+                          <div className="w-full relative cursor-pointer aspect-square rounded-lg overflow-hidden" style={{ background: 'var(--bg-secondary)' }}>
                             {urls.length === 1 ? (
                               <div onClick={e => handleDoubleTap(e, post._id, true)} className="w-full h-full">
                                 <img src={urls[0]} alt={post.title || 'Post'} className="w-full h-full object-cover" loading="lazy" onError={e => e.target.style.display = 'none'} />
                               </div>
                             ) : (
-                              <MultiImage urls={urls} title={post.title} postId={post._id} onDoubleTap={(e) => handleDoubleTap(e, post._id, true)} />
+                              <ImageSlider urls={urls} title={post.title} postId={post._id} onDoubleTap={(e) => handleDoubleTap(e, post._id, true)} rounded="" className="w-full h-full" />
                             )}
                             <div onClick={(e) => goToProfile(e, post.author)} className="absolute top-2.5 left-2.5 cursor-pointer z-10">
                               <Avatar src={post.author?.avatar} name={post.author?.name} size={28} className="ring-2 ring-white/70 shadow-md" />
@@ -646,7 +564,7 @@ export default function FeedPage() {
                             <HeartAnimation postId={post._id} />
                           </div>
                         )}
-                        <div className="p-3">
+                        <div className="pt-3">
                           <div className="flex items-start justify-between gap-1">
                             <div className="min-w-0 flex-1 text-left">
                               {urls.length === 0 && (

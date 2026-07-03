@@ -1,60 +1,117 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
-  FiArrowLeft, FiUser, FiMoon, FiSun, FiLock, FiTrash2, FiLogOut, FiCheck
+  FiArrowLeft, FiUser, FiMoon, FiSun, FiLock, FiTrash2,
+  FiLogOut, FiCheck, FiChevronRight, FiShield, FiSliders, FiX
 } from 'react-icons/fi'
 import { useAuthStore, useThemeStore } from '../store'
 import { authAPI } from '../api'
 import toast from 'react-hot-toast'
 
-// Small reusable section wrapper — keeps every settings block visually consistent
-function SettingsSection({ icon: Icon, title, children, danger = false }) {
+/* ---------- Primitives ---------- */
+
+function Card({ children, className = '' }) {
   return (
     <div
-      className="rounded-3xl px-5 py-5 sm:px-6 sm:py-6"
+      className={`rounded-2xl overflow-hidden ${className}`}
       style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
     >
-      <div className="flex items-center gap-2.5 mb-4">
-        <div
-          className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: danger ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.14)' }}
-        >
-          <Icon size={16} strokeWidth={2.5} color={danger ? '#ef4444' : '#f59e0b'} />
-        </div>
-        <h2 className="text-sm font-extrabold uppercase tracking-wider" style={{ color: danger ? '#ef4444' : 'var(--text-primary)' }}>
-          {title}
-        </h2>
-      </div>
       {children}
     </div>
   )
 }
 
+function SectionHeader({ icon: Icon, title, description, tone = 'default' }) {
+  const tones = {
+    default: { bg: 'rgba(245,158,11,0.12)', fg: '#f59e0b' },
+    danger:  { bg: 'rgba(239,68,68,0.12)',  fg: '#ef4444' },
+  }
+  const t = tones[tone]
+  return (
+    <div className="flex items-start gap-3 px-5 pt-5 pb-4">
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ background: t.bg }}
+      >
+        <Icon size={18} strokeWidth={2.25} color={t.fg} />
+      </div>
+      <div className="min-w-0">
+        <h2 className="text-base font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>
+          {title}
+        </h2>
+        {description && (
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            {description}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, children }) {
+  return (
+    <label className="block">
+      <span
+        className="text-xs font-semibold block mb-1.5"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        {label}
+      </span>
+      {children}
+    </label>
+  )
+}
+
+const inputStyle = {
+  background: 'var(--bg-input)',
+  color: 'var(--text-primary)',
+  borderColor: 'var(--border)',
+}
+const inputClass =
+  'w-full rounded-xl text-sm outline-none border transition-all px-4 py-2.5 ' +
+  'focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20'
+
+function PrimaryButton({ children, loading, icon: Icon, ...rest }) {
+  return (
+    <button
+      {...rest}
+      disabled={loading || rest.disabled}
+      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white bg-amber-500 hover:bg-amber-600 active:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {Icon && <Icon size={16} strokeWidth={2.5} />}
+      {loading ? 'Please wait…' : children}
+    </button>
+  )
+}
+
+/* ---------- Page ---------- */
+
 export default function SettingsPage() {
   const navigate = useNavigate()
   const { user, updateUser, logout } = useAuthStore()
   const { theme, toggleTheme } = useThemeStore()
+  const isDark = theme === 'dark'
 
-  // Profile
   const [name, setName] = useState(user?.name || '')
   const [bio, setBio] = useState(user?.bio || '')
   const [savingProfile, setSavingProfile] = useState(false)
 
-  // Password
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
 
-  // Delete account
   const [deleting, setDeleting] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   const handleSaveProfile = async (e) => {
     e.preventDefault()
     setSavingProfile(true)
     try {
-      const response = await authAPI.updateProfile({ name, bio })
-      updateUser(response.data.data)
+      const res = await authAPI.updateProfile({ name, bio })
+      updateUser(res.data.data)
       toast.success('Profile updated')
     } catch {
       toast.error('Failed to update profile')
@@ -65,26 +122,15 @@ export default function SettingsPage() {
 
   const handleChangePassword = async (e) => {
     e.preventDefault()
-    if (!currentPassword || !newPassword) {
-      toast.error('Fill in both password fields')
-      return
-    }
-    if (newPassword !== confirmPassword) {
-      toast.error('New passwords don\u2019t match')
-      return
-    }
-    if (newPassword.length < 6) {
-      toast.error('New password must be at least 6 characters')
-      return
-    }
+    if (!currentPassword || !newPassword) return toast.error('Fill in both password fields')
+    if (newPassword !== confirmPassword) return toast.error('New passwords don’t match')
+    if (newPassword.length < 6) return toast.error('New password must be at least 6 characters')
+
     setSavingPassword(true)
     try {
-      // Backend endpoint pending — see authAPI.changePassword
       await authAPI.changePassword({ currentPassword, newPassword })
       toast.success('Password updated')
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
+      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('')
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Failed to update password')
     } finally {
@@ -93,213 +139,278 @@ export default function SettingsPage() {
   }
 
   const handleDeleteAccount = async () => {
-    const confirmed = window.confirm(
-      'Delete your account? This will permanently remove your profile and posts. This cannot be undone.'
-    )
-    if (!confirmed) return
     setDeleting(true)
     try {
-      // Backend endpoint pending — see authAPI.deleteAccount
       await authAPI.deleteAccount()
       toast.success('Account deleted')
+      setShowDeleteModal(false)
       logout()
       navigate('/login')
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Failed to delete account')
       setDeleting(false)
+      setShowDeleteModal(false)
     }
   }
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
+  const handleLogout = () => { logout(); navigate('/login') }
 
   return (
-    <div className="min-h-screen pb-16 fade-in" style={{ background: 'var(--bg-primary)' }}>
-      <div className="max-w-2xl mx-auto">
-        {/* Header with soft gradient backdrop — matches ProfilePage */}
-        <div
-          className="relative px-4 pt-5 pb-10"
+    <>
+      <div className="min-h-screen pb-16" style={{ background: 'var(--bg-secondary)' }}>
+        {/* Header */}
+        <header
+          className="sticky top-0 z-10 backdrop-blur-md"
           style={{
-            background: 'linear-gradient(135deg, rgba(245,158,11,0.18) 0%, rgba(245,158,11,0.04) 55%, transparent 100%)',
+            background: 'color-mix(in oklab, var(--bg-primary) 85%, transparent)',
+            borderBottom: '1px solid var(--border)',
           }}
         >
-          <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 flex items-center justify-center rounded-full shadow-sm"
-            style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-          >
-            <FiArrowLeft size={18} />
-          </button>
-          <h1 className="text-2xl font-extrabold font-display mt-5" style={{ color: 'var(--text-primary)' }}>
-            Settings
-          </h1>
-          <p className="text-sm font-semibold mt-1" style={{ color: 'var(--text-muted)' }}>
-            Manage your profile, appearance, and account
-          </p>
-        </div>
+          <div className="max-w-2xl mx-auto flex items-center gap-3 px-4 py-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              style={{ color: 'var(--text-primary)' }}
+              aria-label="Go back"
+            >
+              <FiArrowLeft size={18} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>
+                Settings
+              </h1>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {user?.name ? `Signed in as ${user.name}` : 'Manage your account'}
+              </p>
+            </div>
+          </div>
+        </header>
 
-        <div className="px-4 flex flex-col gap-4">
+        <main className="max-w-2xl mx-auto px-4 mt-6 flex flex-col gap-4">
 
-          {/* ── Profile ── */}
-          <SettingsSection icon={FiUser} title="Profile">
-            <form onSubmit={handleSaveProfile} className="flex flex-col gap-4">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider block mb-2" style={{ color: 'var(--text-muted)' }}>
-                  Name
-                </label>
+          {/* Profile */}
+          <Card>
+            <SectionHeader icon={FiUser} title="Profile" description="How others see you on MediaHub" />
+            <form onSubmit={handleSaveProfile} className="px-5 pb-5 flex flex-col gap-4">
+              <Field label="Display name">
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-full text-sm font-medium outline-none border-2 focus:border-amber-500 transition-all"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: 'var(--border)', padding: '12px 20px' }}
+                  className={inputClass}
+                  style={inputStyle}
+                  placeholder="Your name"
                 />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider block mb-2" style={{ color: 'var(--text-muted)' }}>
-                  Bio
-                </label>
+              </Field>
+              <Field label="Bio">
                 <textarea
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   rows={3}
-                  className="w-full rounded-2xl text-sm font-medium outline-none border-2 focus:border-amber-500 transition-all resize-none"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: 'var(--border)', padding: '12px 20px' }}
+                  className={inputClass + ' resize-none'}
+                  style={inputStyle}
+                  placeholder="Tell people a bit about yourself"
                 />
+              </Field>
+              <div className="flex justify-end">
+                <PrimaryButton icon={FiCheck} loading={savingProfile}>
+                  Save changes
+                </PrimaryButton>
               </div>
-
-              <button
-                type="submit"
-                disabled={savingProfile}
-                className="self-start flex items-center gap-2 px-6 py-3 rounded-full font-bold text-sm text-white bg-amber-500 hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/30 disabled:opacity-50"
-              >
-                <FiCheck size={16} strokeWidth={2.5} />
-                {savingProfile ? 'Saving…' : 'Save changes'}
-              </button>
             </form>
-          </SettingsSection>
+          </Card>
 
-          {/* ── Appearance ── */}
-          <SettingsSection icon={theme === 'dark' ? FiMoon : FiSun} title="Appearance">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                  {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  Switch how MediaHub looks on this device
-                </p>
+          {/* Appearance */}
+          <Card>
+            <SectionHeader icon={FiSliders} title="Appearance" description="Customize how the app looks" />
+            <div
+              className="mx-5 mb-5 flex items-center justify-between gap-4 rounded-xl px-4 py-3"
+              style={{ background: 'var(--bg-input)' }}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                {isDark
+                  ? <FiMoon size={18} color="#f59e0b" />
+                  : <FiSun size={18} color="#f59e0b" />}
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {isDark ? 'Dark mode' : 'Light mode'}
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Applied on this device
+                  </p>
+                </div>
               </div>
               <button
                 onClick={toggleTheme}
+                role="switch"
+                aria-checked={isDark}
                 aria-label="Toggle theme"
-                className="relative w-14 h-8 rounded-full transition-colors flex-shrink-0"
-                style={{ background: theme === 'dark' ? '#f59e0b' : 'var(--bg-secondary)' }}
+                className="relative w-12 h-7 rounded-full transition-colors flex-shrink-0"
+                style={{ background: isDark ? '#f59e0b' : 'var(--border)' }}
               >
                 <span
-                  className="absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all flex items-center justify-center"
-                  style={{ left: theme === 'dark' ? '26px' : '4px' }}
-                >
-                  {theme === 'dark'
-                    ? <FiMoon size={12} strokeWidth={2.5} color="#f59e0b" />
-                    : <FiSun size={12} strokeWidth={2.5} color="var(--text-muted)" />}
-                </span>
+                  className="absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all"
+                  style={{ left: isDark ? '24px' : '4px' }}
+                />
               </button>
             </div>
-          </SettingsSection>
+          </Card>
 
-          {/* ── Change password ── */}
-          <SettingsSection icon={FiLock} title="Change Password">
-            <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider block mb-2" style={{ color: 'var(--text-muted)' }}>
-                  Current password
-                </label>
+          {/* Password */}
+          <Card>
+            <SectionHeader icon={FiLock} title="Password" description="Use at least 6 characters" />
+            <form onSubmit={handleChangePassword} className="px-5 pb-5 flex flex-col gap-4">
+              <Field label="Current password">
                 <input
                   type="password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   autoComplete="current-password"
-                  className="w-full rounded-full text-sm font-medium outline-none border-2 focus:border-amber-500 transition-all"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: 'var(--border)', padding: '12px 20px' }}
+                  className={inputClass}
+                  style={inputStyle}
                 />
+              </Field>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="New password">
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    autoComplete="new-password"
+                    className={inputClass}
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="Confirm new password">
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                    className={inputClass}
+                    style={inputStyle}
+                  />
+                </Field>
               </div>
-
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider block mb-2" style={{ color: 'var(--text-muted)' }}>
-                  New password
-                </label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  autoComplete="new-password"
-                  className="w-full rounded-full text-sm font-medium outline-none border-2 focus:border-amber-500 transition-all"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: 'var(--border)', padding: '12px 20px' }}
-                />
+              <div className="flex justify-end">
+                <PrimaryButton icon={FiShield} loading={savingPassword}>
+                  Update password
+                </PrimaryButton>
               </div>
-
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider block mb-2" style={{ color: 'var(--text-muted)' }}>
-                  Confirm new password
-                </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  autoComplete="new-password"
-                  className="w-full rounded-full text-sm font-medium outline-none border-2 focus:border-amber-500 transition-all"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', borderColor: 'var(--border)', padding: '12px 20px' }}
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={savingPassword}
-                className="self-start flex items-center gap-2 px-6 py-3 rounded-full font-bold text-sm text-white bg-amber-500 hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/30 disabled:opacity-50"
-              >
-                <FiLock size={16} strokeWidth={2.5} />
-                {savingPassword ? 'Updating…' : 'Update password'}
-              </button>
             </form>
-          </SettingsSection>
+          </Card>
 
-          {/* Hard spacer before danger zone, matches the app's sticky-header spacer convention */}
-          <div className="h-2" />
+          {/* Account actions */}
+          <Card>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            >
+              <span className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{ background: 'rgba(245,158,11,0.12)' }}
+                >
+                  <FiLogOut size={18} color="#f59e0b" strokeWidth={2.25} />
+                </div>
+                <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Log out
+                </span>
+              </span>
+              <FiChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+            </button>
+          </Card>
 
-          {/* ── Danger zone ── */}
-          <SettingsSection icon={FiTrash2} title="Danger Zone" danger>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Delete account</p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  Permanently remove your profile and posts
-                </p>
-              </div>
+          {/* Danger */}
+          <Card className="!border-red-500/30">
+            <SectionHeader
+              icon={FiTrash2}
+              title="Delete account"
+              description="This permanently removes your profile and posts"
+              tone="danger"
+            />
+            <div className="px-5 pb-5 flex justify-end">
               <button
-                onClick={handleDeleteAccount}
+                onClick={() => setShowDeleteModal(true)}
                 disabled={deleting}
-                className="flex-shrink-0 flex items-center gap-1.5 px-5 py-2.5 rounded-full font-bold text-sm text-red-500 border-2 border-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white bg-red-500 hover:bg-red-600 active:bg-red-700 transition-colors disabled:opacity-50"
               >
-                <FiTrash2 size={14} strokeWidth={2.5} />
-                {deleting ? 'Deleting…' : 'Delete'}
+                <FiTrash2 size={16} strokeWidth={2.5} />
+                {deleting ? 'Deleting…' : 'Delete my account'}
               </button>
             </div>
-          </SettingsSection>
-
-          {/* ── Logout ── */}
-          <button
-            onClick={handleLogout}
-            className="flex items-center justify-center gap-2 w-full py-3.5 rounded-full font-bold text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-          >
-            <FiLogOut size={18} strokeWidth={2.5} />
-            Log Out
-          </button>
-        </div>
+          </Card>
+        </main>
       </div>
-    </div>
+
+      {/* ── Delete Confirmation Modal ── */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <motion.div
+            key="delete-account-overlay"
+            className="fixed inset-0 flex items-center justify-center  px-4"
+            style={{ zIndex: 10000, background: 'rgba(0,0,0,0.6)' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => !deleting && setShowDeleteModal(false)}
+          >
+            <motion.div
+              className="relative w-full max-w-sm rounded-3xl px-8 py-8 flex flex-col items-center justify-center h-[200px]"
+              style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.85, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Close button */}
+              <button
+                onClick={() => !deleting && setShowDeleteModal(false)}
+                disabled={deleting}
+                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition-colors disabled:opacity-50"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <FiX size={18} strokeWidth={2.5} />
+              </button>
+
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
+                style={{ background: 'rgba(239,68,68,0.12)' }}
+              >
+                <FiTrash2 size={28} color="#ef4444" strokeWidth={2.5} />
+              </div>
+
+              <h3 className="text-base font-extrabold text-center font-display px-2" style={{ color: 'var(--text-primary)' }}>
+                Delete your account?
+              </h3>
+              
+              <p className="text-sm text-center mt-2" style={{ color: 'var(--text-muted)' }}>
+                This permanently removes your profile and all your posts. This action cannot be undone.
+              </p>
+
+              <div className="flex items-center justify-center gap-4 mt-6">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={deleting}
+                  className="px-6 py-2.5 rounded-full font-bold text-sm border transition-colors disabled:opacity-50"
+                  style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleting}
+                  className="px-6 py-2.5 rounded-full font-bold text-sm text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {deleting ? 'Deleting…' : "Yes, delete my account"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   )
 }

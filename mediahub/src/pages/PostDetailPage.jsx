@@ -6,6 +6,7 @@ import { FaHeart } from 'react-icons/fa'
 import { postsAPI, commentsAPI } from '../api'
 import { useAuthStore } from '../store'
 import { Avatar } from '../components/ui'
+import { getImageUrls, ImageSlider } from '../components/PostMedia'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -186,16 +187,6 @@ export default function PostDetailPage() {
     }
   }
 
-  const getImageUrl = (post) => {
-    if (!post) return null
-    if (post.image?.url) return post.image.url
-    if (post.image && typeof post.image === 'string') return post.image
-    if (post.media?.[0]) return post.media[0].url || post.media[0]
-    if (post.imageUrl) return post.imageUrl
-    if (post.thumbnail) return post.thumbnail
-    return null
-  }
-
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen" style={{ background: 'var(--bg-primary)' }}>
@@ -206,7 +197,8 @@ export default function PostDetailPage() {
 
   if (!post) return null
 
-  const mediaUrl = getImageUrl(post)
+  const mediaUrls = getImageUrls(post)
+  const hasMedia = mediaUrls.length > 0
   const isOwner = isCurrentUser(post.author)
   const isDeletingActive = deleteTarget?.type === 'post' ? isDeleting : deletingComment
 
@@ -264,10 +256,32 @@ export default function PostDetailPage() {
                 </div>
               </div>
 
-              {/* Image */}
-              {mediaUrl && (
-                <div className="w-full relative cursor-pointer select-none" style={{ background: 'var(--bg-secondary)' }} onClick={handleImageDoubleTap}>
-                  <img src={mediaUrl} alt={post.title || 'Post image'} className="w-full h-auto" style={{ maxHeight: 520, objectFit: 'cover' }} onError={e => e.target.style.display = 'none'} />
+              {/* Image(s) */}
+              {hasMedia && (
+                <div
+                  className="w-full relative select-none"
+                  style={{ background: 'var(--bg-secondary)', height: mediaUrls.length === 1 ? 'auto' : 420 }}
+                >
+                  {mediaUrls.length === 1 ? (
+                    <div className="cursor-pointer" onClick={handleImageDoubleTap}>
+                      <img
+                        src={mediaUrls[0]}
+                        alt={post.title || 'Post image'}
+                        className="w-full h-auto"
+                        style={{ maxHeight: 520, objectFit: 'cover' }}
+                        onError={e => e.target.style.display = 'none'}
+                      />
+                    </div>
+                  ) : (
+                    <ImageSlider
+                      urls={mediaUrls}
+                      title={post.title}
+                      postId={post._id}
+                      onDoubleTap={handleImageDoubleTap}
+                      rounded=""
+                      className="w-full h-full"
+                    />
+                  )}
                   {/* Author avatar badge overlaid top-left on the image — same treatment as feed */}
                   <div
                     onClick={(e) => goToProfile(e, post.author)}
@@ -302,7 +316,7 @@ export default function PostDetailPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1 text-left">
                     <div className="flex items-center gap-2 min-w-0">
-                      {!mediaUrl && (
+                      {!hasMedia && (
                         <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
                           <Avatar src={post.author?.avatar} name={post.author?.name} size={36} />
                         </div>

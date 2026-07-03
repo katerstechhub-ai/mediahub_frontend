@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  FiGrid, FiArrowLeft, FiHeart, FiMessageCircle, FiUser, FiEdit2, FiSettings
+  FiGrid, FiArrowLeft, FiHeart, FiMessageCircle, FiUser, FiEdit2, FiSettings, FiLayers
 } from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
+import { getImageUrls } from '../components/PostMedia'
 import { authAPI, postsAPI, commentsAPI } from '../api'
 import toast from 'react-hot-toast'
 
@@ -50,16 +51,6 @@ export default function ProfilePage() {
     }
     if (filtered.length > 0) fetchCounts()
   }, [posts, user])
-
-  const getImageUrl = (post) => {
-    if (!post) return null
-    if (post.image?.url) return post.image.url
-    if (post.image && typeof post.image === 'string') return post.image
-    if (post.media?.[0]) return post.media[0].url || post.media[0]
-    if (post.imageUrl) return post.imageUrl
-    if (post.thumbnail) return post.thumbnail
-    return null
-  }
 
   const handleAvatarChange = async (e) => {
     const file = e.target.files[0]
@@ -215,7 +206,9 @@ export default function ProfilePage() {
             >
               <AnimatePresence>
                 {userPosts.map(post => {
-                  const imageUrl = getImageUrl(post)
+                  const urls = getImageUrls(post)
+                  const imageUrl = urls[0]
+                  const hasMultiple = urls.length > 1
                   return (
                     <motion.div
                       key={post._id || post.id}
@@ -237,6 +230,16 @@ export default function ProfilePage() {
                       >
                         ✕
                       </motion.button>
+
+                      {hasMultiple && (
+                        <div
+                          className="absolute top-1.5 left-1.5 z-10 text-white"
+                          style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))' }}
+                          aria-label={`${urls.length} photos`}
+                        >
+                          <FiLayers size={15} strokeWidth={2.5} />
+                        </div>
+                      )}
 
                       {imageUrl ? (
                         <img

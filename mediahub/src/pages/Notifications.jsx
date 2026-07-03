@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, useMotionValue, animate } from 'framer-motion'
-import { FiBell, FiArrowLeft, FiHeart, FiMessageCircle, FiUserPlus, FiThumbsDown, FiTrash2 } from 'react-icons/fi'
+import { FiBell, FiArrowLeft, FiHeart, FiMessageCircle, FiUserPlus, FiThumbsDown, FiTrash2, FiLayers } from 'react-icons/fi'
 import { notificationsAPI } from '../api'
 import { Avatar } from '../components/ui'
+import { getImageUrls } from '../components/PostMedia'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
@@ -241,56 +242,72 @@ export default function Notifications() {
           </div>
         ) : (
           <div className="px-3 sm:px-4 py-3 flex flex-col gap-1.5">
-            {notifications.map((notification) => (
-              <SwipeableRow
-                key={notification._id}
-                notificationId={notification._id}
-                onDelete={handleDeleteNotification}
-              >
-                <div
-                  onClick={() => {
-                    handleMarkAsRead(notification._id)
-                    if (notification.post?._id) {
-                      navigate(`/posts/${notification.post._id}`)
-                    }
-                  }}
-                  className="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
-                  style={{ background: !notification.read ? 'rgba(245,158,11,0.07)' : 'var(--bg-primary)' }}
+            {notifications.map((notification) => {
+              const postImages = getImageUrls(notification.post)
+              const thumbnailUrl = postImages[0]
+              const hasMultiple = postImages.length > 1
+
+              return (
+                <SwipeableRow
+                  key={notification._id}
+                  notificationId={notification._id}
+                  onDelete={handleDeleteNotification}
                 >
-                  <div className="relative flex-shrink-0">
-                    <Avatar src={notification.sender?.avatar} name={notification.sender?.name} size={44} ring={!notification.read} />
-                    <div
-                      className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2"
-                      style={{ background: 'var(--bg-primary)', borderColor: 'var(--bg-primary)' }}
-                    >
-                      {getNotificationIcon(notification.type)}
+                  <div
+                    onClick={() => {
+                      handleMarkAsRead(notification._id)
+                      if (notification.post?._id) {
+                        navigate(`/posts/${notification.post._id}`)
+                      }
+                    }}
+                    className="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
+                    style={{ background: !notification.read ? 'rgba(245,158,11,0.07)' : 'var(--bg-primary)' }}
+                  >
+                    <div className="relative flex-shrink-0">
+                      <Avatar src={notification.sender?.avatar} name={notification.sender?.name} size={44} ring={!notification.read} />
+                      <div
+                        className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2"
+                        style={{ background: 'var(--bg-primary)', borderColor: 'var(--bg-primary)' }}
+                      >
+                        {getNotificationIcon(notification.type)}
+                      </div>
                     </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm leading-snug" style={{ color: 'var(--text-primary)' }}>
+                        {getNotificationMessage(notification)}
+                      </p>
+                      <p className="text-xs mt-1 font-medium" style={{ color: 'var(--text-muted)' }}>
+                        {notification.createdAt ? dayjs(notification.createdAt).fromNow() : 'Just now'}
+                      </p>
+                    </div>
+
+                    {thumbnailUrl && (
+                      <div className="relative flex-shrink-0">
+                        <img
+                          src={thumbnailUrl}
+                          alt={notification.post?.title || 'Post'}
+                          className="w-12 h-12 rounded-xl object-cover"
+                          onError={(e) => (e.target.style.display = 'none')}
+                        />
+                        {hasMultiple && (
+                          <div
+                            className="absolute -top-1 -right-1 bg-black/70 backdrop-blur-sm rounded-full p-0.5"
+                            aria-label={`${postImages.length} photos`}
+                          >
+                            <FiLayers size={10} strokeWidth={2.5} color="#fff" />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {!notification.read && (
+                      <div className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+                    )}
                   </div>
-
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm leading-snug" style={{ color: 'var(--text-primary)' }}>
-                      {getNotificationMessage(notification)}
-                    </p>
-                    <p className="text-xs mt-1 font-medium" style={{ color: 'var(--text-muted)' }}>
-                      {notification.createdAt ? dayjs(notification.createdAt).fromNow() : 'Just now'}
-                    </p>
-                  </div>
-
-                  {notification.post?.image?.url && (
-                    <img
-                      src={notification.post.image.url}
-                      alt={notification.post.title || 'Post'}
-                      className="w-12 h-12 rounded-xl object-cover flex-shrink-0"
-                      onError={(e) => (e.target.style.display = 'none')}
-                    />
-                  )}
-
-                  {!notification.read && (
-                    <div className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
-                  )}
-                </div>
-              </SwipeableRow>
-            ))}
+                </SwipeableRow>
+              )
+            })}
           </div>
         )}
       </div>

@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiSearch, FiX, FiGrid } from 'react-icons/fi'
+import { FiSearch, FiX, FiGrid, FiLayers } from 'react-icons/fi'
 import { usePostStore, useAuthStore } from '../store'
 import { EmptyState, Avatar } from '../components/ui'
+import { getImageUrls } from '../components/PostMedia'
 
 export default function ExplorePage() {
   const { posts, isLoading, fetchPosts } = usePostStore()
@@ -31,20 +32,6 @@ export default function ExplorePage() {
       p.author?.name?.toLowerCase().includes(q)
     ))
   }, [query, posts])
-
-  const getImageUrl = (post) => {
-    if (!post) return null
-    if (post.image?.url) return post.image.url
-    if (post.image && typeof post.image === 'string') return post.image
-    if (post.media && post.media.length > 0) {
-      const mediaItem = post.media[0]
-      return mediaItem.url || mediaItem || post.media
-    }
-    if (post.imageUrl) return post.imageUrl
-    if (post.thumbnail) return post.thumbnail
-    if (post.url) return post.url
-    return null
-  }
 
   // Own avatar -> /profile, everyone else -> /users/:id
   const goToProfile = (e, author) => {
@@ -165,7 +152,9 @@ export default function ExplorePage() {
           >
             <AnimatePresence>
               {filtered.map((post) => {
-                const imageUrl = getImageUrl(post)
+                const urls = getImageUrls(post)
+                const imageUrl = urls[0]
+                const hasMultiple = urls.length > 1
                 const displayText = post.title || post.content || post.caption || 'Untitled'
 
                 return (
@@ -185,6 +174,17 @@ export default function ExplorePage() {
                   >
                     {imageUrl ? (
                       <div className="relative overflow-hidden">
+                        {/* Multiple images indicator */}
+                        {hasMultiple && (
+                          <div
+                            className="absolute top-2.5 left-2.5 z-10 text-white bg-black/50 backdrop-blur-sm rounded-full p-1.5"
+                            style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))' }}
+                            aria-label={`${urls.length} photos`}
+                          >
+                            <FiLayers size={14} strokeWidth={2.5} />
+                          </div>
+                        )}
+
                         <motion.img
                           src={imageUrl}
                           alt={displayText}
