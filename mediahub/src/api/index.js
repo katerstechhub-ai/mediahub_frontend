@@ -75,9 +75,13 @@ export const authAPI = {
 export const postsAPI = {
   getAll: () => api.get('/api/posts'),
   getOne: (id) => api.get(`/api/posts/${id}`),
-  create: (data) => api.post('/api/posts', data, {
+  // `config` lets callers pass extra axios options (e.g. onUploadProgress) through
+  // without clobbering the multipart header below.
+  create: (data, config = {}) => api.post('/api/posts', data, {
+    ...config,
     headers: {
       'Content-Type': 'multipart/form-data',
+      ...(config.headers || {}),
     },
   }),
   update: (id, data) => api.put(`/api/posts/${id}`, data),

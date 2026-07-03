@@ -16,8 +16,53 @@ import toast from 'react-hot-toast'
  *  • Supports up to MAX_IMAGES photos per post
  */
 const MAX_IMAGES = 5
+// Images are downscaled to this max dimension + re-encoded as JPEG before upload.
+// This is the main lever for upload speed — a 4000x3000 phone photo (6-8MB) usually
+// compresses down to a few hundred KB with no visible quality loss at feed size.
+const MAX_DIMENSION = 1600
+const JPEG_QUALITY = 0.82
 let idSeq = 0
 const nextId = () => `img_${Date.now()}_${idSeq++}`
+
+// Resize + re-encode an image file in the browser using a canvas. Falls back to the
+// original file if anything goes wrong (e.g. unsupported format) so uploads never break.
+function compressImage(file) {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/') || file.type === 'image/gif') {
+      resolve(file) // don't touch gifs/non-images
+      return
+    }
+    const img = new window.Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      let { width, height } = img
+      if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+        if (width > height) {
+          height = Math.round((height * MAX_DIMENSION) / width)
+          width = MAX_DIMENSION
+        } else {
+          width = Math.round((width * MAX_DIMENSION) / height)
+          height = MAX_DIMENSION
+        }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0, width, height)
+      canvas.toBlob((blob) => {
+        if (!blob) { resolve(file); return }
+        // Only use the compressed version if it's actually smaller
+        if (blob.size >= file.size) { resolve(file); return }
+        resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }))
+      }, 'image/jpeg', JPEG_QUALITY)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+    img.src = url
+  })
+}
+
 export default function CreatePostPage() {
   const navigate = useNavigate()
   const fileRef = useRef(null)
@@ -25,8 +70,9 @@ export default function CreatePostPage() {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   // files/previews are parallel arrays, each entry keyed by a stable id
-  const [images, setImages] = useState([]) // [{ id, file, preview }]
+  const [images, setImages] = useState([]) // [{ id, file, preview, compressing }]
   const [loading, setLoading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0) // 0-100 while the request is in flight
   const [dragOver, setDragOver] = useState(false)
   const [errors, setErrors] = useState({})
   const [justPasted, setJustPasted] = useState(false)
@@ -36,6 +82,7 @@ export default function CreatePostPage() {
   const rotateX = useTransform(my, [-40, 40], [4, -4])
   const rotateY = useTransform(mx, [-40, 40], [-4, 4])
   const remainingSlots = MAX_IMAGES - images.length
+  const anyCompressing = images.some(img => img.compressing)
   // ---- validation --------------------------------------------------
   const validate = () => {
     const e = {}
@@ -68,13 +115,19 @@ export default function CreatePostPage() {
     setErrors(prev => ({ ...prev, content: '' }))
     accepted.forEach((f) => {
       const id = nextId()
-      // Add a placeholder immediately, then fill in the preview once read
-      setImages(prev => [...prev, { id, file: f, preview: null }])
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setImages(prev => prev.map(img => img.id === id ? { ...img, preview: reader.result } : img))
-      }
-      reader.readAsDataURL(f)
+      // Add a placeholder immediately with compressing:true, then swap in the
+      // compressed file + preview once ready. Keeps the UI responsive for many images.
+      setImages(prev => [...prev, { id, file: f, preview: null, compressing: true }])
+      ;(async () => {
+        const compressed = await compressImage(f)
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setImages(prev => prev.map(img => img.id === id
+            ? { ...img, file: compressed, preview: reader.result, compressing: false }
+            : img))
+        }
+        reader.readAsDataURL(compressed)
+      })()
     })
   }, [remainingSlots])
   const handleDrop = (e) => {
@@ -111,17 +164,23 @@ export default function CreatePostPage() {
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, content, images, loading])
-  const canPost = Boolean((title.trim() || content.trim() || images.length > 0) && !loading)
+  const canPost = Boolean((title.trim() || content.trim() || images.length > 0) && !loading && !anyCompressing)
   const handleSubmit = async () => {
     if (!canPost || !validate()) return
     setLoading(true)
+    setUploadProgress(0)
     try {
       const fd = new FormData()
       if (title.trim()) fd.append('title', title.trim())
       if (content.trim()) fd.append('content', content.trim())
       else if (images.length) fd.append('content', ' ')
       images.forEach(({ file }) => fd.append('images', file))
-      await postsAPI.create(fd)
+      await postsAPI.create(fd, {
+        onUploadProgress: (evt) => {
+          if (!evt.total) return
+          setUploadProgress(Math.round((evt.loaded / evt.total) * 100))
+        },
+      })
       toast.success('Posted 🎉')
       navigate('/')
     } catch (err) {
@@ -129,6 +188,7 @@ export default function CreatePostPage() {
       toast.error(err.response?.data?.message || 'Failed to create post')
     } finally {
       setLoading(false)
+      setUploadProgress(0)
     }
   }
   // ---- render ------------------------------------------------------
@@ -176,8 +236,54 @@ export default function CreatePostPage() {
             Draft
           </span>
         </div>
-        <PostButton canPost={canPost} loading={loading} onClick={handleSubmit} />
+        <PostButton canPost={canPost} loading={loading} uploadProgress={uploadProgress} onClick={handleSubmit} />
       </motion.header>
+      {/* Full-screen upload overlay — visible while the request is actually in flight */}
+      <AnimatePresence>
+        {loading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 flex items-center justify-center backdrop-blur-sm"
+            style={{ background: 'rgba(0,0,0,0.45)' }}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="w-64 rounded-3xl px-6 py-6 flex flex-col items-center gap-4"
+              style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}
+            >
+              <div className="relative w-16 h-16">
+                <svg width="64" height="64" viewBox="0 0 64 64" className="-rotate-90">
+                  <circle cx="32" cy="32" r="27" fill="none" stroke="var(--border)" strokeWidth="5" />
+                  <motion.circle
+                    cx="32" cy="32" r="27" fill="none" stroke="#f59e0b" strokeWidth="5" strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 27}
+                    initial={false}
+                    animate={{ strokeDashoffset: 2 * Math.PI * 27 * (1 - uploadProgress / 100) }}
+                    transition={{ ease: 'linear', duration: 0.15 }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                  {uploadProgress}%
+                </div>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                  {uploadProgress < 100 ? 'Uploading…' : 'Almost done…'}
+                </p>
+                {images.length > 0 && (
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    {images.length} photo{images.length > 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Body */}
       <motion.main
         initial="hidden"
@@ -202,6 +308,7 @@ export default function CreatePostPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
                     {images.length} / {MAX_IMAGES} photos
+                    {anyCompressing && <span style={{ color: '#f59e0b' }}> · optimizing…</span>}
                   </span>
                   {justPasted && (
                     <motion.div
@@ -217,7 +324,7 @@ export default function CreatePostPage() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <AnimatePresence>
-                    {images.map(({ id, preview, file }) => (
+                    {images.map(({ id, preview, file, compressing }) => (
                       <motion.div
                         key={id}
                         layout
@@ -250,6 +357,16 @@ export default function CreatePostPage() {
                             />
                           </div>
                         )}
+                        {compressing && preview && (
+                          <div className="absolute inset-0 flex items-center justify-center backdrop-blur-[1px]" style={{ background: 'rgba(0,0,0,0.25)' }}>
+                            <motion.span
+                              animate={{ rotate: 360 }}
+                              transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                              className="rounded-full h-6 w-6 border-2 block"
+                              style={{ borderColor: 'rgba(255,255,255,0.4)', borderTopColor: '#fff' }}
+                            />
+                          </div>
+                        )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent pointer-events-none" />
                         <motion.button
                           whileHover={{ scale: 1.1 }}
@@ -261,7 +378,7 @@ export default function CreatePostPage() {
                         >
                           <FiX size={14} color="white" />
                         </motion.button>
-                        {file && (
+                        {file && !compressing && (
                           <div
                             className="absolute bottom-2 left-2 px-2 py-1 rounded-full text-[10px] font-semibold backdrop-blur-md"
                             style={{ background: 'rgba(0,0,0,0.55)', color: 'white' }}
@@ -465,7 +582,7 @@ export default function CreatePostPage() {
   )
 }
 // ---------- sub-components ------------------------------------------------
-function PostButton({ canPost, loading, onClick }) {
+function PostButton({ canPost, loading, uploadProgress, onClick }) {
   return (
     <motion.button
       whileHover={canPost ? { scale: 1.05 } : {}}
@@ -504,7 +621,7 @@ function PostButton({ canPost, loading, onClick }) {
               transition={{ repeat: Infinity, duration: 0.7, ease: 'linear' }}
               className="rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent block"
             />
-            Posting
+            {uploadProgress > 0 ? `${uploadProgress}%` : 'Posting'}
           </motion.span>
         ) : (
           <motion.span

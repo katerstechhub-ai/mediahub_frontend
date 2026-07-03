@@ -394,7 +394,6 @@ export default function FeedPage() {
                 <path d="M600 320 C 600 320, 600 460, 600 490 C 600 545, 645 585, 715 590 C 645 595, 600 620, 600 665 C 600 700, 600 860, 600 860 L 670 860 C 670 860, 670 710, 670 680 C 670 650, 700 630, 760 625 C 830 620, 890 585, 890 530 C 890 470, 820 425, 730 415 C 700 411, 670 405, 670 380 C 670 350, 670 320, 670 320 Z" fill="url(#epFeedRibbonP)" />
                 <path d="M520 605 L555 605 L568 585 L582 625 L596 605 L640 605" fill="none" stroke="#3c2f27" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" opacity="0.55" />
               </svg>
-              <p className="text-xs font-semibold mt-1" style={{ color: 'var(--text-muted)' }}>{posts.length} posts</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <div className="relative grid grid-cols-2 rounded-full p-1 flex-shrink-0 shadow-sm w-[88px]" style={{ background: 'var(--bg-secondary)' }}>
