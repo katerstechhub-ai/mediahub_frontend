@@ -13,6 +13,7 @@ dayjs.extend(relativeTime)
 
 // ── Shared Comments Bottom Sheet ──────────────────────────────────────────────
 function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
+  const navigate = useNavigate()
   const [comments, setComments] = useState([])
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -64,6 +65,12 @@ function CommentsSheet({ postId, open, onClose, user, onGoToProfile }) {
   const handleComment = async (e) => {
     e.preventDefault()
     if (!comment.trim()) return
+    if (!user) {
+      toast.error('Log in to comment')
+      onClose()
+      navigate('/login')
+      return
+    }
     setSubmitting(true)
     try {
       await commentsAPI.create(postId, comment.trim())
@@ -366,6 +373,11 @@ export default function FeedPage() {
 
   const handleLike = async (e, postId) => {
     e?.stopPropagation()
+    if (!user) {
+      toast.error('Log in to like posts')
+      navigate('/login')
+      return
+    }
     try {
       await postsAPI.like(postId)
       fetchPosts()

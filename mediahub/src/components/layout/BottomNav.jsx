@@ -8,8 +8,8 @@ import { notificationsAPI } from '../../api'
 const tabs = [
   { to: '/', icon: FiHome, label: 'Feed' },
   { to: '/explore', icon: FiCompass, label: 'Explore' },
-  { to: '/create', icon: FiPlusSquare, label: 'Create' },
-  { to: '/notifications', icon: FiBell, label: 'Alerts' },
+  { to: '/create', icon: FiPlusSquare, label: 'Create', authOnly: true },
+  { to: '/notifications', icon: FiBell, label: 'Alerts', authOnly: true },
 ]
 
 export default function BottomNav() {
@@ -18,7 +18,11 @@ export default function BottomNav() {
   const { user } = useAuthStore()
   const [unreadCount, setUnreadCount] = useState(0)
 
+  const visibleTabs = tabs.filter((tab) => !tab.authOnly || user)
+
   useEffect(() => {
+    if (!user) return // guests have nothing to fetch notifications for
+
     const fetchUnread = async () => {
       try {
         const res = await notificationsAPI.getAll(1, 1)
@@ -30,7 +34,7 @@ export default function BottomNav() {
     fetchUnread()
     const interval = setInterval(fetchUnread, 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [user])
 
   const isActiveTab = (to) => (to === '/' ? location.pathname === '/' : location.pathname.startsWith(to))
 
@@ -46,7 +50,7 @@ export default function BottomNav() {
         boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
       }}
     >
-      {tabs.map(({ to, icon: Icon, label }) => {
+      {visibleTabs.map(({ to, icon: Icon, label }) => {
         const active = isActiveTab(to)
         return (
           <NavLink
@@ -96,9 +100,9 @@ export default function BottomNav() {
         )
       })}
 
-      {/* Avatar — goes straight to profile, no sheet */}
+      {/* Avatar — goes straight to profile if logged in, otherwise prompts login */}
       <motion.button
-        onClick={() => navigate('/profile')}
+        onClick={() => navigate(user ? '/profile' : '/login')}
         whileTap={{ scale: 0.85 }}
         className="flex items-center justify-center w-11 h-11 rounded-full"
       >

@@ -33,13 +33,19 @@ api.interceptors.response.use(
   (error) => {
     console.error('❌ API Error:', error.config?.url, error.response?.status, error.response?.data);
     
-    // If 401 or 403, clear auth and redirect to login
+    // If 401 or 403, only treat it as a session expiry if we actually had a token.
+    // Guests hitting a protected endpoint (e.g. liking a post while logged out)
+    // also get a 401/403, but that's not a session expiry — don't yank them
+    // off the page they're on.
     if (error.response?.status === 401 || error.response?.status === 403) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      // Redirect to login if not already there
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-        window.location.href = '/login';
+      const hadToken = !!localStorage.getItem('auth_token');
+      if (hadToken) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+        // Redirect to login if not already there
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+          window.location.href = '/login';
+        }
       }
     }
     

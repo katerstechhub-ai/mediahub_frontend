@@ -98,6 +98,11 @@ export default function PostDetailPage() {
   }, [showComments])
 
   const handleLike = async () => {
+    if (!user) {
+      toast.error('Log in to like posts')
+      navigate('/login')
+      return
+    }
     const wasLiked = liked
     setLiked(!wasLiked)
     setLikeCount(c => wasLiked ? c - 1 : c + 1)
@@ -123,6 +128,11 @@ export default function PostDetailPage() {
   const handleComment = async (e) => {
     e.preventDefault()
     if (!comment.trim()) return
+    if (!user) {
+      toast.error('Log in to comment')
+      navigate('/login')
+      return
+    }
     setSubmitting(true)
     try {
       await commentsAPI.create(id, comment.trim())

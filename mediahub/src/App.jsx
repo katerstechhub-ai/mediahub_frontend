@@ -15,6 +15,7 @@ import NotFoundPage from './pages/NotFoundPage'
 import UserProfilePage from './pages/Userprofilepage'
 import LikesPage from './pages/LikesPage';
 import CommentsPage from './pages/CommentsPage'
+import ProtectedRoute from './components/layout/ProtectedRoute'
 
 function App() {
   const { theme } = useThemeStore()
@@ -47,18 +48,24 @@ function App() {
         <Routes>
           <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
           <Route path="/register" element={!user ? <Register /> : <Navigate to="/" replace />} />
-          <Route path="/" element={user ? <Layout /> : <Navigate to="/login" replace />}>
+          <Route path="/" element={<Layout />}>
+            {/* Public routes — viewable by guests */}
             <Route index element={<FeedPage />} />
             <Route path="explore" element={<ExplorePage />} />
-            <Route path="create" element={<CreatePostPage />} />
-            <Route path="notifications" element={<Notifications />} />
-            <Route path="profile" element={<ProfilePage />} />
             <Route path="posts/:id" element={<PostDetailPage />} />
-            <Route path="settings" element={<SettingsPage />} />
+            <Route path="users/:userId" element={<UserProfilePage />} />
+
+            {/* Protected routes — require auth */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="create" element={<CreatePostPage />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="profile" element={<ProfilePage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="likes" element={<LikesPage />} />
+              <Route path="comments" element={<CommentsPage />} />
+            </Route>
+
             <Route path="*" element={<NotFoundPage />} />
-            <Route path="/users/:userId" element={<UserProfilePage />} />
-            <Route path="/likes" element={<LikesPage />} />
-            <Route path="comments" element={<CommentsPage />} />
           </Route>
         </Routes>
       </div>

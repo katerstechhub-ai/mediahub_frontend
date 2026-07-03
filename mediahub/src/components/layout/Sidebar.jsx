@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore, useThemeStore } from '../../store'
 import {
   FiHome, FiCompass, FiPlusSquare,
-  FiBell, FiUser, FiLogOut, FiMoon, FiSun
+  FiBell, FiUser, FiLogOut, FiLogIn, FiMoon, FiSun
 } from 'react-icons/fi'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { notificationsAPI } from '../../api'
@@ -11,9 +11,9 @@ import { notificationsAPI } from '../../api'
 const navItems = [
   { to: '/', icon: FiHome, label: 'Home' },
   { to: '/explore', icon: FiCompass, label: 'Explore' },
-  { to: '/create', icon: FiPlusSquare, label: 'Create' },
-  { to: '/notifications', icon: FiBell, label: 'Notifications' },
-  { to: '/profile', icon: FiUser, label: 'Profile' },
+  { to: '/create', icon: FiPlusSquare, label: 'Create', authOnly: true },
+  { to: '/notifications', icon: FiBell, label: 'Notifications', authOnly: true },
+  { to: '/profile', icon: FiUser, label: 'Profile', authOnly: true },
 ]
 
 export default function Sidebar() {
@@ -23,7 +23,11 @@ export default function Sidebar() {
   const { theme, toggleTheme } = useThemeStore()
   const [unreadCount, setUnreadCount] = useState(0)
 
+  const visibleNavItems = navItems.filter((item) => !item.authOnly || user)
+
   useEffect(() => {
+    if (!user) return // guests have nothing to fetch notifications for
+
     const fetchUnread = async () => {
       try {
         const res = await notificationsAPI.getAll(1, 1)
@@ -35,7 +39,7 @@ export default function Sidebar() {
     fetchUnread()
     const interval = setInterval(fetchUnread, 30000) // refresh every 30s
     return () => clearInterval(interval)
-  }, [])
+  }, [user])
 
   const handleLogout = () => {
     logout()
@@ -139,7 +143,7 @@ export default function Sidebar() {
         }}
         className="flex-1 px-3 py-5 space-y-3 overflow-y-auto"
       >
-        {navItems.map(({ to, icon: Icon, label }) => {
+        {visibleNavItems.map(({ to, icon: Icon, label }) => {
           const active = isActiveTab(to)
           return (
             <motion.div
@@ -246,15 +250,28 @@ export default function Sidebar() {
           </motion.button>
         )}
 
-        {/* Logout */}
-        <motion.button
-          onClick={handleLogout}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.88 }}
-          className="w-14 h-14 mx-auto flex items-center justify-center rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-        >
-          <FiLogOut size={24} strokeWidth={2.5} />
-        </motion.button>
+        {/* Logout / Login */}
+        {user ? (
+          <motion.button
+            onClick={handleLogout}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.88 }}
+            className="w-14 h-14 mx-auto flex items-center justify-center rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+            title="Logout"
+          >
+            <FiLogOut size={24} strokeWidth={2.5} />
+          </motion.button>
+        ) : (
+          <motion.button
+            onClick={() => navigate('/login')}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.88 }}
+            className="w-14 h-14 mx-auto flex items-center justify-center rounded-full text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+            title="Login"
+          >
+            <FiLogIn size={24} strokeWidth={2.5} />
+          </motion.button>
+        )}
       </div>
     </aside>
   )
