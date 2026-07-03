@@ -2,20 +2,20 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  FiGrid, FiArrowLeft, FiHeart, FiMessageCircle, FiUser, FiEdit2, FiSettings, FiLayers
+  FiGrid, FiArrowLeft, FiHeart, FiMessageCircle, FiUser, FiEdit2, FiSettings, FiLayers, FiImage, FiCalendar
 } from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
-import { authAPI, postsAPI, commentsAPI } from '../api'
+import { authAPI, postsAPI } from '../api'
 import toast from 'react-hot-toast'
+import dayjs from 'dayjs'
 
 export default function ProfilePage() {
   const navigate = useNavigate()
   const { user, updateUser } = useAuthStore()
   const { posts, isLoading, fetchPosts } = usePostStore()
   const [userPosts, setUserPosts] = useState([])
-  const [commentCounts, setCommentCounts] = useState({})
   const [loading, setLoading] = useState(true)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
@@ -36,20 +36,6 @@ export default function ProfilePage() {
       return authorId === userId
     })
     setUserPosts(filtered)
-
-    const fetchCounts = async () => {
-      const counts = {}
-      await Promise.all(filtered.map(async (post) => {
-        try {
-          const r = await commentsAPI.getByPost(post._id)
-          counts[post._id] = (r.data?.data || []).length
-        } catch {
-          counts[post._id] = post.comments?.length || 0
-        }
-      }))
-      setCommentCounts(counts)
-    }
-    if (filtered.length > 0) fetchCounts()
   }, [posts, user])
 
   const handleAvatarChange = async (e) => {
@@ -79,8 +65,8 @@ export default function ProfilePage() {
     }
   }
 
-  const totalLikes = userPosts.reduce((a, p) => a + (p.likes?.length || 0), 0)
-  const totalComments = Object.values(commentCounts).reduce((a, c) => a + c, 0)
+  const totalPhotos = userPosts.reduce((a, p) => a + getImageUrls(p).length, 0)
+  const memberSince = user?.createdAt ? dayjs(user.createdAt).format('MMM YYYY') : '—'
 
   if (loading || isLoading) {
     return (
@@ -95,9 +81,9 @@ export default function ProfilePage() {
   }
 
   const stats = [
-    { label: 'Posts', value: userPosts.length, onClick: null },
-    { label: 'Likes', value: totalLikes, onClick: () => navigate('/likes') },
-    { label: 'Comments', value: totalComments, onClick: () => navigate('/comments') },
+    { label: 'Posts', value: userPosts.length, icon: null, onClick: null },
+    { label: 'Photos', value: totalPhotos, icon: null, onClick: null },
+    { label: 'Member since', value: memberSince, icon: null, onClick: null },
   ]
 
   return (
