@@ -65,7 +65,7 @@ export default function ProfilePage() {
     }
   }
 
-  const totalPhotos = userPosts.reduce((a, p) => a + getImageUrls(p).length, 0)
+  // const totalPhotos = userPosts.reduce((a, p) => a + getImageUrls(p).length, 0)
   const memberSince = user?.createdAt ? dayjs(user.createdAt).format('MMM YYYY') : '—'
 
   if (loading || isLoading) {
