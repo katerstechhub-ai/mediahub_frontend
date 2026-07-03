@@ -65,7 +65,6 @@ export default function ProfilePage() {
     }
   }
 
-  const totalPhotos = userPosts.reduce((a, p) => a + getImageUrls(p).length, 0)
   const memberSince = user?.createdAt ? dayjs(user.createdAt).format('MMM YYYY') : '—'
 
   if (loading || isLoading) {
@@ -82,7 +81,6 @@ export default function ProfilePage() {
 
   const stats = [
     { label: 'Posts', value: userPosts.length, icon: null, onClick: null },
-    { label: 'Photos', value: totalPhotos, icon: null, onClick: null },
     { label: 'Member since', value: memberSince, icon: null, onClick: null },
   ]
 
