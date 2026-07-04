@@ -44,7 +44,7 @@ function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+      <div className="min-h-dvh" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
         <Routes>
           <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
           <Route path="/register" element={!user ? <Register /> : <Navigate to="/" replace />} />
@@ -74,5 +74,3 @@ function App() {
 }
 
 export default App
-
-

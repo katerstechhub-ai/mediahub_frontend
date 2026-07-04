@@ -51,14 +51,21 @@ export default function BottomNav() {
       initial={{ y: 80, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-      className="lg:hidden fixed left-4 right-4 z-50 flex items-center px-4 py-2 rounded-full shadow-lg backdrop-blur-lg"
+      className="lg:hidden sticky z-50 mx-4 mt-6 flex items-center px-4 py-2 rounded-full shadow-lg backdrop-blur-lg"
       style={{
         background: 'color-mix(in srgb, var(--bg-primary) 55%, transparent)',
         border: '1px solid var(--border)',
         boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
-        // calc() with env(safe-area-inset-bottom) keeps the nav clear of the
-        // home indicator on notched phones instead of a flat bottom-4.
+        // `bottom` here is the sticky offset — how far above the scroll
+        // container's true bottom edge the nav pins itself WHILE there's
+        // still content below it to scroll past. env(safe-area-inset-bottom)
+        // keeps it clear of the home indicator on notched phones.
         bottom: 'calc(1rem + env(safe-area-inset-bottom))',
+        // Once you scroll past the last post, the nav has nothing left to
+        // stick against and drops into normal flow. This margin gives it
+        // the same clearance from the true bottom edge in that resting
+        // state, so it doesn't end up flush against the screen edge.
+        marginBottom: 'calc(1rem + env(safe-area-inset-bottom))',
       }}
     >
       <div className={`flex items-center w-full ${getJustifyClass()}`}>

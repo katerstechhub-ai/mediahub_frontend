@@ -24,18 +24,22 @@ export default function Layout() {
           overscroll-contain: stops the page's rubber-band/bounce scroll from
           leaking into the body behind it on mobile.
 
-          pb-[...]: the floating BottomNav sits at bottom-4 with roughly
-          60px of its own height, so it occupies ~76px above the true bottom
-          edge on mobile. env(safe-area-inset-bottom) adds however much extra
-          the device's home-indicator/notch needs on top of that. Plain
-          pb-20 (80px) was cutting it close — this gives real breathing room
-          so the last row of a grid or the last item in a list is never
-          hidden behind the nav.
+          BottomNav is now rendered INSIDE this scroll container, right after
+          the page content, and it uses `sticky` (see BottomNav.jsx) instead
+          of `fixed`. While there's more content below it, it stays pinned to
+          the bottom of the screen like a normal floating nav. Once you
+          actually scroll past the last post, there's nothing left for it to
+          stick against, so it settles into the page flow directly below the
+          last item instead of floating over it. No artificial bottom
+          padding needed here anymore — the nav reserves its own space.
         */}
-        <main className="flex-1 overflow-y-auto overscroll-contain bg-gray-50 dark:bg-gray-950 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-6">
+        <main
+          className="flex-1 overflow-y-auto overscroll-contain lg:pb-6"
+          style={{ background: 'var(--bg-primary)' }}
+        >
           <Outlet />
+          <BottomNav />
         </main>
-        <BottomNav />
       </div>
     </div>
   )
