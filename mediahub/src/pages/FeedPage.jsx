@@ -6,19 +6,16 @@ import {
   FiX, FiMoreHorizontal, FiTrash2, FiCopy
 } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
-import { postsAPI, commentsAPI } from '../api'
+import { postsAPI } from '../api'
 import { useAuthStore } from '../store'
 import { Avatar } from '../components/ui'
-import { getImageUrls, MultiImage, ImageSlider } from '../components/PostMedia'
+import { getImageUrls, ImageSlider } from '../components/PostMedia'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
 
-/* ─────────── CommentsSheet (unchanged from your version) ─────────── */
-// ⬇ keep your existing CommentsSheet component exactly as-is
-// (omitted here for brevity — paste your current CommentsSheet above this line)
-import CommentsSheet from './_CommentsSheet' // or keep inline like before
+import CommentsSheet from './_CommentsSheet'
 
 /* ─────────── Small helper: multi-image badge ─────────── */
 function MultiImageBadge({ count }) {
@@ -35,7 +32,6 @@ export default function FeedPage() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState('grid')
-  const [commentCounts, setCommentCounts] = useState({})
   const [activeCommentPostId, setActiveCommentPostId] = useState(null)
   const [showHeartAnimation, setShowHeartAnimation] = useState(null)
   const lastTapRef = useRef({})
@@ -54,14 +50,6 @@ export default function FeedPage() {
       else if (Array.isArray(data?.data)) arr = data.data
       else if (Array.isArray(data)) arr = data
       setPosts(arr)
-      const counts = {}
-      await Promise.all(arr.map(async (post) => {
-        try {
-          const r = await commentsAPI.getByPost(post._id)
-          counts[post._id] = (r.data?.data || []).length
-        } catch { counts[post._id] = post.comments?.length || 0 }
-      }))
-      setCommentCounts(counts)
     } catch (err) {
       console.error('Failed to fetch posts:', err)
       setPosts([])
@@ -148,8 +136,6 @@ export default function FeedPage() {
 
   return (
     <>
-      {/* KEY SCROLL FIX: use min-h-screen (not h-screen) and let the page scroll naturally.
-          If a parent wraps this in `overflow-hidden`, remove it there. */}
       <div className="min-h-screen pb-24" style={{ background: 'var(--bg-primary)' }}>
         {/* Header */}
         <div className="sticky top-0 z-10 border-b backdrop-blur-lg px-4 sm:px-6 py-3"
@@ -188,7 +174,6 @@ export default function FeedPage() {
         <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-3">
           <LayoutGroup>
             {viewMode === 'grid' ? (
-              /* ───── 3-col mobile grid (like your reference) ───── */
               <motion.div
                 className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-1.5 sm:gap-2"
                 variants={gridContainer} initial="initial" animate="animate"
@@ -196,7 +181,7 @@ export default function FeedPage() {
                 {posts.map((post) => {
                   const urls = getImageUrls(post)
                   const isLiked = post.likes?.includes(user?._id)
-                  const commentCount = commentCounts[post._id] ?? post.comments?.length ?? 0
+                  const commentCount = post.commentCount ?? 0
                   return (
                     <motion.div
                       key={post._id}
@@ -208,21 +193,32 @@ export default function FeedPage() {
                       style={{ background: 'var(--bg-secondary)' }}
                     >
                       {urls.length > 0 ? (
-                        <MultiImage
-                          urls={urls}
-                          title={post.title}
-                          postId={post._id}
-                          onDoubleTap={(e) => handleDoubleTap(e, post._id, true)}
-                          tileRadius="rounded-md"
-                          gapClass="gap-[2px]"
-                        />
+                        urls.length > 1 ? (
+                          <ImageSlider
+                            urls={urls}
+                            title={post.title}
+                            postId={post._id}
+                            onDoubleTap={(e) => handleDoubleTap(e, post._id, true)}
+                            rounded=""
+                            className="w-full h-full"
+                            hideDots
+                          />
+                        ) : (
+                          <img
+                            src={urls[0]}
+                            alt={post.title || 'Post'}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            onClick={(e) => handleDoubleTap(e, post._id, true)}
+                            onError={e => e.target.style.display = 'none'}
+                          />
+                        )
                       ) : (
                         <div onClick={(e) => handleDoubleTap(e, post._id, true)} className="w-full h-full flex items-center justify-center">
                           <FiImage size={22} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
                         </div>
                       )}
 
-                      {/* NEW: multiple-images indicator */}
                       <MultiImageBadge count={urls.length} />
 
                       <div onClick={(e) => goToProfile(e, post.author)} className="absolute top-1.5 left-1.5 cursor-pointer z-10">
@@ -249,18 +245,20 @@ export default function FeedPage() {
                 })}
               </motion.div>
             ) : (
-              /* ───── LIST VIEW: name beside avatar; content + icons share row below ───── */
-              <motion.div className="space-y-6" variants={gridContainer} initial="initial" animate="animate">
+              <motion.div
+                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-8"
+                variants={gridContainer} initial="initial" animate="animate"
+              >
                 {posts.map((post) => {
                   const urls = getImageUrls(post)
                   const isLiked = post.likes?.includes(user?._id)
-                  const commentCount = commentCounts[post._id] ?? post.comments?.length ?? 0
+                  const commentCount = post.commentCount ?? 0
                   return (
                     <motion.article key={post._id} layoutId={`post-${post._id}`} variants={gridItem}
-                      className="border-b pb-5" style={{ borderColor: 'var(--border)' }}>
+                      className="border-b pb-5 md:border md:rounded-2xl md:p-4 md:pb-4 md:shadow-sm"
+                      style={{ borderColor: 'var(--border)' }}>
 
-                      {/* Header row: avatar + name side by side */}
-                      <header className="flex items-center gap-3 px-1 mb-2">
+                      <header className="flex items-center gap-3 px-1 md:px-0 mb-2">
                         <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
                           <Avatar src={post.author?.avatar} name={post.author?.name} size={38} />
                         </div>
@@ -276,29 +274,25 @@ export default function FeedPage() {
                         </div>
                       </header>
 
-                      {/* Image */}
                       {urls.length > 0 && (
-                        <div className="relative w-full mb-3 rounded-xl overflow-hidden cursor-pointer"
+                        <div className="relative w-full mb-3 rounded-xl overflow-hidden cursor-pointer aspect-square"
                              style={{ background: 'var(--bg-secondary)' }}>
                           {urls.length === 1 ? (
-                            <div onClick={e => handleDoubleTap(e, post._id, true)}>
+                            <div onClick={e => handleDoubleTap(e, post._id, true)} className="w-full h-full">
                               <img src={urls[0]} alt={post.title || 'Post'}
-                                   className="w-full h-auto" style={{ maxHeight: 460, objectFit: 'cover' }}
+                                   className="w-full h-full object-cover"
                                    loading="lazy" onError={e => e.target.style.display = 'none'} />
                             </div>
                           ) : (
-                            <div style={{ height: 380 }}>
-                              <ImageSlider urls={urls} title={post.title} postId={post._id}
-                                onDoubleTap={(e) => handleDoubleTap(e, post._id, true)} rounded="" className="w-full h-full" />
-                            </div>
+                            <ImageSlider urls={urls} title={post.title} postId={post._id}
+                              onDoubleTap={(e) => handleDoubleTap(e, post._id, true)} rounded="" className="w-full h-full" hideDots />
                           )}
                           <MultiImageBadge count={urls.length} />
                           <HeartAnimation postId={post._id} />
                         </div>
                       )}
 
-                      {/* Content + icons on the SAME row */}
-                      <div className="flex items-start justify-between gap-3 px-1">
+                      <div className="flex items-start justify-between gap-3 px-1 md:px-0">
                         <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
                           {post.title && (
                             <h3 className="font-extrabold font-display text-base leading-snug"
@@ -307,7 +301,7 @@ export default function FeedPage() {
                             </h3>
                           )}
                           {post.content && post.content.trim() !== '' && post.content !== post.title && (
-                            <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                            <p className="text-sm mt-0.5 line-clamp-3" style={{ color: 'var(--text-secondary)' }}>
                               {post.content}
                             </p>
                           )}

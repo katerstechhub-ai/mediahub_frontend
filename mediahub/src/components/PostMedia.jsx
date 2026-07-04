@@ -32,8 +32,9 @@ export function getImageUrls(post) {
 }
 
 // ── MultiImage — animated bento collage for 1 or up to 4 images ──────────────
-// Each tile is independently rounded (not just the outer container), so a
-// multi-photo post reads as a set of distinct rounded photos, not one block.
+// Kept for any place that still wants the collage layout. FeedPage's grid view
+// now uses ImageSlider instead (see below), but this stays available/unused
+// elsewhere without breaking anything.
 // 1 image  → full frame
 // 2 images → 2 columns
 // 3 images → 1 large left, 2 stacked right
@@ -114,10 +115,15 @@ export function MultiImage({ urls, title, postId, onDoubleTap, tileRadius = 'rou
 }
 
 // ── ImageSlider — Instagram-style swipeable carousel ──────────────────────────
-// Shows one image at a time, swipe/drag to move between them, with a dot
-// indicator and a "1/4" counter. Falls back to a plain image when there's
-// only one, so it's safe to use unconditionally anywhere a post's photos render.
-export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '', showCounter = true }) {
+// Shows one image at a time, swipe/drag to move between them. Uses native
+// scroll-snap so it naturally stops at the first/last image (no looping).
+// Falls back to a plain image when there's only one, so it's safe to use
+// unconditionally anywhere a post's photos render.
+//
+// hideDots: pass true to suppress the bottom dot-indicator row (e.g. for
+// small grid thumbnails where dots don't have room / aren't wanted).
+// showCounter still controls the top-right "1/4" badge independently.
+export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '', showCounter = true, hideDots = false }) {
   const trackRef = useRef(null)
   const [index, setIndex] = useState(0)
 
@@ -185,17 +191,19 @@ export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'round
           {index + 1}/{urls.length}
         </div>
       )}
-      <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-10 pointer-events-none">
-        {urls.map((_, i) => (
-          <button
-            key={i}
-            onClick={(e) => goTo(i, e)}
-            aria-label={`Go to image ${i + 1}`}
-            className="h-1.5 rounded-full transition-all pointer-events-auto"
-            style={{ width: i === index ? 14 : 6, background: i === index ? '#fff' : 'rgba(255,255,255,0.55)' }}
-          />
-        ))}
-      </div>
+      {!hideDots && (
+        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-10 pointer-events-none">
+          {urls.map((_, i) => (
+            <button
+              key={i}
+              onClick={(e) => goTo(i, e)}
+              aria-label={`Go to image ${i + 1}`}
+              className="h-1.5 rounded-full transition-all pointer-events-auto"
+              style={{ width: i === index ? 14 : 6, background: i === index ? '#fff' : 'rgba(255,255,255,0.55)' }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
