@@ -12,7 +12,7 @@ const tabs = [
   { to: '/notifications', icon: FiBell, label: 'Alerts', authOnly: true },
 ]
 
-export default function BottomNav() {
+export default function BottomNav({ floating = true }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuthStore()
@@ -47,26 +47,23 @@ export default function BottomNav() {
   }
 
   return (
-    // Sticky positioning lives on this plain, never-transformed div.
-    // Safari has a bug where `position: sticky` stops working on any
-    // element that also has a CSS `transform` applied to it — and
-    // Framer Motion's y-animation below is implemented as a transform.
-    // Keeping the transform on an inner element (the motion.nav) instead
-    // of on the sticky element itself avoids that bug entirely.
+    // While `floating` is true, this behaves like the original overlay nav:
+    // `fixed` + viewport-relative bottom offset, pinned over the content as
+    // you scroll. Once Layout's sentinel tells us we've hit the true end of
+    // the page, `floating` flips to false and this becomes a normal in-flow
+    // block sitting directly below the last post — no `position: sticky`
+    // involved anywhere, so there's nothing for Safari to get wrong.
     <div
-      className="lg:hidden sticky z-50 mx-4 mt-6"
-      style={{
-        // `bottom` here is the sticky offset — how far above the scroll
-        // container's true bottom edge the nav pins itself WHILE there's
-        // still content below it to scroll past. env(safe-area-inset-bottom)
-        // keeps it clear of the home indicator on notched phones.
-        bottom: 'calc(1rem + env(safe-area-inset-bottom))',
-        // Once you scroll past the last post, the nav has nothing left to
-        // stick against and drops into normal flow. This margin gives it
-        // the same clearance from the true bottom edge in that resting
-        // state, so it doesn't end up flush against the screen edge.
-        marginBottom: 'calc(1rem + env(safe-area-inset-bottom))',
-      }}
+      className={
+        floating
+          ? 'lg:hidden fixed left-4 right-4 z-50'
+          : 'lg:hidden z-50 mx-4 mt-6'
+      }
+      style={
+        floating
+          ? { bottom: 'calc(1rem + env(safe-area-inset-bottom))' }
+          : { marginBottom: 'calc(1rem + env(safe-area-inset-bottom))' }
+      }
     >
       <motion.nav
         initial={{ y: 80, opacity: 0 }}
