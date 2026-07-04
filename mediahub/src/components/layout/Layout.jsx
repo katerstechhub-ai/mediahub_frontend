@@ -21,14 +21,20 @@ export default function Layout() {
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
         {/*
-          BottomNav is always `fixed` — no state, no scroll-position logic,
-          nothing that can glitch. It's a static overlay, full stop.
+          BottomNav is always `fixed` — no state toggling based on scroll
+          position. We tried a version that switched it into normal
+          document flow once you hit the bottom (via an IntersectionObserver
+          sentinel), but that changes the page's scrollable height the
+          moment it switches, which immediately un-triggers the same
+          observer — an infinite flicker loop. Keeping it permanently fixed
+          avoids that entirely.
 
-          pb-[...]: permanent reserved space at the bottom of the scroll
-          container so the last post always clears the nav once you've
-          scrolled all the way down. This value never changes, so there's
-          no feedback loop or browser-specific positioning bug possible —
-          it's just a fixed number, calculated once.
+          pb-[...]: reserves enough space below the real content so the
+          last post is always fully visible above the nav once you've
+          scrolled all the way down — visually it looks like the nav sits
+          below the last post, it just never actually leaves `fixed`.
+          env(safe-area-inset-bottom) accounts for the home-indicator area
+          on notched iPhones.
 
           overscroll-contain: stops the page's rubber-band/bounce scroll
           from leaking into the body behind it on mobile.

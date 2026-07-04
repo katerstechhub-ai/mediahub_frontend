@@ -1,6 +1,7 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { FiHome, FiCompass, FiPlusSquare, FiBell } from 'react-icons/fi'
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '../../store'
 import { notificationsAPI } from '../../api'
@@ -46,12 +47,18 @@ export default function BottomNav() {
     return 'justify-between'
   }
 
-  return (
-    // Plain, never-transformed div carries the `fixed` positioning.
-    // Framer Motion's slide-in animation (a transform) lives on the
-    // motion.nav inside instead — keeping a transform off the positioned
-    // element itself avoids an unrelated Safari sticky/transform bug we
-    // ran into earlier.
+  return createPortal(
+    // Rendered via a portal directly into document.body — NOT nested inside
+    // Layout's flex/overflow hierarchy. iOS Safari can render `position:
+    // fixed` elements incorrectly (jittering, disappearing behind content
+    // mid-scroll) purely as a function of DOM nesting depth inside flex/
+    // overflow containers, even when no single CSS property is provably
+    // "at fault." Portaling out is the reliable fix: BottomNav is now a
+    // direct child of <body>, so nothing in Layout can affect it, ever.
+    //
+    // The plain, never-transformed div still carries `fixed` positioning;
+    // the animated transform still lives on the motion.nav inside it, kept
+    // off the positioned element itself for the same reason as before.
     <div
       className="lg:hidden fixed left-4 right-4 z-50"
       style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
@@ -68,72 +75,73 @@ export default function BottomNav() {
         }}
       >
         <div className={`flex items-center w-full ${getJustifyClass()}`}>
-          {visibleTabs.map(({ to, icon: Icon, label }) => {
-            const active = isActiveTab(to)
-            return (
-              <NavLink
-                key={to}
-                to={to}
-                end={to === '/'}
+        {visibleTabs.map(({ to, icon: Icon, label }) => {
+          const active = isActiveTab(to)
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              className="relative flex items-center justify-center w-11 h-11 rounded-full"
+            >
+              <motion.div
+                whileTap={{ scale: 0.85 }}
                 className="relative flex items-center justify-center w-11 h-11 rounded-full"
               >
-                <motion.div
-                  whileTap={{ scale: 0.85 }}
-                  className="relative flex items-center justify-center w-11 h-11 rounded-full"
-                >
-                  {active && (
-                    <motion.div
-                      layoutId="bottomNavActivePill"
-                      className="absolute inset-0 rounded-full"
-                      style={{ background: '#f59e0b', boxShadow: '0 4px 14px rgba(245,158,11,0.4)' }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                    />
-                  )}
-
+                {active && (
                   <motion.div
-                    animate={{ scale: active ? 1.1 : 1 }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                    className="relative z-10"
-                  >
-                    <Icon size={20} color={active ? '#ffffff' : 'var(--text-muted)'} strokeWidth={2.5} />
-                  </motion.div>
+                    layoutId="bottomNavActivePill"
+                    className="absolute inset-0 rounded-full"
+                    style={{ background: '#f59e0b', boxShadow: '0 4px 14px rgba(245,158,11,0.4)' }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
 
-                  <AnimatePresence>
-                    {to === '/notifications' && unreadCount > 0 && (
-                      <motion.span
-                        key="badge"
-                        initial={{ scale: 0, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0, opacity: 0 }}
-                        transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-                        className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white z-20"
-                        style={{ background: '#ef4444' }}
-                      >
-                        {unreadCount > 9 ? '9+' : unreadCount}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
+                <motion.div
+                  animate={{ scale: active ? 1.1 : 1 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                  className="relative z-10"
+                >
+                  <Icon size={20} color={active ? '#ffffff' : 'var(--text-muted)'} strokeWidth={2.5} />
                 </motion.div>
-              </NavLink>
-            )
-          })}
 
-          {/* Avatar — goes straight to profile if logged in, otherwise prompts login */}
-          <motion.button
-            onClick={() => navigate(user ? '/profile' : '/login')}
-            whileTap={{ scale: 0.85 }}
-            className="flex items-center justify-center w-11 h-11 rounded-full flex-shrink-0"
-          >
-            {user?.avatar ? (
-              <img src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full object-cover ring-2 ring-amber-500/40" />
-            ) : (
-              <div className="w-9 h-9 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-bold">
-                {user?.name?.[0]?.toUpperCase() || 'U'}
-              </div>
-            )}
-          </motion.button>
+                <AnimatePresence>
+                  {to === '/notifications' && unreadCount > 0 && (
+                    <motion.span
+                      key="badge"
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                      className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white z-20"
+                      style={{ background: '#ef4444' }}
+                    >
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            </NavLink>
+          )
+        })}
+
+        {/* Avatar — goes straight to profile if logged in, otherwise prompts login */}
+        <motion.button
+          onClick={() => navigate(user ? '/profile' : '/login')}
+          whileTap={{ scale: 0.85 }}
+          className="flex items-center justify-center w-11 h-11 rounded-full flex-shrink-0"
+        >
+          {user?.avatar ? (
+            <img src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full object-cover ring-2 ring-amber-500/40" />
+          ) : (
+            <div className="w-9 h-9 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-bold">
+              {user?.name?.[0]?.toUpperCase() || 'U'}
+            </div>
+          )}
+        </motion.button>
         </div>
       </motion.nav>
-    </div>
+    </div>,
+    document.body
   )
 }
