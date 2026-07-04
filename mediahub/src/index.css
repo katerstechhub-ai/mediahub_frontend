@@ -111,3 +111,15 @@ body {
 .fade-in {
   animation: fadeIn 0.3s ease-out;
 }
+
+/* BottomNav frosted panel — a plain themed fallback color declares first
+   for browsers without color-mix() support (that whole declaration gets
+   dropped as invalid, leaving the fallback in place); the color-mix()
+   version overrides it with a lighter, less-black frosted tint wherever
+   it IS supported. Using --bg-card (not --bg-primary) as the base, since
+   --bg-primary is near-black in dark mode and read as flat black once
+   blurred, whereas --bg-card gives real theme contrast in both modes. */
+.bottom-nav-panel {
+  background: var(--bg-card);
+  background: color-mix(in srgb, var(--bg-card) 70%, transparent);
+}

@@ -257,7 +257,7 @@ export default function FeedPage() {
               </div>
             ) : (
               <ImageSlider urls={urls} title={post.title} postId={post._id}
-                onDoubleTap={(e) => handleDoubleTap(e, post._id, true)} rounded="" className="w-full h-full" hideDots />
+                onDoubleTap={(e) => handleDoubleTap(e, post._id, true)} rounded="" className="w-full h-full" hideDots tapToNavigate={false} />
             )}
             <MultiImageBadge count={urls.length} />
             <HeartAnimation postId={post._id} />

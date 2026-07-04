@@ -129,7 +129,7 @@ export function MultiImage({ urls, title, postId, onDoubleTap, tileRadius = 'rou
 // unaffected.
 //
 // hideDots / showCounter control the bottom dot row and the "1/4" badge.
-export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '', showCounter = true, hideDots = false, peek = false }) {
+export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '', showCounter = true, hideDots = false, peek = false, tapToNavigate = true }) {
   const [index, setIndex] = useState(0)
   const containerRef = useRef(null)
   const dragInfo = useRef({ dragged: false })
@@ -165,19 +165,26 @@ export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'round
       dragInfo.current.dragged = false
       return
     }
-    const rect = containerRef.current.getBoundingClientRect()
-    const ratio = (e.clientX - rect.left) / rect.width
 
-    if (ratio < 0.25) {
-      if (index > 0) goTo(index - 1, e)
-      else e.stopPropagation()
-      return
+    if (tapToNavigate) {
+      const rect = containerRef.current.getBoundingClientRect()
+      const ratio = (e.clientX - rect.left) / rect.width
+
+      if (ratio < 0.25) {
+        if (index > 0) goTo(index - 1, e)
+        else e.stopPropagation()
+        return
+      }
+      if (ratio > 0.75) {
+        if (index < urls.length - 1) goTo(index + 1, e)
+        else e.stopPropagation()
+        return
+      }
     }
-    if (ratio > 0.75) {
-      if (index < urls.length - 1) goTo(index + 1, e)
-      else e.stopPropagation()
-      return
-    }
+    // tapToNavigate === false: no edge zones — every tap (anywhere on the
+    // image) passes straight through. Moving between images is drag-only,
+    // which is what makes this feel like a normal swipe carousel instead
+    // of a tap-through-photos control.
     onDoubleTap?.(e)
   }
 
@@ -194,7 +201,7 @@ export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'round
   const showStack2 = peek && hasNextNext
 
   return (
-    <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${rounded} ${className}`} onClick={handleTap}>
+    <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${rounded} ${className}`} style={{ touchAction: 'pan-y' }} onClick={handleTap}>
       {/* Furthest back card: photo two ahead — rotated further and dimmed
           more than the first back card. Only renders when at least 3 images
           remain in the stack from here, so it doesn't flash in/out oddly

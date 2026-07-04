@@ -2,8 +2,14 @@ import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import BottomNav from './BottomNav'
+import { useUIStore } from '../../store'
 
 export default function Layout() {
+  const bottomNavHeight = useUIStore((s) => s.bottomNavHeight)
+  // 96px fallback (roughly the pill's usual footprint) until BottomNav's
+  // first real measurement lands on mount — avoids a flash of zero padding.
+  const mobileBottomPadding = bottomNavHeight > 0 ? bottomNavHeight + 24 : 96
+
   return (
     // h-screen (100vh) is unreliable on mobile Safari/Chrome: 100vh is
     // calculated as if the address bar is hidden, but the real visible
@@ -21,28 +27,20 @@ export default function Layout() {
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
         {/*
-          BottomNav is always `fixed` — no state toggling based on scroll
-          position. We tried a version that switched it into normal
-          document flow once you hit the bottom (via an IntersectionObserver
-          sentinel), but that changes the page's scrollable height the
-          moment it switches, which immediately un-triggers the same
-          observer — an infinite flicker loop. Keeping it permanently fixed
-          avoids that entirely.
+          overscroll-contain: stops the page's rubber-band/bounce scroll from
+          leaking into the body behind it on mobile.
 
-          pb-[...]: reserves enough space below the real content so the
-          last post is always fully visible above the nav once you've
-          scrolled all the way down — visually it looks like the nav sits
-          below the last post, it just never actually leaves `fixed`.
-          env(safe-area-inset-bottom) accounts for the home-indicator area
-          on notched iPhones.
-
-          overscroll-contain: stops the page's rubber-band/bounce scroll
-          from leaking into the body behind it on mobile.
-          -webkit-overflow-scrolling: touch: proper momentum scroll on iOS.
+          paddingBottom is now driven by BottomNav's own measured height
+          (see uiStore + BottomNav's ResizeObserver) plus 24px of real
+          margin — not a hardcoded pb-[...] guess. That guess kept covering
+          the last post because a fixed Tailwind value can't self-correct if
+          the pill's actual rendered size differs from what was assumed.
+          lg:!pb-6 overrides it back down on desktop, where BottomNav is
+          hidden entirely.
         */}
         <main
-          className="flex-1 overflow-y-auto overscroll-contain pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-6"
-          style={{ background: 'var(--bg-primary)', WebkitOverflowScrolling: 'touch' }}
+          className="flex-1 overflow-y-auto overscroll-contain lg:!pb-6"
+          style={{ background: 'var(--bg-primary)', paddingBottom: `${mobileBottomPadding}px`, WebkitOverflowScrolling: 'touch' }}
         >
           <Outlet />
         </main>

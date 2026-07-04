@@ -1,9 +1,9 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { FiHome, FiCompass, FiPlusSquare, FiBell } from 'react-icons/fi'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useAuthStore } from '../../store'
+import { useAuthStore, useUIStore } from '../../store'
 import { notificationsAPI } from '../../api'
 
 const tabs = [
@@ -17,9 +17,38 @@ export default function BottomNav() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuthStore()
+  const setBottomNavHeight = useUIStore((s) => s.setBottomNavHeight)
   const [unreadCount, setUnreadCount] = useState(0)
+  const outerRef = useRef(null)
 
   const visibleTabs = tabs.filter((tab) => !tab.authOnly || user)
+
+  // Measure the nav's real on-screen footprint (its own height + how far it
+  // sits off the bottom edge) and publish it to uiStore. Anything reading
+  // that value gets the true number instead of a hardcoded guess, so it
+  // can't drift out of sync if the pill's size or bottom offset changes.
+  useEffect(() => {
+    const el = outerRef.current
+    if (!el || typeof window === 'undefined') return
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect()
+      const bottomOffset = window.innerHeight - rect.bottom
+      const footprint = rect.height + Math.max(bottomOffset, 0)
+      setBottomNavHeight(footprint)
+    }
+
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    window.addEventListener('resize', measure)
+    window.addEventListener('orientationchange', measure)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('orientationchange', measure)
+    }
+  }, [visibleTabs.length, setBottomNavHeight])
 
   useEffect(() => {
     if (!user) return // guests have nothing to fetch notifications for
@@ -60,6 +89,7 @@ export default function BottomNav() {
     // the animated transform still lives on the motion.nav inside it, kept
     // off the positioned element itself for the same reason as before.
     <div
+      ref={outerRef}
       className="lg:hidden fixed left-4 right-4 z-50"
       style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
     >
@@ -67,9 +97,8 @@ export default function BottomNav() {
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-        className="flex items-center px-4 py-2 rounded-full shadow-lg backdrop-blur-lg"
+        className="flex items-center px-4 py-2 rounded-full shadow-lg backdrop-blur-lg bottom-nav-panel"
         style={{
-          background: 'color-mix(in srgb, var(--bg-primary) 55%, transparent)',
           border: '1px solid var(--border)',
           boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
         }}
