@@ -51,11 +51,14 @@ export default function BottomNav() {
       initial={{ y: 80, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-      className="lg:hidden fixed bottom-4 left-4 right-4 z-50 flex items-center px-4 py-2 rounded-full shadow-lg backdrop-blur-lg"
+      className="lg:hidden fixed left-4 right-4 z-50 flex items-center px-4 py-2 rounded-full shadow-lg backdrop-blur-lg"
       style={{
         background: 'color-mix(in srgb, var(--bg-primary) 55%, transparent)',
         border: '1px solid var(--border)',
         boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+        // calc() with env(safe-area-inset-bottom) keeps the nav clear of the
+        // home indicator on notched phones instead of a flat bottom-4.
+        bottom: 'calc(1rem + env(safe-area-inset-bottom))',
       }}
     >
       <div className={`flex items-center w-full ${getJustifyClass()}`}>

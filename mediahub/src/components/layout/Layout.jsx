@@ -5,12 +5,18 @@ import BottomNav from './BottomNav'
 
 export default function Layout() {
   return (
-    <div className="flex h-screen overflow-hidden">
+    // h-screen (100vh) is unreliable on mobile Safari/Chrome: 100vh is
+    // calculated as if the address bar is hidden, but the real visible
+    // viewport shrinks when it's showing — which is what made the bottom
+    // of scrollable pages (like the feed) get cut off. h-dvh tracks the
+    // *actual* visible viewport instead. h-screen stays as a fallback for
+    // older browsers that don't support dvh units.
+    <div className="flex h-screen h-dvh overflow-hidden">
       {/* Sidebar - bold icon-only */}
       <div className="hidden lg:block lg:w-[84px] flex-shrink-0">
         <Sidebar />
       </div>
-      
+
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
         <Header />

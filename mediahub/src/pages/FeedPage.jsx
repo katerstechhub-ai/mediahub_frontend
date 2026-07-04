@@ -28,6 +28,25 @@ function MultiImageBadge({ count }) {
   )
 }
 
+/* ─────────── Group posts into "July 2026", "June 2026", etc. ─────────── */
+function groupPostsByMonth(posts) {
+  const groups = new Map()
+  posts.forEach((post) => {
+    const d = post.createdAt ? new Date(post.createdAt) : new Date()
+    const key = `${d.getFullYear()}-${d.getMonth()}`
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        label: d.toLocaleString('en-US', { month: 'long', year: 'numeric' }),
+        sortKey: d.getFullYear() * 12 + d.getMonth(),
+        posts: [],
+      })
+    }
+    groups.get(key).posts.push(post)
+  })
+  return Array.from(groups.values()).sort((a, b) => b.sortKey - a.sortKey)
+}
+
 export default function FeedPage() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -133,6 +152,166 @@ export default function FeedPage() {
 
   const gridContainer = { animate: { transition: { staggerChildren: 0.03 } } }
   const gridItem = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0, transition: { duration: 0.22 } } }
+  const monthGroups = groupPostsByMonth(posts)
+
+  const renderGridTile = (post) => {
+    const urls = getImageUrls(post)
+    const isLiked = post.likes?.includes(user?._id)
+    const commentCount = post.commentCount ?? 0
+    return (
+      <motion.div
+        key={post._id}
+        layoutId={`post-${post._id}`}
+        variants={gridItem}
+        whileHover={{ scale: 1.02 }}
+        transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}
+        className="relative group cursor-pointer rounded-[20%] overflow-hidden aspect-[4/5] shadow-sm"
+        style={{ background: 'var(--bg-secondary)' }}
+      >
+        {urls.length > 0 ? (
+          urls.length > 1 ? (
+            <ImageSlider
+              urls={urls}
+              title={post.title}
+              postId={post._id}
+              onDoubleTap={(e) => handleDoubleTap(e, post._id, true)}
+              rounded=""
+              className="w-full h-full"
+              hideDots
+              peek
+            />
+          ) : (
+            <img
+              src={urls[0]}
+              alt={post.title || 'Post'}
+              className="w-full h-full object-cover"
+              loading="lazy"
+              onClick={(e) => handleDoubleTap(e, post._id, true)}
+              onError={e => e.target.style.display = 'none'}
+            />
+          )
+        ) : (
+          <div onClick={(e) => handleDoubleTap(e, post._id, true)} className="w-full h-full flex items-center justify-center">
+            <FiImage size={22} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
+          </div>
+        )}
+
+        <MultiImageBadge count={urls.length} />
+
+        <div onClick={(e) => goToProfile(e, post.author)} className="absolute top-1.5 left-1.5 cursor-pointer z-10">
+          <Avatar src={post.author?.avatar} name={post.author?.name} size={22} className="ring-2 ring-white/70 shadow" />
+        </div>
+
+        <HeartAnimation postId={post._id} />
+
+        <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/45 to-transparent pointer-events-none" />
+        <div className="absolute bottom-1 right-1 flex items-center gap-0.5 z-10">
+          <motion.button onClick={e => { e.stopPropagation(); handleLike(e, post._id) }} whileTap={{ scale: 0.9 }}
+            className="flex items-center gap-0.5 h-6 px-1.5 text-white rounded-full leading-none">
+            {isLiked ? <FaHeart size={11} color="#ef4444" /> : <FiHeart size={11} strokeWidth={2.8} className="drop-shadow" />}
+            <span className="text-[10px] font-bold drop-shadow leading-none">{post.likes?.length || 0}</span>
+          </motion.button>
+          <motion.button onClick={e => openComments(e, post._id)} whileTap={{ scale: 0.9 }}
+            className="flex items-center gap-0.5 h-6 px-1.5 text-white rounded-full leading-none">
+            <FiMessageCircle size={11} strokeWidth={2.8} className="drop-shadow" />
+            <span className="text-[10px] font-bold drop-shadow leading-none">{commentCount}</span>
+          </motion.button>
+        </div>
+      </motion.div>
+    )
+  }
+
+  const renderListItem = (post) => {
+    const urls = getImageUrls(post)
+    const isLiked = post.likes?.includes(user?._id)
+    const commentCount = post.commentCount ?? 0
+    return (
+      <motion.article key={post._id} layoutId={`post-${post._id}`} variants={gridItem}
+        className="border-b pb-5 md:border md:rounded-2xl md:p-4 md:pb-4 md:shadow-sm"
+        style={{ borderColor: 'var(--border)' }}>
+
+        <header className="flex items-center gap-3 px-1 md:px-0 mb-2">
+          <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
+            <Avatar src={post.author?.avatar} name={post.author?.name} size={38} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-sm hover:underline truncate"
+               style={{ color: 'var(--text-primary)' }}
+               onClick={(e) => goToProfile(e, post.author)}>
+              {post.author?.name || 'Unknown'}
+            </p>
+            <p className="text-[11px] leading-none" style={{ color: 'var(--text-muted)' }}>
+              {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
+            </p>
+          </div>
+        </header>
+
+        {urls.length > 0 && (
+          <div className="relative w-full mb-3 rounded-xl overflow-hidden cursor-pointer aspect-square"
+               style={{ background: 'var(--bg-secondary)' }}>
+            {urls.length === 1 ? (
+              <div onClick={e => handleDoubleTap(e, post._id, true)} className="w-full h-full">
+                <img src={urls[0]} alt={post.title || 'Post'}
+                     className="w-full h-full object-cover"
+                     loading="lazy" onError={e => e.target.style.display = 'none'} />
+              </div>
+            ) : (
+              <ImageSlider urls={urls} title={post.title} postId={post._id}
+                onDoubleTap={(e) => handleDoubleTap(e, post._id, true)} rounded="" className="w-full h-full" hideDots />
+            )}
+            <MultiImageBadge count={urls.length} />
+            <HeartAnimation postId={post._id} />
+          </div>
+        )}
+
+        <div className="flex items-start justify-between gap-3 px-1 md:px-0">
+          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
+            {post.title && (
+              <h3 className="font-extrabold font-display text-base leading-snug"
+                  style={{ color: 'var(--text-primary)' }}>
+                {post.title}
+              </h3>
+            )}
+            {post.content && post.content.trim() !== '' && post.content !== post.title && (
+              <p className="text-sm mt-0.5 line-clamp-3" style={{ color: 'var(--text-secondary)' }}>
+                {post.content}
+              </p>
+            )}
+            {post.tags?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {post.tags.slice(0, 3).map(tag => (
+                  <span key={tag} className="text-xs font-bold px-2.5 py-0.5 rounded-full"
+                        style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <motion.button onClick={e => handleLike(e, post._id)} whileTap={{ scale: 0.9 }}
+              className="flex items-center gap-1 h-8 px-2.5 rounded-full hover:bg-[var(--bg-secondary)] leading-none">
+              {isLiked
+                ? <FaHeart size={16} color="#ef4444" />
+                : <FiHeart size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
+              <span className="text-xs font-bold leading-none"
+                    style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
+                {post.likes?.length || 0}
+              </span>
+            </motion.button>
+            <motion.button onClick={e => openComments(e, post._id)} whileTap={{ scale: 0.9 }}
+              className="flex items-center gap-1 h-8 px-2.5 rounded-full hover:bg-[var(--bg-secondary)] leading-none">
+              <FiMessageCircle size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+              <span className="text-xs font-bold leading-none" style={{ color: 'var(--text-muted)' }}>
+                {commentCount}
+              </span>
+            </motion.button>
+          </div>
+        </div>
+      </motion.article>
+    )
+  }
 
   return (
     <>
@@ -173,175 +352,28 @@ export default function FeedPage() {
 
         <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-3">
           <LayoutGroup>
-            {viewMode === 'grid' ? (
-              <motion.div
-                className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-1.5 sm:gap-2"
-                variants={gridContainer} initial="initial" animate="animate"
-              >
-                {posts.map((post) => {
-                  const urls = getImageUrls(post)
-                  const isLiked = post.likes?.includes(user?._id)
-                  const commentCount = post.commentCount ?? 0
-                  return (
-                    <motion.div
-                      key={post._id}
-                      layoutId={`post-${post._id}`}
-                      variants={gridItem}
-                      whileHover={{ scale: 1.02 }}
-                      transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}
-                      className="relative group cursor-pointer rounded-xl overflow-hidden aspect-square shadow-sm"
-                      style={{ background: 'var(--bg-secondary)' }}
-                    >
-                      {urls.length > 0 ? (
-                        urls.length > 1 ? (
-                          <ImageSlider
-                            urls={urls}
-                            title={post.title}
-                            postId={post._id}
-                            onDoubleTap={(e) => handleDoubleTap(e, post._id, true)}
-                            rounded=""
-                            className="w-full h-full"
-                            hideDots
-                          />
-                        ) : (
-                          <img
-                            src={urls[0]}
-                            alt={post.title || 'Post'}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                            onClick={(e) => handleDoubleTap(e, post._id, true)}
-                            onError={e => e.target.style.display = 'none'}
-                          />
-                        )
-                      ) : (
-                        <div onClick={(e) => handleDoubleTap(e, post._id, true)} className="w-full h-full flex items-center justify-center">
-                          <FiImage size={22} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
-                        </div>
-                      )}
-
-                      <MultiImageBadge count={urls.length} />
-
-                      <div onClick={(e) => goToProfile(e, post.author)} className="absolute top-1.5 left-1.5 cursor-pointer z-10">
-                        <Avatar src={post.author?.avatar} name={post.author?.name} size={22} className="ring-2 ring-white/70 shadow" />
-                      </div>
-
-                      <HeartAnimation postId={post._id} />
-
-                      <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/45 to-transparent pointer-events-none" />
-                      <div className="absolute bottom-1 right-1 flex items-center gap-0.5 z-10">
-                        <motion.button onClick={e => { e.stopPropagation(); handleLike(e, post._id) }} whileTap={{ scale: 0.9 }}
-                          className="flex items-center gap-0.5 h-6 px-1.5 text-white rounded-full leading-none">
-                          {isLiked ? <FaHeart size={11} color="#ef4444" /> : <FiHeart size={11} strokeWidth={2.8} className="drop-shadow" />}
-                          <span className="text-[10px] font-bold drop-shadow leading-none">{post.likes?.length || 0}</span>
-                        </motion.button>
-                        <motion.button onClick={e => openComments(e, post._id)} whileTap={{ scale: 0.9 }}
-                          className="flex items-center gap-0.5 h-6 px-1.5 text-white rounded-full leading-none">
-                          <FiMessageCircle size={11} strokeWidth={2.8} className="drop-shadow" />
-                          <span className="text-[10px] font-bold drop-shadow leading-none">{commentCount}</span>
-                        </motion.button>
-                      </div>
-                    </motion.div>
-                  )
-                })}
-              </motion.div>
-            ) : (
-              <motion.div
-                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-8"
-                variants={gridContainer} initial="initial" animate="animate"
-              >
-                {posts.map((post) => {
-                  const urls = getImageUrls(post)
-                  const isLiked = post.likes?.includes(user?._id)
-                  const commentCount = post.commentCount ?? 0
-                  return (
-                    <motion.article key={post._id} layoutId={`post-${post._id}`} variants={gridItem}
-                      className="border-b pb-5 md:border md:rounded-2xl md:p-4 md:pb-4 md:shadow-sm"
-                      style={{ borderColor: 'var(--border)' }}>
-
-                      <header className="flex items-center gap-3 px-1 md:px-0 mb-2">
-                        <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
-                          <Avatar src={post.author?.avatar} name={post.author?.name} size={38} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-bold text-sm hover:underline truncate"
-                             style={{ color: 'var(--text-primary)' }}
-                             onClick={(e) => goToProfile(e, post.author)}>
-                            {post.author?.name || 'Unknown'}
-                          </p>
-                          <p className="text-[11px] leading-none" style={{ color: 'var(--text-muted)' }}>
-                            {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
-                          </p>
-                        </div>
-                      </header>
-
-                      {urls.length > 0 && (
-                        <div className="relative w-full mb-3 rounded-xl overflow-hidden cursor-pointer aspect-square"
-                             style={{ background: 'var(--bg-secondary)' }}>
-                          {urls.length === 1 ? (
-                            <div onClick={e => handleDoubleTap(e, post._id, true)} className="w-full h-full">
-                              <img src={urls[0]} alt={post.title || 'Post'}
-                                   className="w-full h-full object-cover"
-                                   loading="lazy" onError={e => e.target.style.display = 'none'} />
-                            </div>
-                          ) : (
-                            <ImageSlider urls={urls} title={post.title} postId={post._id}
-                              onDoubleTap={(e) => handleDoubleTap(e, post._id, true)} rounded="" className="w-full h-full" hideDots />
-                          )}
-                          <MultiImageBadge count={urls.length} />
-                          <HeartAnimation postId={post._id} />
-                        </div>
-                      )}
-
-                      <div className="flex items-start justify-between gap-3 px-1 md:px-0">
-                        <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
-                          {post.title && (
-                            <h3 className="font-extrabold font-display text-base leading-snug"
-                                style={{ color: 'var(--text-primary)' }}>
-                              {post.title}
-                            </h3>
-                          )}
-                          {post.content && post.content.trim() !== '' && post.content !== post.title && (
-                            <p className="text-sm mt-0.5 line-clamp-3" style={{ color: 'var(--text-secondary)' }}>
-                              {post.content}
-                            </p>
-                          )}
-                          {post.tags?.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mt-2">
-                              {post.tags.slice(0, 3).map(tag => (
-                                <span key={tag} className="text-xs font-bold px-2.5 py-0.5 rounded-full"
-                                      style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
-                                  #{tag}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <motion.button onClick={e => handleLike(e, post._id)} whileTap={{ scale: 0.9 }}
-                            className="flex items-center gap-1 h-8 px-2.5 rounded-full hover:bg-[var(--bg-secondary)] leading-none">
-                            {isLiked
-                              ? <FaHeart size={16} color="#ef4444" />
-                              : <FiHeart size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
-                            <span className="text-xs font-bold leading-none"
-                                  style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
-                              {post.likes?.length || 0}
-                            </span>
-                          </motion.button>
-                          <motion.button onClick={e => openComments(e, post._id)} whileTap={{ scale: 0.9 }}
-                            className="flex items-center gap-1 h-8 px-2.5 rounded-full hover:bg-[var(--bg-secondary)] leading-none">
-                            <FiMessageCircle size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
-                            <span className="text-xs font-bold leading-none" style={{ color: 'var(--text-muted)' }}>
-                              {commentCount}
-                            </span>
-                          </motion.button>
-                        </div>
-                      </div>
-                    </motion.article>
-                  )
-                })}
-              </motion.div>
-            )}
+            {monthGroups.map((group) => (
+              <div key={group.key} className="mb-8">
+                <h2 className="text-lg font-extrabold font-display mb-3 px-1" style={{ color: 'var(--text-primary)' }}>
+                  {group.label}
+                </h2>
+                {viewMode === 'grid' ? (
+                  <motion.div
+                    className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3"
+                    variants={gridContainer} initial="initial" animate="animate"
+                  >
+                    {group.posts.map((post) => renderGridTile(post))}
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-8"
+                    variants={gridContainer} initial="initial" animate="animate"
+                  >
+                    {group.posts.map((post) => renderListItem(post))}
+                  </motion.div>
+                )}
+              </div>
+            ))}
           </LayoutGroup>
         </div>
       </div>

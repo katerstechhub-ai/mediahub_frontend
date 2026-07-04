@@ -33,12 +33,8 @@ export function getImageUrls(post) {
 
 // ── MultiImage — animated bento collage for 1 or up to 4 images ──────────────
 // Kept for any place that still wants the collage layout. FeedPage's grid view
-// now uses ImageSlider instead (see below), but this stays available/unused
+// uses ImageSlider instead (see below), but this stays available/unused
 // elsewhere without breaking anything.
-// 1 image  → full frame
-// 2 images → 2 columns
-// 3 images → 1 large left, 2 stacked right
-// 4+       → 2×2 grid (extra images collapsed under a "+N" chip on the last tile)
 export function MultiImage({ urls, title, postId, onDoubleTap, tileRadius = 'rounded-xl', gapClass = 'gap-1.5', children }) {
   const count = Math.min(urls.length, 4)
   const extra = urls.length - 4
@@ -114,18 +110,28 @@ export function MultiImage({ urls, title, postId, onDoubleTap, tileRadius = 'rou
   )
 }
 
-// ── ImageSlider — Instagram-style swipeable carousel ──────────────────────────
-// Shows one image at a time, swipe/drag to move between them. Uses native
-// scroll-snap so it naturally stops at the first/last image (no looping).
-// Falls back to a plain image when there's only one, so it's safe to use
-// unconditionally anywhere a post's photos render.
+// ── ImageSlider — tap/swipe carousel with an optional tilted photo-stack look ─
+// Position is driven by React state (`index`), not native scroll — this is
+// what keeps the last image reachable, since browser scroll-snap can round
+// awkwardly on the final slide at certain container widths.
 //
-// hideDots: pass true to suppress the bottom dot-indicator row (e.g. for
-// small grid thumbnails where dots don't have room / aren't wanted).
-// showCounter still controls the top-right "1/4" badge independently.
-export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '', showCounter = true, hideDots = false }) {
-  const trackRef = useRef(null)
+// Tap zones:
+//   - Left ~25% of the frame  → previous image (no-op at the first image)
+//   - Right ~25% of the frame → next image (no-op at the last image)
+//   - Center ~50%             → passed straight through to onDoubleTap
+//                                (single tap → open post, double tap → like)
+// Swiping still works via drag too.
+//
+// peek: when true (used on grid tiles), the current photo renders as a
+// slightly tilted card with the next photo sitting behind it, rotated the
+// other way and dimmed — like a small pile of photos rather than one flat
+// image. Purely decorative; navigation logic above is unaffected.
+//
+// hideDots / showCounter control the bottom dot row and the "1/4" badge.
+export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '', showCounter = true, hideDots = false, peek = false }) {
   const [index, setIndex] = useState(0)
+  const containerRef = useRef(null)
+  const dragInfo = useRef({ dragged: false })
 
   if (!urls || urls.length === 0) return null
 
@@ -143,56 +149,112 @@ export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'round
     )
   }
 
-  const handleScroll = () => {
-    const el = trackRef.current
-    if (!el || !el.clientWidth) return
-    const i = Math.round(el.scrollLeft / el.clientWidth)
-    setIndex(Math.max(0, Math.min(urls.length - 1, i)))
-  }
+  const hasNext = index < urls.length - 1
+  const clampIndex = (i) => Math.max(0, Math.min(urls.length - 1, i))
 
   const goTo = (i, e) => {
     e?.stopPropagation()
-    const el = trackRef.current
-    if (!el) return
-    el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
+    setIndex(clampIndex(i))
   }
 
+  const handleTap = (e) => {
+    // Ignore the click that fires right after a drag gesture.
+    if (dragInfo.current.dragged) {
+      dragInfo.current.dragged = false
+      return
+    }
+    const rect = containerRef.current.getBoundingClientRect()
+    const ratio = (e.clientX - rect.left) / rect.width
+
+    if (ratio < 0.25) {
+      if (index > 0) goTo(index - 1, e)
+      else e.stopPropagation()
+      return
+    }
+    if (ratio > 0.75) {
+      if (index < urls.length - 1) goTo(index + 1, e)
+      else e.stopPropagation()
+      return
+    }
+    onDoubleTap?.(e)
+  }
+
+  const handleDragEnd = (e, info) => {
+    const threshold = 40
+    if (Math.abs(info.offset.x) > threshold) {
+      dragInfo.current.dragged = true
+      if (info.offset.x < 0) setIndex((i) => clampIndex(i + 1))
+      else setIndex((i) => clampIndex(i - 1))
+    }
+  }
+
+  const showStack = peek && hasNext
+
   return (
-    <div className={`relative w-full h-full overflow-hidden ${rounded} ${className}`}>
+    <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${rounded} ${className}`} onClick={handleTap}>
+      {/* Back card: the next photo, tilted and dimmed, sitting behind the
+          current one. Because the front card below is also rotated (the
+          opposite way), its corners don't fully cover this container, so a
+          slice of this back card pops out — the "pile of photos" look. */}
+      {showStack && (
+        <div
+          className="absolute inset-0 overflow-hidden rounded-[20%] pointer-events-none"
+          style={{ transform: 'rotate(7deg) scale(0.94)', filter: 'brightness(0.8)' }}
+        >
+          <img
+            src={urls[index + 1]}
+            alt=""
+            className="w-full h-full object-cover"
+            draggable={false}
+          />
+        </div>
+      )}
+
+      {/* Front card: the actual sliding track, tilted slightly when stacked. */}
       <div
-        ref={trackRef}
-        onScroll={handleScroll}
-        onClick={onDoubleTap}
-        className="flex w-full h-full overflow-x-auto scroll-smooth [&::-webkit-scrollbar]:hidden"
-        style={{ scrollSnapType: 'x mandatory', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        className={`absolute inset-0 overflow-hidden ${showStack ? 'rounded-[20%]' : ''}`}
+        style={showStack ? { transform: 'rotate(-4deg)', boxShadow: '0 3px 14px rgba(0,0,0,0.3)' } : undefined}
       >
-        {urls.map((url, i) => (
-          <div
-            key={`${postId}-${i}`}
-            className="w-full h-full flex-shrink-0"
-            style={{ scrollSnapAlign: 'center', scrollSnapStop: 'always' }}
-          >
-            <img
-              src={url}
-              alt={`${title || 'Post'} ${i + 1}`}
-              className="w-full h-full object-cover pointer-events-none"
-              loading="lazy"
-              draggable={false}
-              onError={(e) => (e.target.style.display = 'none')}
-            />
-          </div>
-        ))}
+        <motion.div
+          className="flex h-full"
+          style={{ width: `${urls.length * 100}%` }}
+          drag="x"
+          dragConstraints={containerRef}
+          dragElastic={0.06}
+          dragMomentum={false}
+          onDragEnd={handleDragEnd}
+          animate={{ x: `-${index * (100 / urls.length)}%` }}
+          transition={{ type: 'spring', stiffness: 380, damping: 38 }}
+        >
+          {urls.map((url, i) => (
+            <div
+              key={`${postId}-${i}`}
+              className="h-full flex-shrink-0"
+              style={{ width: `${100 / urls.length}%` }}
+            >
+              <img
+                src={url}
+                alt={`${title || 'Post'} ${i + 1}`}
+                className="w-full h-full object-cover pointer-events-none"
+                loading="lazy"
+                draggable={false}
+                onError={(e) => (e.target.style.display = 'none')}
+              />
+            </div>
+          ))}
+        </motion.div>
       </div>
+
       {showCounter && (
         <div
-          className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-bold text-white z-10 pointer-events-none"
+          className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-bold text-white z-20 pointer-events-none"
           style={{ background: 'rgba(0,0,0,0.55)' }}
         >
           {index + 1}/{urls.length}
         </div>
       )}
       {!hideDots && (
-        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-10 pointer-events-none">
+        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-20 pointer-events-none">
           {urls.map((_, i) => (
             <button
               key={i}
