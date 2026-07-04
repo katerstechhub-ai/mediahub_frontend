@@ -12,7 +12,7 @@ const tabs = [
   { to: '/notifications', icon: FiBell, label: 'Alerts', authOnly: true },
 ]
 
-export default function BottomNav({ floating = true }) {
+export default function BottomNav() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuthStore()
@@ -47,23 +47,14 @@ export default function BottomNav({ floating = true }) {
   }
 
   return (
-    // While `floating` is true, this behaves like the original overlay nav:
-    // `fixed` + viewport-relative bottom offset, pinned over the content as
-    // you scroll. Once Layout's sentinel tells us we've hit the true end of
-    // the page, `floating` flips to false and this becomes a normal in-flow
-    // block sitting directly below the last post — no `position: sticky`
-    // involved anywhere, so there's nothing for Safari to get wrong.
+    // Plain, never-transformed div carries the `fixed` positioning.
+    // Framer Motion's slide-in animation (a transform) lives on the
+    // motion.nav inside instead — keeping a transform off the positioned
+    // element itself avoids an unrelated Safari sticky/transform bug we
+    // ran into earlier.
     <div
-      className={
-        floating
-          ? 'lg:hidden fixed left-4 right-4 z-50'
-          : 'lg:hidden z-50 mx-4 mt-6'
-      }
-      style={
-        floating
-          ? { bottom: 'calc(1rem + env(safe-area-inset-bottom))' }
-          : { marginBottom: 'calc(1rem + env(safe-area-inset-bottom))' }
-      }
+      className="lg:hidden fixed left-4 right-4 z-50"
+      style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
     >
       <motion.nav
         initial={{ y: 80, opacity: 0 }}
