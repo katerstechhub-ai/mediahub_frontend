@@ -315,7 +315,7 @@ export default function FeedPage() {
 
   return (
     <>
-      <div className="min-h-screen pb-24" style={{ background: 'var(--bg-primary)' }}>
+      <div className="min-h-screen pb-10" style={{ background: 'var(--bg-primary)' }}>
         {/* Header */}
         <div className="sticky top-0 z-10 border-b backdrop-blur-lg px-4 sm:px-6 py-3"
              style={{ background: 'color-mix(in oklab, var(--bg-primary) 88%, transparent)', borderColor: 'var(--border)' }}>

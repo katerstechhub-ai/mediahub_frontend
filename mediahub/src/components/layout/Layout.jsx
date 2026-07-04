@@ -20,7 +20,19 @@ export default function Layout() {
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
-        <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 pb-20 lg:pb-6">
+        {/*
+          overscroll-contain: stops the page's rubber-band/bounce scroll from
+          leaking into the body behind it on mobile.
+
+          pb-[...]: the floating BottomNav sits at bottom-4 with roughly
+          60px of its own height, so it occupies ~76px above the true bottom
+          edge on mobile. env(safe-area-inset-bottom) adds however much extra
+          the device's home-indicator/notch needs on top of that. Plain
+          pb-20 (80px) was cutting it close — this gives real breathing room
+          so the last row of a grid or the last item in a list is never
+          hidden behind the nav.
+        */}
+        <main className="flex-1 overflow-y-auto overscroll-contain bg-gray-50 dark:bg-gray-950 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-6">
           <Outlet />
         </main>
         <BottomNav />

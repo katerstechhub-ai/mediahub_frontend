@@ -123,9 +123,10 @@ export function MultiImage({ urls, title, postId, onDoubleTap, tileRadius = 'rou
 // Swiping still works via drag too.
 //
 // peek: when true (used on grid tiles), the current photo renders as a
-// slightly tilted card with the next photo sitting behind it, rotated the
-// other way and dimmed — like a small pile of photos rather than one flat
-// image. Purely decorative; navigation logic above is unaffected.
+// tilted card with up to two more photos fanned out behind it (each more
+// rotated, offset, and dimmed than the last) — a visible pile of photos
+// rather than one flat image. Purely decorative; navigation logic above is
+// unaffected.
 //
 // hideDots / showCounter control the bottom dot row and the "1/4" badge.
 export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '', showCounter = true, hideDots = false, peek = false }) {
@@ -150,6 +151,7 @@ export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'round
   }
 
   const hasNext = index < urls.length - 1
+  const hasNextNext = index < urls.length - 2
   const clampIndex = (i) => Math.max(0, Math.min(urls.length - 1, i))
 
   const goTo = (i, e) => {
@@ -189,9 +191,28 @@ export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'round
   }
 
   const showStack = peek && hasNext
+  const showStack2 = peek && hasNextNext
 
   return (
     <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${rounded} ${className}`} onClick={handleTap}>
+      {/* Furthest back card: photo two ahead — rotated further and dimmed
+          more than the first back card. Only renders when at least 3 images
+          remain in the stack from here, so it doesn't flash in/out oddly
+          near the end of a set. */}
+      {showStack2 && (
+        <div
+          className="absolute inset-0 overflow-hidden rounded-[20%] pointer-events-none"
+          style={{ transform: 'rotate(22deg) scale(0.86) translate(9%, -7%)', filter: 'brightness(0.55)' }}
+        >
+          <img
+            src={urls[index + 2]}
+            alt=""
+            className="w-full h-full object-cover"
+            draggable={false}
+          />
+        </div>
+      )}
+
       {/* Back card: the next photo, tilted and dimmed, sitting behind the
           current one. Because the front card below is also rotated (the
           opposite way), its corners don't fully cover this container, so a
@@ -199,7 +220,7 @@ export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'round
       {showStack && (
         <div
           className="absolute inset-0 overflow-hidden rounded-[20%] pointer-events-none"
-          style={{ transform: 'rotate(7deg) scale(0.94)', filter: 'brightness(0.8)' }}
+          style={{ transform: 'rotate(16deg) scale(0.91) translate(4.5%, -3.5%)', filter: 'brightness(0.75)' }}
         >
           <img
             src={urls[index + 1]}
@@ -210,10 +231,12 @@ export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'round
         </div>
       )}
 
-      {/* Front card: the actual sliding track, tilted slightly when stacked. */}
+      {/* Front card: the actual sliding track, tilted the opposite way when
+          stacked, so the cards behind it fan out clearly rather than hiding
+          directly underneath. */}
       <div
         className={`absolute inset-0 overflow-hidden ${showStack ? 'rounded-[20%]' : ''}`}
-        style={showStack ? { transform: 'rotate(-4deg)', boxShadow: '0 3px 14px rgba(0,0,0,0.3)' } : undefined}
+        style={showStack ? { transform: 'rotate(-10deg)', boxShadow: '0 6px 20px rgba(0,0,0,0.35)' } : undefined}
       >
         <motion.div
           className="flex h-full"
