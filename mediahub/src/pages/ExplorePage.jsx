@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiSearch, FiX, FiGrid, FiLayers } from 'react-icons/fi'
+import { FiSearch, FiX, FiGrid, FiLayers, FiBell } from 'react-icons/fi'
 import { usePostStore, useAuthStore } from '../store'
 import { EmptyState, Avatar } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
@@ -59,19 +59,36 @@ export default function ExplorePage() {
   }
 
   return (
-    <div className="min-h-screen fade-in" style={{ background: 'var(--bg-primary)' }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 sm:pt-10 pb-4">
-        {/* Header — left-aligned like the rest of the app, not centered */}
-        <motion.h1
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-          className="text-2xl sm:text-3xl font-extrabold font-display mb-6"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          Explore
-        </motion.h1>
+    // min-h-full (not min-h-screen) — the page lives inside Layout's
+    // <main> which already handles scrolling via overflow-y-auto + h-dvh.
+    // min-h-screen used a raw 100vh, which on mobile Safari/Chrome can be
+    // taller than the real visible viewport and was contributing to the
+    // "page won't scroll properly / content gets cut" issue. min-h-full
+    // just fills whatever space the scroll container actually gives it.
+    <div className="min-h-full pb-10 fade-in" style={{ background: 'var(--bg-primary)' }}>
+      {/* Sticky, blurred header — same treatment as FeedPage so both
+          top-level pages feel consistent, and so the title/search never
+          gets trapped scrolling under the app header on mobile. */}
+      <div
+        className="sticky top-0 z-10 border-b backdrop-blur-lg px-4 sm:px-6 py-3"
+        style={{ background: 'color-mix(in oklab, var(--bg-primary) 88%, transparent)', borderColor: 'var(--border)' }}
+      >
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          <div className="min-w-0 font-extrabold font-display text-lg" style={{ color: 'var(--text-primary)' }}>
+            Explore
+          </div>
+          <button
+            onClick={() => navigate('/notifications')}
+            aria-label="Notifications"
+            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition-colors flex-shrink-0"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            <FiBell size={19} />
+          </button>
+        </div>
+      </div>
 
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 pb-4">
         {/* Search bar — bold Pinterest-style pill */}
         <motion.div
           initial={{ opacity: 0, y: -6 }}
