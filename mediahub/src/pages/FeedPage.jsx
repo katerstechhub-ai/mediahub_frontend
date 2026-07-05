@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import {
   FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList,
-  FiX, FiMoreHorizontal, FiTrash2, FiCopy
+  FiCopy, FiSend
 } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
-import { postsAPI } from '../api'
+import { postsAPI, commentsAPI } from '../api'
 import { useAuthStore } from '../store'
 import { Avatar } from '../components/ui'
 import { getImageUrls, ImageSlider } from '../components/PostMedia'
@@ -24,6 +24,104 @@ function MultiImageBadge({ count }) {
     <div className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-black/55 backdrop-blur-sm text-white text-[10px] font-bold leading-none shadow">
       <FiCopy size={11} strokeWidth={2.8} />
       {count}
+    </div>
+  )
+}
+
+/* ─────────── Inline comments (list view, Instagram-style) ─────────── */
+function InlineComments({ postId, user, onGoToProfile, onCountChange }) {
+  const [comments, setComments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [text, setText] = useState('')
+  const [posting, setPosting] = useState(false)
+  const [showAll, setShowAll] = useState(false)
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await commentsAPI.getByPost(postId)
+        const data = res.data
+        const arr = data?.data?.comments || data?.comments || data?.data || data || []
+        if (!cancelled) setComments(Array.isArray(arr) ? arr : [])
+      } catch (err) {
+        console.error('Load comments failed:', err)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [postId])
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (!text.trim()) return
+    if (!user) { toast.error('Log in to comment'); navigate('/login'); return }
+    setPosting(true)
+    try {
+      const res = await commentsAPI.create(postId, { content: text.trim() })
+      const newC = res.data?.data?.comment || res.data?.comment || res.data
+      setComments((prev) => [...prev, { ...newC, author: newC.author || user }])
+      setText('')
+      onCountChange?.(1)
+    } catch (err) {
+      console.error('Comment failed:', err)
+      toast.error('Could not post comment')
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  const visible = showAll ? comments : comments.slice(-2)
+
+  return (
+    <div className="mt-2 px-1 md:px-0">
+      {loading ? (
+        <div className="text-xs py-2" style={{ color: 'var(--text-muted)' }}>Loading comments…</div>
+      ) : (
+        <>
+          {comments.length > 2 && !showAll && (
+            <button onClick={() => setShowAll(true)}
+              className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+              View all {comments.length} comments
+            </button>
+          )}
+          <ul className="space-y-1.5">
+            {visible.map((c) => (
+              <li key={c._id || c.id} className="flex items-start gap-2">
+                <div className="cursor-pointer flex-shrink-0 mt-0.5"
+                     onClick={(e) => onGoToProfile?.(e, c.author)}>
+                  <Avatar src={c.author?.avatar} name={c.author?.name} size={22} />
+                </div>
+                <p className="text-sm leading-snug" style={{ color: 'var(--text-primary)' }}>
+                  <span className="font-bold mr-1.5 cursor-pointer hover:underline"
+                        onClick={(e) => onGoToProfile?.(e, c.author)}>
+                    {c.author?.name || 'Unknown'}
+                  </span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{c.content}</span>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      <form onSubmit={submit} className="flex items-center gap-2 mt-2.5 pt-2.5 border-t"
+            style={{ borderColor: 'var(--border)' }}>
+        <Avatar src={user?.avatar} name={user?.name} size={24} />
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Add a comment…"
+          className="flex-1 bg-transparent outline-none text-sm placeholder:opacity-60"
+          style={{ color: 'var(--text-primary)' }}
+        />
+        <button type="submit" disabled={!text.trim() || posting}
+          className="flex items-center justify-center h-8 w-8 rounded-full text-amber-500 disabled:opacity-40">
+          <FiSend size={16} strokeWidth={2.5} />
+        </button>
+      </form>
     </div>
   )
 }
@@ -51,7 +149,9 @@ export default function FeedPage() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState('grid')
-  const [activeCommentPostId, setActiveCommentPostId] = useState(null)
+  const [activeCommentPostId, setActiveCommentPostId] = useState(null) // grid modal only
+  const [expandedComments, setExpandedComments] = useState({})        // list inline toggle
+  const [commentDeltas, setCommentDeltas] = useState({})              // optimistic counts
   const [showHeartAnimation, setShowHeartAnimation] = useState(null)
   const lastTapRef = useRef({})
   const navigate = useNavigate()
@@ -101,7 +201,11 @@ export default function FeedPage() {
     }
   }
 
-  const openComments = (e, postId) => { e.stopPropagation(); setActiveCommentPostId(postId) }
+  const openCommentsGrid = (e, postId) => { e.stopPropagation(); setActiveCommentPostId(postId) }
+  const toggleInlineComments = (e, postId) => {
+    e.stopPropagation()
+    setExpandedComments((s) => ({ ...s, [postId]: !s[postId] }))
+  }
 
   const goToProfile = (e, author) => {
     e?.stopPropagation()
@@ -170,25 +274,13 @@ export default function FeedPage() {
       >
         {urls.length > 0 ? (
           urls.length > 1 ? (
-            <ImageSlider
-              urls={urls}
-              title={post.title}
-              postId={post._id}
+            <ImageSlider urls={urls} title={post.title} postId={post._id}
               onDoubleTap={(e) => handleDoubleTap(e, post._id, true)}
-              rounded=""
-              className="w-full h-full"
-              hideDots
-              peek
-            />
+              rounded="" className="w-full h-full" hideDots peek />
           ) : (
-            <img
-              src={urls[0]}
-              alt={post.title || 'Post'}
-              className="w-full h-full object-cover"
-              loading="lazy"
-              onClick={(e) => handleDoubleTap(e, post._id, true)}
-              onError={e => e.target.style.display = 'none'}
-            />
+            <img src={urls[0]} alt={post.title || 'Post'} className="w-full h-full object-cover"
+              loading="lazy" onClick={(e) => handleDoubleTap(e, post._id, true)}
+              onError={e => e.target.style.display = 'none'} />
           )
         ) : (
           <div onClick={(e) => handleDoubleTap(e, post._id, true)} className="w-full h-full flex items-center justify-center">
@@ -211,7 +303,7 @@ export default function FeedPage() {
             {isLiked ? <FaHeart size={11} color="#ef4444" /> : <FiHeart size={11} strokeWidth={2.8} className="drop-shadow" />}
             <span className="text-[10px] font-bold drop-shadow leading-none">{post.likes?.length || 0}</span>
           </motion.button>
-          <motion.button onClick={e => openComments(e, post._id)} whileTap={{ scale: 0.9 }}
+          <motion.button onClick={e => openCommentsGrid(e, post._id)} whileTap={{ scale: 0.9 }}
             className="flex items-center gap-0.5 h-6 px-1.5 text-white rounded-full leading-none">
             <FiMessageCircle size={11} strokeWidth={2.8} className="drop-shadow" />
             <span className="text-[10px] font-bold drop-shadow leading-none">{commentCount}</span>
@@ -224,7 +316,10 @@ export default function FeedPage() {
   const renderListItem = (post) => {
     const urls = getImageUrls(post)
     const isLiked = post.likes?.includes(user?._id)
-    const commentCount = post.commentCount ?? 0
+    const baseCount = post.commentCount ?? 0
+    const commentCount = baseCount + (commentDeltas[post._id] || 0)
+    const isExpanded = !!expandedComments[post._id]
+
     return (
       <motion.article key={post._id} layoutId={`post-${post._id}`} variants={gridItem}
         className="border-b pb-5 md:border md:rounded-2xl md:p-4 md:pb-4 md:shadow-sm"
@@ -300,15 +395,41 @@ export default function FeedPage() {
                 {post.likes?.length || 0}
               </span>
             </motion.button>
-            <motion.button onClick={e => openComments(e, post._id)} whileTap={{ scale: 0.9 }}
-              className="flex items-center gap-1 h-8 px-2.5 rounded-full hover:bg-[var(--bg-secondary)] leading-none">
-              <FiMessageCircle size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
-              <span className="text-xs font-bold leading-none" style={{ color: 'var(--text-muted)' }}>
+            <motion.button onClick={e => toggleInlineComments(e, post._id)} whileTap={{ scale: 0.9 }}
+              className="flex items-center gap-1 h-8 px-2.5 rounded-full hover:bg-[var(--bg-secondary)] leading-none"
+              style={{ background: isExpanded ? 'var(--bg-secondary)' : 'transparent' }}>
+              <FiMessageCircle size={16} strokeWidth={2.3}
+                style={{ color: isExpanded ? 'var(--text-primary)' : 'var(--text-muted)' }} />
+              <span className="text-xs font-bold leading-none"
+                    style={{ color: isExpanded ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                 {commentCount}
               </span>
             </motion.button>
           </div>
         </div>
+
+        {/* Inline comments (Instagram-style) */}
+        <AnimatePresence initial={false}>
+          {isExpanded && (
+            <motion.div
+              key="comments"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              className="overflow-hidden"
+            >
+              <InlineComments
+                postId={post._id}
+                user={user}
+                onGoToProfile={(e, author) => goToProfile(e, author)}
+                onCountChange={(delta) =>
+                  setCommentDeltas((s) => ({ ...s, [post._id]: (s[post._id] || 0) + delta }))
+                }
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.article>
     )
   }
@@ -378,6 +499,7 @@ export default function FeedPage() {
         </div>
       </div>
 
+      {/* Modal only used for grid view now */}
       <CommentsSheet
         postId={activeCommentPostId}
         open={!!activeCommentPostId}
