@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiGrid, FiArrowLeft, FiUser } from 'react-icons/fi'
+import { FiGrid, FiArrowLeft, FiUser, FiLayers } from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
-import { commentsAPI } from '../api'
+import { getImageUrls } from '../components/PostMedia'
+import dayjs from 'dayjs'
 
 export default function UserProfilePage() {
   const { userId } = useParams()
@@ -14,7 +15,6 @@ export default function UserProfilePage() {
 
   const [profileUser, setProfileUser] = useState(null)
   const [userPosts, setUserPosts] = useState([])
-  const [commentCounts, setCommentCounts] = useState({})
   const [loading, setLoading] = useState(true)
 
   // If someone lands on their own id, bounce to the real profile page
@@ -44,34 +44,9 @@ export default function UserProfilePage() {
     if (filtered.length > 0) {
       setProfileUser(filtered[0].author)
     }
-
-    const fetchCounts = async () => {
-      const counts = {}
-      await Promise.all(filtered.map(async (post) => {
-        try {
-          const r = await commentsAPI.getByPost(post._id)
-          counts[post._id] = (r.data?.data || []).length
-        } catch {
-          counts[post._id] = post.comments?.length || 0
-        }
-      }))
-      setCommentCounts(counts)
-    }
-    if (filtered.length > 0) fetchCounts()
   }, [posts, userId])
 
-  const getImageUrl = (post) => {
-    if (!post) return null
-    if (post.image?.url) return post.image.url
-    if (post.image && typeof post.image === 'string') return post.image
-    if (post.media?.[0]) return post.media[0].url || post.media[0]
-    if (post.imageUrl) return post.imageUrl
-    if (post.thumbnail) return post.thumbnail
-    return null
-  }
-
-  const totalLikes = userPosts.reduce((a, p) => a + (p.likes?.length || 0), 0)
-  const totalComments = Object.values(commentCounts).reduce((a, c) => a + c, 0)
+  const memberSince = profileUser?.createdAt ? dayjs(profileUser.createdAt).format('MMM YYYY') : '—'
 
   if (loading || isLoading) {
     return (
@@ -87,8 +62,7 @@ export default function UserProfilePage() {
 
   const stats = [
     { label: 'Posts', value: userPosts.length },
-    { label: 'Likes', value: totalLikes },
-    { label: 'Comments', value: totalComments },
+    { label: 'Member since', value: memberSince },
   ]
 
   return (
@@ -109,7 +83,7 @@ export default function UserProfilePage() {
           transition={{ duration: 0.4 }}
           className="flex items-start gap-4"
         >
-          <div className="shrink-0">
+          <div className="relative shrink-0">
             <Avatar src={profileUser?.avatar} name={profileUser?.name} size={72} />
           </div>
 
@@ -117,11 +91,10 @@ export default function UserProfilePage() {
             <h2 className="text-lg font-extrabold font-display" style={{ color: 'var(--text-primary)' }}>
               {profileUser?.name || 'Unknown User'}
             </h2>
-            {profileUser?.email && (
-              <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{profileUser.email}</p>
-            )}
-            {profileUser?.bio && (
-              <p className="text-xs mb-2.5 max-w-xs" style={{ color: 'var(--text-secondary)' }}>{profileUser.bio}</p>
+            {profileUser?.email ? (
+              <p className="text-xs mb-2.5" style={{ color: 'var(--text-muted)' }}>{profileUser.email}</p>
+            ) : (
+              <p className="text-xs mb-2.5">&nbsp;</p>
             )}
 
             <div className="flex gap-5">
@@ -164,7 +137,9 @@ export default function UserProfilePage() {
             >
               <AnimatePresence>
                 {userPosts.map(post => {
-                  const imageUrl = getImageUrl(post)
+                  const urls = getImageUrls(post)
+                  const imageUrl = urls[0]
+                  const hasMultiple = urls.length > 1
                   return (
                     <motion.div
                       key={post._id || post.id}
@@ -177,6 +152,16 @@ export default function UserProfilePage() {
                       className="cursor-pointer rounded-lg overflow-hidden group relative"
                       style={{ aspectRatio: '1/1', background: 'var(--bg-secondary)' }}
                     >
+                      {hasMultiple && (
+                        <div
+                          className="absolute top-1.5 left-1.5 z-10 text-white"
+                          style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))' }}
+                          aria-label={`${urls.length} photos`}
+                        >
+                          <FiLayers size={15} strokeWidth={2.5} />
+                        </div>
+                      )}
+
                       {imageUrl ? (
                         <img
                           src={imageUrl}
