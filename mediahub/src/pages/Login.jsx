@@ -40,10 +40,24 @@ export default function LoginPage() {
       toast.success(`Welcome back, ${data.user.name}!`)
       navigate('/')
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Login failed')
+      const message = err.response?.data?.message || 'Login failed'
+      toast.error(message)
+      // Server intentionally returns the same message whether the email
+      // isn't registered or the password is wrong (so it doesn't leak which
+      // one). Mirror that here: highlight BOTH fields, but only show the
+      // message once, under password, instead of repeating it twice.
+      setErrors({ email: ' ', password: message })
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleFieldChange = (field, value) => {
+    setForm((f) => ({ ...f, [field]: value }))
+    // Clear old errors (client-side or server-side) as soon as the person
+    // starts correcting the field, so the red border doesn't linger once
+    // they're actively fixing the typo.
+    if (errors.email || errors.password) setErrors({})
   }
 
   return (
@@ -113,14 +127,13 @@ export default function LoginPage() {
                 type="email"
                 placeholder="Enter your e-mail"
                 value={form.email}
-                onChange={(e) => {
-                  setForm({ ...form, email: e.target.value })
-                  if (errors.email) setErrors({ ...errors, email: '' })
-                }}
+                onChange={(e) => handleFieldChange('email', e.target.value)}
                 className="w-full bg-transparent text-base outline-none border-b pb-2.5 transition-colors text-white placeholder-white/40 focus:border-amber-400"
                 style={{ borderColor: errors.email ? '#f87171' : 'rgba(255,255,255,0.3)' }}
               />
-              {errors.email && <p className="text-xs text-red-300">{errors.email}</p>}
+              {errors.email && errors.email.trim() && (
+                <p className="text-xs text-red-300">{errors.email}</p>
+              )}
             </div>
 
             {/* Password */}
@@ -133,10 +146,7 @@ export default function LoginPage() {
                   type={showPw ? 'text' : 'password'}
                   placeholder="Enter your password"
                   value={form.password}
-                  onChange={(e) => {
-                    setForm({ ...form, password: e.target.value })
-                    if (errors.password) setErrors({ ...errors, password: '' })
-                  }}
+                  onChange={(e) => handleFieldChange('password', e.target.value)}
                   className="w-full bg-transparent text-base outline-none border-b pb-2.5 pr-9 transition-colors text-white placeholder-white/40 focus:border-amber-400"
                   style={{ borderColor: errors.password ? '#f87171' : 'rgba(255,255,255,0.3)' }}
                 />
