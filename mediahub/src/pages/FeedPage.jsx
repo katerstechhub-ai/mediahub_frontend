@@ -18,6 +18,7 @@ dayjs.extend(relativeTime)
 import CommentsSheet from './_CommentsSheet'
 
 /* ─────────── Small helper: multi-image badge ─────────── */
+
 function MultiImageBadge({ count }) {
   if (!count || count < 2) return null
   return (
@@ -29,6 +30,7 @@ function MultiImageBadge({ count }) {
 }
 
 /* ─────────── Inline comments (list view, Instagram-style) ─────────── */
+
 function InlineComments({ postId, user, onGoToProfile, onCountChange }) {
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -76,7 +78,7 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange }) {
   const visible = showAll ? comments : comments.slice(-2)
 
   return (
-    <div className="mt-2 px-1 md:px-0">
+    <div className="mt-2 px-3 md:px-0">
       {loading ? (
         <div className="text-xs py-2" style={{ color: 'var(--text-muted)' }}>Loading comments…</div>
       ) : (
@@ -127,6 +129,7 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange }) {
 }
 
 /* ─────────── Group posts into "July 2026", "June 2026", etc. ─────────── */
+
 function groupPostsByMonth(posts) {
   const groups = new Map()
   posts.forEach((post) => {
@@ -151,7 +154,7 @@ export default function FeedPage() {
   const [viewMode, setViewMode] = useState('grid')
   const [activeCommentPostId, setActiveCommentPostId] = useState(null) // grid modal only
   const [expandedComments, setExpandedComments] = useState({})        // list inline toggle
-  const [commentDeltas, setCommentDeltas] = useState({})              // optimistic counts
+  const [commentDeltas, setCommentDeltas] = useState({})               // optimistic counts
   const [showHeartAnimation, setShowHeartAnimation] = useState(null)
   const lastTapRef = useRef({})
   const navigate = useNavigate()
@@ -325,7 +328,7 @@ export default function FeedPage() {
         className="border-b pb-5 md:border md:rounded-2xl md:p-4 md:pb-4 md:shadow-sm"
         style={{ borderColor: 'var(--border)' }}>
 
-        <header className="flex items-center gap-3 px-1 md:px-0 mb-2">
+        <header className="flex items-center gap-3 px-3 md:px-0 mb-2">
           <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
             <Avatar src={post.author?.avatar} name={post.author?.name} size={38} />
           </div>
@@ -359,7 +362,7 @@ export default function FeedPage() {
           </div>
         )}
 
-        <div className="flex items-start justify-between gap-3 px-1 md:px-0">
+        <div className="flex items-start justify-between gap-4 px-3 md:px-0">
           <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
             {post.title && (
               <h3 className="font-extrabold font-display text-base leading-snug"
@@ -384,23 +387,23 @@ export default function FeedPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-2.5 flex-shrink-0">
             <motion.button onClick={e => handleLike(e, post._id)} whileTap={{ scale: 0.9 }}
-              className="flex items-center gap-1 h-8 px-2.5 rounded-full hover:bg-[var(--bg-secondary)] leading-none">
+              className="flex items-center gap-1.5 h-10 px-4 rounded-full hover:bg-[var(--bg-secondary)] leading-none">
               {isLiked
-                ? <FaHeart size={16} color="#ef4444" />
-                : <FiHeart size={16} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
-              <span className="text-xs font-bold leading-none"
+                ? <FaHeart size={18} color="#ef4444" />
+                : <FiHeart size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
+              <span className="text-sm font-bold leading-none"
                     style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
                 {post.likes?.length || 0}
               </span>
             </motion.button>
             <motion.button onClick={e => toggleInlineComments(e, post._id)} whileTap={{ scale: 0.9 }}
-              className="flex items-center gap-1 h-8 px-2.5 rounded-full hover:bg-[var(--bg-secondary)] leading-none"
+              className="flex items-center gap-1.5 h-10 px-4 rounded-full hover:bg-[var(--bg-secondary)] leading-none"
               style={{ background: isExpanded ? 'var(--bg-secondary)' : 'transparent' }}>
-              <FiMessageCircle size={16} strokeWidth={2.3}
+              <FiMessageCircle size={18} strokeWidth={2.3}
                 style={{ color: isExpanded ? 'var(--text-primary)' : 'var(--text-muted)' }} />
-              <span className="text-xs font-bold leading-none"
+              <span className="text-sm font-bold leading-none"
                     style={{ color: isExpanded ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                 {commentCount}
               </span>
