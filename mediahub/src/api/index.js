@@ -6,7 +6,7 @@ console.log('🔍 API_URL:', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 15000, // fail fast instead of hanging forever on a dropped/hung connection
+  timeout: 45000, // Render free-tier cold starts can take ~30-50s; give it real runway
   headers: {
     'Content-Type': 'application/json',
   },
@@ -43,7 +43,7 @@ api.interceptors.response.use(
 
     if (isColdStartError && config && !config._retried && config.method === 'get') {
       config._retried = true;
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, 5000));
       return api(config);
     }
 
