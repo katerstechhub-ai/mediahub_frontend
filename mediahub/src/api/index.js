@@ -6,6 +6,7 @@ console.log('🔍 API_URL:', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
+  timeout: 15000, // fail fast instead of hanging forever on a dropped/hung connection
   headers: {
     'Content-Type': 'application/json',
   },
@@ -24,15 +25,30 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor - handle 401/403 errors
+// Response interceptor - handle cold starts, then 401/403 errors
 api.interceptors.response.use(
   (response) => {
     console.log('✅ API Response:', response.config.url, response.status);
     return response;
   },
-  (error) => {
+  async (error) => {
+    const config = error.config;
+
+    // Render free-tier cold starts show up as either a dropped connection
+    // (no error.response, e.g. ECONNABORTED/network error) or a 502/503/504
+    // from the edge proxy while the container is still spinning up.
+    // Retry once, after a short delay, for idempotent GET requests only.
+    const isColdStartError =
+      !error.response || [502, 503, 504].includes(error.response?.status);
+
+    if (isColdStartError && config && !config._retried && config.method === 'get') {
+      config._retried = true;
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      return api(config);
+    }
+
     console.error('❌ API Error:', error.config?.url, error.response?.status, error.response?.data);
-    
+
     // If 401 or 403, only treat it as a session expiry if we actually had a token.
     // Guests hitting a protected endpoint (e.g. liking a post while logged out)
     // also get a 401/403, but that's not a session expiry — don't yank them
@@ -48,7 +64,7 @@ api.interceptors.response.use(
         }
       }
     }
-    
+
     return Promise.reject(error);
   }
 );
