@@ -2,22 +2,56 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FiSearch, FiX, FiGrid, FiLayers, FiBell } from 'react-icons/fi'
-import { usePostStore, useAuthStore } from '../store'
+import { useAuthStore } from '../store'
 import { EmptyState, Avatar } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
+import { postsAPI } from '../api'
 
 export default function ExplorePage() {
-  const { posts, isLoading, fetchPosts } = usePostStore()
-  const { user } = useAuthStore()
+  const [posts, setPosts] = useState([])
+  const [loading, setLoading] = useState(true)
   const [filtered, setFiltered] = useState([])
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
   const inputRef = useRef()
+  const { user } = useAuthStore()
 
-  useEffect(() => { fetchPosts() }, [])
+  const fetchPosts = async () => {
+    try {
+      const response = await postsAPI.getAll()
+      const data = response.data
+      let arr = []
+      if (data?.data?.posts) arr = data.data.posts
+      else if (data?.posts) arr = data.posts
+      else if (Array.isArray(data?.data)) arr = data.data
+      else if (Array.isArray(data)) arr = data
+      
+      setPosts(arr)
+      setFiltered(arr)
+    } catch (err) {
+      console.error('Failed to fetch posts:', err)
+      setPosts([])
+      setFiltered([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    if (!query.trim()) { setFiltered(posts); return }
+    fetchPosts()
+  }, [])
+
+  useEffect(() => {
+    if (posts.length === 0) {
+      setFiltered([])
+      return
+    }
+
+    if (!query.trim()) {
+      setFiltered(posts)
+      return
+    }
+    
     const q = query.toLowerCase()
     setFiltered(posts.filter(p =>
       p.title?.toLowerCase().includes(q) ||
@@ -36,7 +70,7 @@ export default function ExplorePage() {
     navigate(String(authorId) === String(myId) ? '/profile' : `/users/${authorId}`)
   }
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen" style={{ background: 'var(--bg-primary)' }}>
         <motion.div
@@ -50,7 +84,7 @@ export default function ExplorePage() {
 
   return (
     <div className="min-h-full pb-16 fade-in" style={{ background: 'var(--bg-primary)' }}>
-      {/* Sticky header — thinner, quieter */}
+      {/* Sticky header */}
       <div
         className="sticky top-0 z-10 border-b backdrop-blur-xl px-4 sm:px-8 py-3"
         style={{
@@ -77,7 +111,7 @@ export default function ExplorePage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-8 pt-8 sm:pt-10 pb-4">
-        {/* Search — slimmer, single hairline border */}
+        {/* Search */}
         <motion.div
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
@@ -150,7 +184,7 @@ export default function ExplorePage() {
             initial="hidden"
             animate="show"
             variants={{ hidden: {}, show: { transition: { staggerChildren: 0.035 } } }}
-            className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-2.5 sm:gap-3 space-y-2.5 sm:space-y-3"
+            className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-3 sm:gap-4 space-y-3 sm:space-y-4"
           >
             <AnimatePresence>
               {filtered.map((post) => {
@@ -203,7 +237,7 @@ export default function ExplorePage() {
                           }}
                         />
 
-                        {/* Overlay — softer gradient, quieter typography */}
+                        {/* Overlay */}
                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent pt-10 pb-2 px-2 flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                           <motion.div
                             whileHover={{ scale: 1.08 }}
