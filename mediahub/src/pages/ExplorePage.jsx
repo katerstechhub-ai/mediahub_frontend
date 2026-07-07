@@ -5,13 +5,14 @@ import { FiSearch, FiX, FiGrid, FiLayers, FiBell } from 'react-icons/fi'
 import { useAuthStore } from '../store'
 import { EmptyState, Avatar } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
-import { postsAPI } from '../api'
+import { postsAPI, notificationsAPI } from '../api'
 
 export default function ExplorePage() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtered, setFiltered] = useState([])
   const [query, setQuery] = useState('')
+  const [unreadCount, setUnreadCount] = useState(0)
   const navigate = useNavigate()
   const inputRef = useRef()
   const { user } = useAuthStore()
@@ -25,7 +26,7 @@ export default function ExplorePage() {
       else if (data?.posts) arr = data.posts
       else if (Array.isArray(data?.data)) arr = data.data
       else if (Array.isArray(data)) arr = data
-      
+
       setPosts(arr)
       setFiltered(arr)
     } catch (err) {
@@ -41,6 +42,23 @@ export default function ExplorePage() {
     fetchPosts()
   }, [])
 
+  // Same unread-badge behavior as BottomNav: poll every 30s while logged in.
+  useEffect(() => {
+    if (!user) return
+
+    const fetchUnread = async () => {
+      try {
+        const res = await notificationsAPI.getAll(1, 1)
+        setUnreadCount(res.data?.unreadCount || 0)
+      } catch {
+        // silent — badge isn't worth surfacing an error toast for
+      }
+    }
+    fetchUnread()
+    const interval = setInterval(fetchUnread, 30000)
+    return () => clearInterval(interval)
+  }, [user])
+
   useEffect(() => {
     if (posts.length === 0) {
       setFiltered([])
@@ -51,7 +69,7 @@ export default function ExplorePage() {
       setFiltered(posts)
       return
     }
-    
+
     const q = query.toLowerCase()
     setFiltered(posts.filter(p =>
       p.title?.toLowerCase().includes(q) ||
@@ -84,29 +102,40 @@ export default function ExplorePage() {
 
   return (
     <div className="min-h-full pb-16 fade-in" style={{ background: 'var(--bg-primary)' }}>
-      {/* Sticky header */}
-      <div
-        className="sticky top-0 z-10 border-b backdrop-blur-xl px-4 sm:px-8 py-3"
-        style={{
-          background: 'color-mix(in oklab, var(--bg-primary) 82%, transparent)',
-          borderColor: 'color-mix(in oklab, var(--border) 60%, transparent)',
-        }}
-      >
+      {/* Sticky header — matches FeedPage's header treatment */}
+      <div className="sticky top-0 z-10 px-4 sm:px-6 py-3" style={{ background: 'var(--bg-primary)' }}>
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-          <div
-            className="min-w-0 font-display text-[15px] tracking-tight"
-            style={{ color: 'var(--text-primary)', fontWeight: 600, letterSpacing: '-0.01em' }}
+          <h1
+            className="text-xl sm:text-2xl font-extrabold font-display tracking-tight"
+            style={{ color: 'var(--text-primary)' }}
           >
             Explore
-          </div>
-          <button
+          </h1>
+
+          <motion.button
             onClick={() => navigate('/notifications')}
+            whileTap={{ scale: 0.9 }}
             aria-label="Notifications"
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition-colors flex-shrink-0"
+            className="relative flex items-center justify-center h-10 w-10 rounded-full hover:bg-[var(--bg-secondary)] transition-colors flex-shrink-0"
             style={{ color: 'var(--text-secondary)' }}
           >
-            <FiBell size={17} strokeWidth={1.75} />
-          </button>
+            <FiBell size={20} strokeWidth={2} />
+            <AnimatePresence>
+              {unreadCount > 0 && (
+                <motion.span
+                  key="badge"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                  className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white z-20"
+                  style={{ background: '#ef4444' }}
+                >
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.button>
         </div>
       </div>
 

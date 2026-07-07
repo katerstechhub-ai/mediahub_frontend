@@ -198,14 +198,13 @@ export default function Notifications() {
 
   return (
     <div className="min-h-screen fade-in" style={{ background: 'var(--bg-primary)' }}>
-      <div className="max-w-2xl mx-auto">
-        <div
-          className="sticky top-0 z-10 flex items-center gap-3 px-4 sm:px-6 py-4 border-b backdrop-blur-lg"
-          style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
-        >
+      {/* Sticky header — matches Feed/Explore header treatment: plain
+          background, no border/blur, consistent px-4 sm:px-6 py-3 rhythm */}
+      <div className="sticky top-0 z-10 px-4 sm:px-6 py-3" style={{ background: 'var(--bg-primary)' }}>
+        <div className="max-w-2xl mx-auto flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
-            className="w-9 h-9 flex items-center justify-center rounded-lg flex-shrink-0 hover:bg-[var(--bg-secondary)] transition-colors"
+            className="w-9 h-9 flex items-center justify-center rounded-full flex-shrink-0 hover:bg-[var(--bg-secondary)] transition-colors"
             style={{ color: 'var(--text-primary)' }}
           >
             <FiArrowLeft size={19} />
@@ -224,7 +223,9 @@ export default function Notifications() {
             </button>
           )}
         </div>
+      </div>
 
+      <div className="max-w-2xl mx-auto">
         {notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
             <div

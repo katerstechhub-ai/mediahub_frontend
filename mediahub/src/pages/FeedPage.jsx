@@ -411,7 +411,7 @@ export default function FeedPage() {
           </div>
         </div>
 
-        {/* Inline comments (Instagram-style) */}
+        {/* Inline comments */}
         <AnimatePresence initial={false}>
           {isExpanded && (
             <motion.div
@@ -441,36 +441,30 @@ export default function FeedPage() {
     <>
       <div className="min-h-screen pb-10" style={{ background: 'var(--bg-primary)' }}>
         {/* Header */}
-        <div className="sticky top-0 z-10 border-b backdrop-blur-lg px-4 sm:px-6 py-3"
-             style={{ background: 'color-mix(in oklab, var(--bg-primary) 88%, transparent)', borderColor: 'var(--border)' }}>
+        <div className="sticky top-0 z-10 px-4 sm:px-6 py-3" style={{ background: 'var(--bg-primary)' }}>
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-            <div className="min-w-0 font-extrabold font-display text-lg" style={{ color: 'var(--text-primary)' }}>
-              Feed
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <div className="relative grid grid-cols-2 rounded-full p-1 shadow-sm w-[84px]" style={{ background: 'var(--bg-secondary)' }}>
-                <motion.div className="absolute top-1 bottom-1 rounded-full bg-amber-500"
-                  style={{ left: 4, width: 'calc(50% - 4px)' }}
-                  animate={{ x: viewMode === 'grid' ? 0 : '100%' }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 28 }} />
-                <button onClick={() => setViewMode('grid')} aria-label="Grid view"
-                  className="relative z-10 h-9 flex items-center justify-center rounded-full"
-                  style={{ color: viewMode === 'grid' ? '#fff' : 'var(--text-muted)' }}>
-                  <FiGrid size={18} strokeWidth={2.5} />
-                </button>
-                <button onClick={() => setViewMode('list')} aria-label="List view"
-                  className="relative z-10 h-9 flex items-center justify-center rounded-full"
-                  style={{ color: viewMode === 'list' ? '#fff' : 'var(--text-muted)' }}>
-                  <FiList size={18} strokeWidth={2.5} />
-                </button>
-              </div>
-              <button onClick={() => navigate('/create')} aria-label="Create post"
-                className="flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg font-bold text-sm hover:bg-[var(--bg-secondary)]"
-                style={{ color: 'var(--text-primary)' }}>
-                <FiPlusSquare size={18} strokeWidth={2.5} />
-                <span className="hidden sm:inline">Create</span>
+            {/* Grid / List toggle moved to the left */}
+            <div className="relative grid grid-cols-2 rounded-full p-1 w-[84px]" style={{ background: 'var(--bg-secondary)' }}>
+              <motion.div className="absolute top-1 bottom-1 rounded-full bg-amber-500"
+                style={{ left: 4, width: 'calc(50% - 4px)' }}
+                animate={{ x: viewMode === 'grid' ? 0 : '100%' }}
+                transition={{ type: 'spring', stiffness: 400, damping: 28 }} />
+              <button onClick={() => setViewMode('grid')} aria-label="Grid view"
+                className="relative z-10 h-9 flex items-center justify-center rounded-full"
+                style={{ color: viewMode === 'grid' ? '#fff' : 'var(--text-muted)' }}>
+                <FiGrid size={18} strokeWidth={2.5} />
+              </button>
+              <button onClick={() => setViewMode('list')} aria-label="List view"
+                className="relative z-10 h-9 flex items-center justify-center rounded-full"
+                style={{ color: viewMode === 'list' ? '#fff' : 'var(--text-muted)' }}>
+                <FiList size={18} strokeWidth={2.5} />
               </button>
             </div>
+            {/* Create icon-only amber button on the right */}
+            <button onClick={() => navigate('/create')} aria-label="Create post"
+              className="flex items-center justify-center h-10 w-10 rounded-full bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-500/30 transition-colors">
+              <FiPlusSquare size={20} strokeWidth={2.5} />
+            </button>
           </div>
         </div>
 

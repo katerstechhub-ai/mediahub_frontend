@@ -1,12 +1,12 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { FiHome, FiCompass, FiPlusSquare, FiBell } from 'react-icons/fi'
+import { FiHome, FiCompass, FiPlusSquare, FiBell, FiLogIn } from 'react-icons/fi'
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore, useUIStore } from '../../store'
 import { notificationsAPI } from '../../api'
 
-const tabs = [
+const allTabs = [
   { to: '/', icon: FiHome, label: 'Feed' },
   { to: '/explore', icon: FiCompass, label: 'Explore' },
   { to: '/create', icon: FiPlusSquare, label: 'Create', authOnly: true },
@@ -19,25 +19,30 @@ export default function BottomNav() {
   const { user } = useAuthStore()
   const setBottomNavHeight = useUIStore((s) => s.setBottomNavHeight)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [expanded, setExpanded] = useState(false)
   const outerRef = useRef(null)
 
-  const visibleTabs = tabs.filter((tab) => !tab.authOnly || user)
+  const visibleTabs = allTabs.filter((t) => !t.authOnly || user)
 
-  // Measure the nav's real on-screen footprint (its own height + how far it
-  // sits off the bottom edge) and publish it to uiStore. Anything reading
-  // that value gets the true number instead of a hardcoded guess, so it
-  // can't drift out of sync if the pill's size or bottom offset changes.
+  useEffect(() => { setExpanded(false) }, [location.pathname])
+
+  useEffect(() => {
+    if (!expanded) return
+    const onDown = (e) => {
+      if (outerRef.current && !outerRef.current.contains(e.target)) setExpanded(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [expanded])
+
   useEffect(() => {
     const el = outerRef.current
     if (!el || typeof window === 'undefined') return
-
     const measure = () => {
       const rect = el.getBoundingClientRect()
       const bottomOffset = window.innerHeight - rect.bottom
-      const footprint = rect.height + Math.max(bottomOffset, 0)
-      setBottomNavHeight(footprint)
+      setBottomNavHeight(rect.height + Math.max(bottomOffset, 0))
     }
-
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
@@ -48,129 +53,149 @@ export default function BottomNav() {
       window.removeEventListener('resize', measure)
       window.removeEventListener('orientationchange', measure)
     }
-  }, [visibleTabs.length, setBottomNavHeight])
+  }, [visibleTabs.length, expanded, setBottomNavHeight])
 
   useEffect(() => {
-    if (!user) return // guests have nothing to fetch notifications for
-
+    if (!user) return
     const fetchUnread = async () => {
       try {
         const res = await notificationsAPI.getAll(1, 1)
         setUnreadCount(res.data?.unreadCount || 0)
-      } catch {
-        // silent — nav badge isn't worth surfacing an error toast for
-      }
+      } catch { }
     }
     fetchUnread()
-    const interval = setInterval(fetchUnread, 30000)
-    return () => clearInterval(interval)
+    const id = setInterval(fetchUnread, 30000)
+    return () => clearInterval(id)
   }, [user])
 
   const isActiveTab = (to) => (to === '/' ? location.pathname === '/' : location.pathname.startsWith(to))
 
-  // Calculate spacing based on number of items
-  const getJustifyClass = () => {
-    const count = visibleTabs.length + 1 // +1 for avatar
-    if (count <= 3) return 'justify-center gap-8'
-    if (count === 4) return 'justify-evenly'
-    return 'justify-between'
+  const handleAvatarClick = () => {
+    if (!user) return navigate('/login')
+    if (expanded) {
+      // Second tap on avatar → go to profile
+      navigate('/profile')
+      setExpanded(false)
+    } else {
+      setExpanded(true)
+    }
   }
 
   return createPortal(
-    // Rendered via a portal directly into document.body — NOT nested inside
-    // Layout's flex/overflow hierarchy. iOS Safari can render `position:
-    // fixed` elements incorrectly (jittering, disappearing behind content
-    // mid-scroll) purely as a function of DOM nesting depth inside flex/
-    // overflow containers, even when no single CSS property is provably
-    // "at fault." Portaling out is the reliable fix: BottomNav is now a
-    // direct child of <body>, so nothing in Layout can affect it, ever.
-    //
-    // The plain, never-transformed div still carries `fixed` positioning;
-    // the animated transform still lives on the motion.nav inside it, kept
-    // off the positioned element itself for the same reason as before.
-    <div
+    <motion.div
       ref={outerRef}
-      className="lg:hidden fixed left-4 right-4 z-50"
-      style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+      className="lg:hidden fixed z-50 flex"
+      style={{
+        bottom: 'calc(1rem + env(safe-area-inset-bottom))',
+        left: 0,
+        right: 0,
+        justifyContent: expanded ? 'center' : 'flex-start',
+        paddingLeft: expanded ? 0 : 'calc(1rem + env(safe-area-inset-left))',
+        transition: 'justify-content 0.35s cubic-bezier(0.22, 1, 0.36, 1), padding-left 0.35s cubic-bezier(0.22, 1, 0.36, 1)',
+      }}
     >
       <motion.nav
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-        className="flex items-center px-4 py-2 rounded-full shadow-lg backdrop-blur-lg bottom-nav-panel"
+        layout
+        className="flex items-center gap-1 p-1.5 rounded-full backdrop-blur-2xl"
         style={{
-          border: '1px solid var(--border)',
-          boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+          background: 'color-mix(in oklab, var(--background) 70%, transparent)',
+          border: '1px solid color-mix(in oklab, var(--border) 80%, transparent)',
+          boxShadow: '0 12px 40px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.08)',
         }}
       >
-        <div className={`flex items-center w-full ${getJustifyClass()}`}>
-        {visibleTabs.map(({ to, icon: Icon, label }) => {
-          const active = isActiveTab(to)
-          return (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className="relative flex items-center justify-center w-11 h-11 rounded-full"
-            >
+        <AnimatePresence initial={false} mode="popLayout">
+          {expanded && visibleTabs.map(({ to, icon: Icon, label }) => {
+            const active = isActiveTab(to)
+            return (
               <motion.div
-                whileTap={{ scale: 0.85 }}
-                className="relative flex items-center justify-center w-11 h-11 rounded-full"
+                key={to}
+                layout
+                initial={{ opacity: 0, scale: 0.6, width: 0 }}
+                animate={{ opacity: 1, scale: 1, width: 'auto' }}
+                exit={{ opacity: 0, scale: 0.6, width: 0 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
               >
-                {active && (
-                  <motion.div
-                    layoutId="bottomNavActivePill"
-                    className="absolute inset-0 rounded-full"
-                    style={{ background: '#f59e0b', boxShadow: '0 4px 14px rgba(245,158,11,0.4)' }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                  />
-                )}
-
-                <motion.div
-                  animate={{ scale: active ? 1.1 : 1 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                  className="relative z-10"
+                <NavLink
+                  to={to}
+                  end={to === '/'}
+                  aria-label={label}
+                  className="relative flex items-center justify-center w-11 h-11 rounded-full"
                 >
-                  <Icon size={20} color={active ? '#ffffff' : 'var(--text-muted)'} strokeWidth={2.5} />
-                </motion.div>
-
-                <AnimatePresence>
+                  {active && (
+                    <div
+                      className="absolute inset-0 rounded-full"
+                      style={{
+                        background: 'linear-gradient(135deg,#fbbf24,#f59e0b)',
+                        boxShadow: '0 6px 18px rgba(245,158,11,0.45)',
+                      }}
+                    />
+                  )}
+                  <Icon
+                    size={20}
+                    color={active ? '#fff' : 'var(--text-muted)'}
+                    strokeWidth={2.5}
+                    style={{ position: 'relative', zIndex: 1 }}
+                  />
                   {to === '/notifications' && unreadCount > 0 && (
-                    <motion.span
-                      key="badge"
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0, opacity: 0 }}
-                      transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                    <span
                       className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white z-20"
-                      style={{ background: '#ef4444' }}
+                      style={{ background: '#ef4444', boxShadow: '0 0 0 2px var(--background)' }}
                     >
                       {unreadCount > 9 ? '9+' : unreadCount}
-                    </motion.span>
+                    </span>
                   )}
-                </AnimatePresence>
+                </NavLink>
               </motion.div>
-            </NavLink>
-          )
-        })}
+            )
+          })}
+        </AnimatePresence>
 
-        {/* Avatar — goes straight to profile if logged in, otherwise prompts login */}
+        {/* Avatar: collapsed → expand. Expanded → go to profile. */}
         <motion.button
-          onClick={() => navigate(user ? '/profile' : '/login')}
-          whileTap={{ scale: 0.85 }}
-          className="flex items-center justify-center w-11 h-11 rounded-full flex-shrink-0"
+          layout
+          onClick={handleAvatarClick}
+          whileTap={{ scale: 0.9 }}
+          aria-label={
+            !user ? 'Sign in' : expanded ? 'Go to profile' : 'Open menu'
+          }
+          className="relative flex items-center justify-center w-12 h-12 rounded-full flex-shrink-0"
+          style={{
+            background: expanded
+              ? 'linear-gradient(135deg,#fbbf24,#f59e0b)'
+              : 'transparent',
+            transition: 'background 0.25s ease',
+          }}
         >
-          {user?.avatar ? (
-            <img src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full object-cover ring-2 ring-amber-500/40" />
+          {user ? (
+            user.avatar ? (
+              <img
+                src={user.avatar}
+                alt={user.name}
+                className="w-9 h-9 rounded-full object-cover"
+                style={{ boxShadow: '0 0 0 2px rgba(245,158,11,0.6)' }}
+              />
+            ) : (
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold"
+                style={{ background: 'linear-gradient(135deg,#fbbf24,#f59e0b)' }}
+              >
+                {user?.name?.[0]?.toUpperCase() || 'U'}
+              </div>
+            )
           ) : (
-            <div className="w-9 h-9 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-bold">
-              {user?.name?.[0]?.toUpperCase() || 'U'}
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg,#fbbf24,#f59e0b)' }}
+            >
+              <FiLogIn size={16} color="#fff" strokeWidth={2.5} />
             </div>
           )}
         </motion.button>
-        </div>
       </motion.nav>
-    </div>,
+    </motion.div>,
     document.body
   )
 }
