@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
@@ -16,6 +17,17 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
 
 import CommentsSheet from './_CommentsSheet'
+
+/* ─────────── Normalize a user object into the shape comments expect ─────────── */
+
+function normalizeAuthor(u) {
+  if (!u) return null
+  return {
+    _id: u._id || u.id,
+    name: u.name || u.username || u.fullName || u.displayName || 'Unknown',
+    avatar: u.avatar || u.avatarUrl || u.profileImage || u.photo || null,
+  }
+}
 
 /* ─────────── Small helper: multi-image badge ─────────── */
 
@@ -62,9 +74,10 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange }) {
     if (!content) return
     if (!user) { toast.error('Log in to comment'); navigate('/login'); return }
 
+    const optimisticAuthor = normalizeAuthor(user)
     const tempId = `temp-${Date.now()}`
     // Show it immediately — don't wait on the server's response shape to render it
-    setComments((prev) => [...prev, { _id: tempId, content, author: user }])
+    setComments((prev) => [...prev, { _id: tempId, content, author: optimisticAuthor }])
     setText('')
     onCountChange?.(1)
     setPosting(true)
@@ -73,7 +86,11 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange }) {
       const newC = res.data?.data?.comment || res.data?.comment || res.data?.data || res.data
       // Reconcile temp entry with the real one from the server, if we can identify it
       if (newC && (newC._id || newC.id)) {
-        setComments((prev) => prev.map((c) => (c._id === tempId ? { ...newC, author: newC.author || user } : c)))
+        setComments((prev) => prev.map((c) => (
+          c._id === tempId
+            ? { ...newC, author: (newC.author && typeof newC.author === 'object' ? newC.author : optimisticAuthor) }
+            : c
+        )))
       }
     } catch (err) {
       console.error('Comment failed:', err)
