@@ -88,21 +88,38 @@ export default function CommentsSheet({
 
   const handleComment = async (e) => {
     e.preventDefault()
-    if (!comment.trim()) return
+    const content = comment.trim()
+    if (!content) return
     if (!user) {
       toast.error('Log in to comment')
       onClose()
       navigate('/login')
       return
     }
+
+    const tempId = `temp-${Date.now()}`
+    // Show it immediately instead of waiting on create + refetch round trip
+    setComments((prev) => {
+      const next = [...prev, { _id: tempId, content, author: user, createdAt: new Date().toISOString() }]
+      onCountChange?.(next.length)
+      return next
+    })
+    setComment('')
     setSubmitting(true)
     try {
-      await commentsAPI.create(postId, comment.trim())
-      setComment('')
+      await commentsAPI.create(postId, content)
+      // Reconcile with the server's actual record (real id, canonical timestamp, etc.)
       await fetchComments()
       setTimeout(() => commentInputRef.current?.focus(), 100)
-    } catch { toast.error('Failed to post comment') }
-    finally { setSubmitting(false) }
+    } catch {
+      toast.error('Failed to post comment')
+      // Roll back the optimistic entry since it never actually posted
+      setComments((prev) => {
+        const next = prev.filter((c) => c._id !== tempId)
+        onCountChange?.(next.length)
+        return next
+      })
+    } finally { setSubmitting(false) }
   }
 
   const requestDeleteComment = (commentId) => {

@@ -58,18 +58,29 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange }) {
 
   const submit = async (e) => {
     e.preventDefault()
-    if (!text.trim()) return
+    const content = text.trim()
+    if (!content) return
     if (!user) { toast.error('Log in to comment'); navigate('/login'); return }
+
+    const tempId = `temp-${Date.now()}`
+    // Show it immediately — don't wait on the server's response shape to render it
+    setComments((prev) => [...prev, { _id: tempId, content, author: user }])
+    setText('')
+    onCountChange?.(1)
     setPosting(true)
     try {
-      const res = await commentsAPI.create(postId, { content: text.trim() })
-      const newC = res.data?.data?.comment || res.data?.comment || res.data
-      setComments((prev) => [...prev, { ...newC, author: newC.author || user }])
-      setText('')
-      onCountChange?.(1)
+      const res = await commentsAPI.create(postId, content)
+      const newC = res.data?.data?.comment || res.data?.comment || res.data?.data || res.data
+      // Reconcile temp entry with the real one from the server, if we can identify it
+      if (newC && (newC._id || newC.id)) {
+        setComments((prev) => prev.map((c) => (c._id === tempId ? { ...newC, author: newC.author || user } : c)))
+      }
     } catch (err) {
       console.error('Comment failed:', err)
       toast.error('Could not post comment')
+      // Roll back the optimistic entry since it never actually posted
+      setComments((prev) => prev.filter((c) => c._id !== tempId))
+      onCountChange?.(-1)
     } finally {
       setPosting(false)
     }
@@ -153,8 +164,8 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState('grid')
   const [activeCommentPostId, setActiveCommentPostId] = useState(null) // grid modal only
-  const [expandedComments, setExpandedComments] = useState({})        // list inline toggle
-  const [commentDeltas, setCommentDeltas] = useState({})               // optimistic counts
+  const [commentDeltas, setCommentDeltas] = useState({})               // optimistic counts (list view)
+  const [gridCommentCounts, setGridCommentCounts] = useState({})       // live counts (grid modal)
   const [showHeartAnimation, setShowHeartAnimation] = useState(null)
   const lastTapRef = useRef({})
   const navigate = useNavigate()
@@ -205,10 +216,6 @@ export default function FeedPage() {
   }
 
   const openCommentsGrid = (e, postId) => { e.stopPropagation(); setActiveCommentPostId(postId) }
-  const toggleInlineComments = (e, postId) => {
-    e.stopPropagation()
-    setExpandedComments((s) => ({ ...s, [postId]: !s[postId] }))
-  }
 
   const goToProfile = (e, author) => {
     e?.stopPropagation()
@@ -264,7 +271,7 @@ export default function FeedPage() {
   const renderGridTile = (post) => {
     const urls = getImageUrls(post)
     const isLiked = post.likes?.includes(user?._id)
-    const commentCount = post.commentCount ?? 0
+    const commentCount = gridCommentCounts[post._id] ?? (post.commentCount ?? 0)
     return (
       <motion.div
         key={post._id}
@@ -321,11 +328,10 @@ export default function FeedPage() {
     const isLiked = post.likes?.includes(user?._id)
     const baseCount = post.commentCount ?? 0
     const commentCount = baseCount + (commentDeltas[post._id] || 0)
-    const isExpanded = !!expandedComments[post._id]
 
     return (
       <motion.article key={post._id} layoutId={`post-${post._id}`} variants={gridItem}
-        className="border-b pb-5 md:border md:rounded-2xl md:p-4 md:pb-4 md:shadow-sm"
+        className="border-b pb-5"
         style={{ borderColor: 'var(--border)' }}>
 
         <header className="flex items-center gap-3 px-3 md:px-0 mb-2">
@@ -398,41 +404,24 @@ export default function FeedPage() {
                 {post.likes?.length || 0}
               </span>
             </motion.button>
-            <motion.button onClick={e => toggleInlineComments(e, post._id)} whileTap={{ scale: 0.9 }}
-              className="flex items-center gap-1.5 h-10 px-4 rounded-full hover:bg-[var(--bg-secondary)] leading-none"
-              style={{ background: isExpanded ? 'var(--bg-secondary)' : 'transparent' }}>
-              <FiMessageCircle size={18} strokeWidth={2.3}
-                style={{ color: isExpanded ? 'var(--text-primary)' : 'var(--text-muted)' }} />
-              <span className="text-sm font-bold leading-none"
-                    style={{ color: isExpanded ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+            <div className="flex items-center gap-1.5 h-10 px-4 leading-none">
+              <FiMessageCircle size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+              <span className="text-sm font-bold leading-none" style={{ color: 'var(--text-muted)' }}>
                 {commentCount}
               </span>
-            </motion.button>
+            </div>
           </div>
         </div>
 
-        {/* Inline comments */}
-        <AnimatePresence initial={false}>
-          {isExpanded && (
-            <motion.div
-              key="comments"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: 'easeOut' }}
-              className="overflow-hidden"
-            >
-              <InlineComments
-                postId={post._id}
-                user={user}
-                onGoToProfile={(e, author) => goToProfile(e, author)}
-                onCountChange={(delta) =>
-                  setCommentDeltas((s) => ({ ...s, [post._id]: (s[post._id] || 0) + delta }))
-                }
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Inline comments — always visible */}
+        <InlineComments
+          postId={post._id}
+          user={user}
+          onGoToProfile={(e, author) => goToProfile(e, author)}
+          onCountChange={(delta) =>
+            setCommentDeltas((s) => ({ ...s, [post._id]: (s[post._id] || 0) + delta }))
+          }
+        />
       </motion.article>
     )
   }
@@ -503,6 +492,9 @@ export default function FeedPage() {
         onClose={() => setActiveCommentPostId(null)}
         user={user}
         onGoToProfile={(author) => goToProfile(null, author)}
+        onCountChange={(count) =>
+          setGridCommentCounts((s) => ({ ...s, [activeCommentPostId]: count }))
+        }
       />
     </>
   )
