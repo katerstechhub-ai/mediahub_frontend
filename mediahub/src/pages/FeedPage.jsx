@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
@@ -43,12 +42,11 @@ function MultiImageBadge({ count }) {
 
 /* ─────────── Inline comments (list view, Instagram-style) ─────────── */
 
-function InlineComments({ postId, user, onGoToProfile, onCountChange }) {
+function InlineComments({ postId, user, onGoToProfile, onCountChange, onOpenAll }) {
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
   const [posting, setPosting] = useState(false)
-  const [showAll, setShowAll] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -103,7 +101,7 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange }) {
     }
   }
 
-  const visible = showAll ? comments : comments.slice(-2)
+  const visible = comments.slice(-2)
 
   return (
     <div className="mt-2 px-3 md:px-0">
@@ -111,8 +109,8 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange }) {
         <div className="text-xs py-2" style={{ color: 'var(--text-muted)' }}>Loading comments…</div>
       ) : (
         <>
-          {comments.length > 2 && !showAll && (
-            <button onClick={() => setShowAll(true)}
+          {comments.length > 2 && (
+            <button onClick={() => onOpenAll?.(postId)}
               className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
               View all {comments.length} comments
             </button>
@@ -180,7 +178,7 @@ export default function FeedPage() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState('grid')
-  const [activeCommentPostId, setActiveCommentPostId] = useState(null) // grid modal only
+  const [activeCommentPostId, setActiveCommentPostId] = useState(null) // used by grid icon AND list "view all"
   const [commentDeltas, setCommentDeltas] = useState({})               // optimistic counts (list view)
   const [gridCommentCounts, setGridCommentCounts] = useState({})       // live counts (grid modal)
   const [showHeartAnimation, setShowHeartAnimation] = useState(null)
@@ -430,11 +428,12 @@ export default function FeedPage() {
           </div>
         </div>
 
-        {/* Inline comments — always visible */}
+        {/* Inline comments — always visible, "View all" opens the shared modal */}
         <InlineComments
           postId={post._id}
           user={user}
           onGoToProfile={(e, author) => goToProfile(e, author)}
+          onOpenAll={(id) => setActiveCommentPostId(id)}
           onCountChange={(delta) =>
             setCommentDeltas((s) => ({ ...s, [post._id]: (s[post._id] || 0) + delta }))
           }
@@ -502,7 +501,7 @@ export default function FeedPage() {
         </div>
       </div>
 
-      {/* Modal only used for grid view now */}
+      {/* Shared modal: grid comment icon AND list "View all" both open this */}
       <CommentsSheet
         postId={activeCommentPostId}
         open={!!activeCommentPostId}
