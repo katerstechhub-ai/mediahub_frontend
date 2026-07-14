@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiSearch, FiX, FiGrid, FiLayers, FiBell } from 'react-icons/fi'
+import { FiSearch, FiX, FiGrid, FiLayers, FiBell, FiPlus } from 'react-icons/fi'
 import { useAuthStore } from '../store'
 import { EmptyState, Avatar } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
@@ -26,7 +26,6 @@ export default function ExplorePage() {
       else if (data?.posts) arr = data.posts
       else if (Array.isArray(data?.data)) arr = data.data
       else if (Array.isArray(data)) arr = data
-
       setPosts(arr)
       setFiltered(arr)
     } catch (err) {
@@ -38,21 +37,15 @@ export default function ExplorePage() {
     }
   }
 
-  useEffect(() => {
-    fetchPosts()
-  }, [])
+  useEffect(() => { fetchPosts() }, [])
 
-  // Same unread-badge behavior as BottomNav: poll every 30s while logged in.
   useEffect(() => {
     if (!user) return
-
     const fetchUnread = async () => {
       try {
         const res = await notificationsAPI.getAll(1, 1)
         setUnreadCount(res.data?.unreadCount || 0)
-      } catch {
-        // silent — badge isn't worth surfacing an error toast for
-      }
+      } catch {}
     }
     fetchUnread()
     const interval = setInterval(fetchUnread, 30000)
@@ -60,16 +53,8 @@ export default function ExplorePage() {
   }, [user])
 
   useEffect(() => {
-    if (posts.length === 0) {
-      setFiltered([])
-      return
-    }
-
-    if (!query.trim()) {
-      setFiltered(posts)
-      return
-    }
-
+    if (posts.length === 0) { setFiltered([]); return }
+    if (!query.trim()) { setFiltered(posts); return }
     const q = query.toLowerCase()
     setFiltered(posts.filter(p =>
       p.title?.toLowerCase().includes(q) ||
@@ -101,94 +86,102 @@ export default function ExplorePage() {
   }
 
   return (
-    <div className="min-h-full pb-16 fade-in" style={{ background: 'var(--bg-primary)' }}>
-      {/* Sticky header — matches FeedPage's header treatment */}
-      <div className="sticky top-0 z-10 px-4 sm:px-6 py-3" style={{ background: 'var(--bg-primary)' }}>
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+    <div className="min-h-full pb-20 fade-in" style={{ background: 'var(--bg-primary)' }}>
+      {/* Sticky header — Pinterest style */}
+      <div
+        className="sticky top-0 z-20 px-4 sm:px-6 py-3 backdrop-blur-xl"
+        style={{ background: 'color-mix(in oklab, var(--bg-primary) 82%, transparent)' }}
+      >
+        <div className="max-w-7xl mx-auto flex items-center gap-3">
           <h1
-            className="text-xl sm:text-2xl font-extrabold font-display tracking-tight"
-            style={{ color: 'var(--text-primary)' }}
+            className="text-2xl sm:text-3xl font-black tracking-tight flex-shrink-0"
+            style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}
           >
             Explore
           </h1>
 
-          <motion.button
-            onClick={() => navigate('/notifications')}
-            whileTap={{ scale: 0.9 }}
-            aria-label="Notifications"
-            className="relative flex items-center justify-center h-10 w-10 rounded-full hover:bg-[var(--bg-secondary)] transition-colors flex-shrink-0"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            <FiBell size={20} strokeWidth={2} />
+          {/* Inline search bar - Pinterest style */}
+          <div className="relative flex-1 max-w-xl mx-auto">
+            <FiSearch
+              size={16}
+              strokeWidth={2.25}
+              className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+              style={{ color: 'var(--text-muted)' }}
+            />
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Search ideas"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-full rounded-full text-sm outline-none border-0 transition-all focus:ring-2 focus:ring-amber-500/40"
+              style={{
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                padding: '11px 40px 11px 42px',
+                fontWeight: 500,
+              }}
+            />
             <AnimatePresence>
-              {unreadCount > 0 && (
-                <motion.span
-                  key="badge"
+              {query && (
+                <motion.button
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0, opacity: 0 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-                  className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white z-20"
-                  style={{ background: '#ef4444' }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center"
+                  style={{ color: 'var(--text-primary)', background: 'var(--bg-input)' }}
+                  aria-label="Clear search"
                 >
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </motion.span>
+                  <FiX size={13} strokeWidth={2.5} />
+                </motion.button>
               )}
             </AnimatePresence>
-          </motion.button>
+          </div>
+
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <motion.button
+              onClick={() => navigate('/create')}
+              whileTap={{ scale: 0.9 }}
+              aria-label="Create"
+              className="hidden sm:flex items-center justify-center h-10 w-10 rounded-full hover:bg-[var(--bg-secondary)] transition-colors"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              <FiPlus size={22} strokeWidth={2.25} />
+            </motion.button>
+
+            <motion.button
+              onClick={() => navigate('/notifications')}
+              whileTap={{ scale: 0.9 }}
+              aria-label="Notifications"
+              className="relative flex items-center justify-center h-10 w-10 rounded-full hover:bg-[var(--bg-secondary)] transition-colors"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              <FiBell size={20} strokeWidth={2.25} />
+              <AnimatePresence>
+                {unreadCount > 0 && (
+                  <motion.span
+                    key="badge"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                    className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+                    style={{ background: '#ef4444' }}
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 pt-8 sm:pt-10 pb-4">
-        {/* Search */}
-        <motion.div
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.05 }}
-          className="relative max-w-2xl mx-auto mb-10 sm:mb-14"
-        >
-          <FiSearch
-            size={17}
-            strokeWidth={1.75}
-            className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
-            style={{ color: 'var(--text-muted)' }}
-          />
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Search posts, tags, people"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full rounded-full text-sm outline-none border transition-all focus:border-amber-500/70"
-            style={{
-              background: 'var(--bg-input)',
-              color: 'var(--text-primary)',
-              borderColor: 'var(--border)',
-              padding: '10px 40px',
-              fontWeight: 400,
-            }}
-          />
-          <AnimatePresence>
-            {query && (
-              <motion.button
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0, opacity: 0 }}
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center"
-                style={{ color: 'var(--text-muted)', background: 'var(--bg-secondary)' }}
-                aria-label="Clear search"
-              >
-                <FiX size={13} strokeWidth={2} />
-              </motion.button>
-            )}
-          </AnimatePresence>
-        </motion.div>
-
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-4">
         {filtered.length === 0 ? (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="pt-20">
             <EmptyState
               icon={FiGrid}
               title={query ? 'No results' : 'Nothing here yet'}
@@ -199,7 +192,7 @@ export default function ExplorePage() {
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={() => navigate('/create')}
-                    className="text-sm font-medium px-5 py-2.5 rounded-full bg-amber-500 hover:bg-amber-400 text-white"
+                    className="text-sm font-bold px-5 py-3 rounded-full bg-amber-500 hover:bg-amber-400 text-white"
                   >
                     Create post
                   </motion.button>
@@ -212,8 +205,8 @@ export default function ExplorePage() {
             layout
             initial="hidden"
             animate="show"
-            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.035 } } }}
-            className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-3 sm:gap-4 space-y-3 sm:space-y-4"
+            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.03 } } }}
+            className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 gap-2 sm:gap-3 [&>*]:mb-2 sm:[&>*]:mb-3"
           >
             <AnimatePresence>
               {filtered.map((post) => {
@@ -231,93 +224,89 @@ export default function ExplorePage() {
                       show: { opacity: 1, y: 0, scale: 1 },
                     }}
                     exit={{ opacity: 0, scale: 0.96 }}
-                    whileHover={{ y: -3 }}
                     transition={{ type: 'spring', stiffness: 320, damping: 28 }}
                     onClick={() => navigate(`/posts/${post._id || post.id}`)}
-                    className="break-inside-avoid cursor-pointer rounded-xl overflow-hidden group ring-1 ring-black/[0.04] hover:ring-black/[0.08] transition-shadow"
-                    style={{ background: 'var(--bg-secondary)' }}
+                    className="break-inside-avoid cursor-pointer group"
                   >
                     {imageUrl ? (
-                      <div className="relative overflow-hidden">
+                      <div
+                        className="relative rounded-2xl overflow-hidden transition-all duration-300 group-hover:brightness-90"
+                        style={{ background: 'var(--bg-secondary)' }}
+                      >
                         {hasMultiple && (
                           <div
-                            className="absolute top-2 left-2 z-10 text-white/95 bg-black/40 backdrop-blur-md rounded-full p-1"
+                            className="absolute top-2.5 right-2.5 z-10 text-white bg-black/50 backdrop-blur-md rounded-full p-1.5"
                             aria-label={`${urls.length} photos`}
                           >
-                            <FiLayers size={11} strokeWidth={2} />
+                            <FiLayers size={12} strokeWidth={2.5} />
                           </div>
                         )}
 
-                        <motion.img
+                        <img
                           src={imageUrl}
                           alt={displayText}
-                          className="w-full h-auto object-cover"
+                          className="w-full h-auto object-cover block"
                           loading="lazy"
-                          whileHover={{ scale: 1.04 }}
-                          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                           onError={(e) => {
                             e.target.style.display = 'none'
                             const parent = e.target.parentElement
                             const fallback = document.createElement('div')
                             fallback.className = 'p-4 min-h-[140px] flex items-center justify-center'
-                            fallback.style.cssText = 'background: var(--bg-secondary)'
                             fallback.innerHTML = `<p class="text-xs text-center line-clamp-4" style="color: var(--text-secondary)">${displayText}</p>`
                             parent.appendChild(fallback)
                           }}
                         />
 
-                        {/* Overlay */}
-                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent pt-10 pb-2 px-2 flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          <motion.div
-                            whileHover={{ scale: 1.08 }}
-                            whileTap={{ scale: 0.92 }}
-                            onClick={(e) => goToProfile(e, post.author)}
-                            className="cursor-pointer"
-                          >
-                            <Avatar src={post.author?.avatar} name={post.author?.name} size={22} ring />
-                          </motion.div>
-                          {post.likes && post.likes.length > 0 && (
-                            <span className="text-white/95 text-[11px] font-medium ml-auto tracking-wide">
-                              ♥ {post.likes.length}
-                            </span>
-                          )}
-                        </div>
+                        {/* Hover overlay - Pinterest style */}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-300 pointer-events-none" />
                       </div>
                     ) : (
-                      <div className="p-4 min-h-[140px] flex flex-col justify-between">
+                      <div
+                        className="p-4 min-h-[140px] rounded-2xl flex items-center justify-center"
+                        style={{ background: 'var(--bg-secondary)' }}
+                      >
                         <p
-                          className="text-[13px] leading-relaxed text-center line-clamp-5"
+                          className="text-[13px] leading-relaxed text-center line-clamp-5 font-medium"
                           style={{ color: 'var(--text-secondary)' }}
                         >
                           {displayText}
                         </p>
-                        <div
-                          className="flex items-center gap-2 pt-3 mt-3 border-t"
-                          style={{ borderColor: 'color-mix(in oklab, var(--border) 60%, transparent)' }}
+                      </div>
+                    )}
+
+                    {/* Title + author below card - Pinterest style */}
+                    <div className="px-1.5 pt-2">
+                      {(post.title || post.caption) && (
+                        <p
+                          className="text-[13px] font-bold line-clamp-2 leading-snug mb-1.5"
+                          style={{ color: 'var(--text-primary)' }}
                         >
-                          <motion.div
-                            whileHover={{ scale: 1.08 }}
-                            whileTap={{ scale: 0.92 }}
-                            onClick={(e) => goToProfile(e, post.author)}
-                            className="cursor-pointer flex-shrink-0"
-                          >
-                            <Avatar src={post.author?.avatar} name={post.author?.name} size={18} />
-                          </motion.div>
+                          {post.title || post.caption}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-1.5">
+                        <div
+                          onClick={(e) => goToProfile(e, post.author)}
+                          className="cursor-pointer flex items-center gap-1.5 min-w-0 hover:opacity-70 transition-opacity"
+                        >
+                          <Avatar src={post.author?.avatar} name={post.author?.name} size={20} />
                           <span
-                            className="text-[11px] font-medium truncate cursor-pointer hover:underline"
-                            style={{ color: 'var(--text-secondary)' }}
-                            onClick={(e) => goToProfile(e, post.author)}
+                            className="text-[11px] font-medium truncate"
+                            style={{ color: 'var(--text-muted)' }}
                           >
                             {post.author?.name || 'Unknown'}
                           </span>
-                          {post.likes && post.likes.length > 0 && (
-                            <span className="text-[11px] ml-auto" style={{ color: 'var(--text-muted)' }}>
-                              ♥ {post.likes.length}
-                            </span>
-                          )}
                         </div>
+                        {post.likes && post.likes.length > 0 && (
+                          <span
+                            className="text-[11px] ml-auto font-medium flex-shrink-0"
+                            style={{ color: 'var(--text-muted)' }}
+                          >
+                            ♥ {post.likes.length}
+                          </span>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </motion.div>
                 )
               })}

@@ -96,6 +96,11 @@ export default function UserProfilePage() {
             ) : (
               <p className="text-xs mb-2.5">&nbsp;</p>
             )}
+            {profileUser?.bio && (
+              <p className="text-sm mb-2.5 leading-snug" style={{ color: 'var(--text-secondary)' }}>
+                {profileUser.bio}
+              </p>
+            )}
 
             <div className="flex gap-5">
               {stats.map(({ label, value }, i) => (

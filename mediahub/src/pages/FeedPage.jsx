@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import {
   FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList,
-  FiCopy, FiSend
+  FiCopy, FiSend, FiSearch, FiX
 } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import { postsAPI, commentsAPI } from '../api'
@@ -178,6 +178,7 @@ export default function FeedPage() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState('grid')
+  const [query, setQuery] = useState('')
   const [activeCommentPostId, setActiveCommentPostId] = useState(null) // used by grid icon AND list "view all"
   const [commentDeltas, setCommentDeltas] = useState({})               // optimistic counts (list view)
   const [gridCommentCounts, setGridCommentCounts] = useState({})       // live counts (grid modal)
@@ -279,9 +280,20 @@ export default function FeedPage() {
     )
   }
 
+  const q = query.trim().toLowerCase()
+  const visiblePosts = q
+    ? posts.filter(p =>
+        p.title?.toLowerCase().includes(q) ||
+        p.content?.toLowerCase().includes(q) ||
+        p.caption?.toLowerCase().includes(q) ||
+        p.tags?.some(t => t.toLowerCase().includes(q)) ||
+        p.author?.name?.toLowerCase().includes(q)
+      )
+    : posts
+
   const gridContainer = { animate: { transition: { staggerChildren: 0.03 } } }
   const gridItem = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0, transition: { duration: 0.22 } } }
-  const monthGroups = groupPostsByMonth(posts)
+  const monthGroups = groupPostsByMonth(visiblePosts)
 
   const renderGridTile = (post) => {
     const urls = getImageUrls(post)
@@ -446,10 +458,10 @@ export default function FeedPage() {
     <>
       <div className="min-h-screen pb-10" style={{ background: 'var(--bg-primary)' }}>
         {/* Header */}
-        <div className="sticky top-0 z-10 px-4 sm:px-6 py-3" style={{ background: 'var(--bg-primary)' }}>
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-            {/* Grid / List toggle moved to the left */}
-            <div className="relative grid grid-cols-2 rounded-full p-1 w-[84px]" style={{ background: 'var(--bg-secondary)' }}>
+        <div className="sticky top-0 z-10 px-3 sm:px-6 py-3" style={{ background: 'var(--bg-primary)' }}>
+          <div className="max-w-7xl mx-auto flex items-center gap-2 sm:gap-3">
+            {/* Grid / List toggle on the left */}
+            <div className="relative grid grid-cols-2 rounded-full p-1 w-[84px] flex-shrink-0" style={{ background: 'var(--bg-secondary)' }}>
               <motion.div className="absolute top-1 bottom-1 rounded-full bg-amber-500"
                 style={{ left: 4, width: 'calc(50% - 4px)' }}
                 animate={{ x: viewMode === 'grid' ? 0 : '100%' }}
@@ -465,39 +477,90 @@ export default function FeedPage() {
                 <FiList size={18} strokeWidth={2.5} />
               </button>
             </div>
+
+            {/* Search bar — center, shrinks to fit on mobile */}
+            <div className="relative flex-1 min-w-0 max-w-xl mx-auto">
+              <FiSearch
+                size={16}
+                strokeWidth={2.25}
+                className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ color: 'var(--text-muted)' }}
+              />
+              <input
+                type="text"
+                placeholder="Search posts"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="w-full rounded-full text-sm outline-none border-0 transition-all focus:ring-2 focus:ring-amber-500/40"
+                style={{
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  padding: '11px 40px 11px 42px',
+                  fontWeight: 500,
+                }}
+              />
+              <AnimatePresence>
+                {query && (
+                  <motion.button
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center"
+                    style={{ color: 'var(--text-primary)', background: 'var(--bg-input)' }}
+                    aria-label="Clear search"
+                  >
+                    <FiX size={13} strokeWidth={2.5} />
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </div>
+
             {/* Create icon-only amber button on the right */}
             <button onClick={() => navigate('/create')} aria-label="Create post"
-              className="flex items-center justify-center h-10 w-10 rounded-full bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-500/30 transition-colors">
+              className="flex items-center justify-center h-10 w-10 rounded-full bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-500/30 transition-colors flex-shrink-0">
               <FiPlusSquare size={20} strokeWidth={2.5} />
             </button>
           </div>
         </div>
 
         <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-3">
-          <LayoutGroup>
-            {monthGroups.map((group) => (
-              <div key={group.key} className="mb-8">
-                <h2 className="text-lg font-extrabold font-display mb-3 px-1" style={{ color: 'var(--text-primary)' }}>
-                  {group.label}
-                </h2>
-                {viewMode === 'grid' ? (
-                  <motion.div
-                    className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3"
-                    variants={gridContainer} initial="initial" animate="animate"
-                  >
-                    {group.posts.map((post) => renderGridTile(post))}
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-8"
-                    variants={gridContainer} initial="initial" animate="animate"
-                  >
-                    {group.posts.map((post) => renderListItem(post))}
-                  </motion.div>
-                )}
+          {monthGroups.length === 0 ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
+              className="flex flex-col items-center justify-center text-center px-4 pt-20">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center mb-4" style={{ background: 'var(--bg-secondary)' }}>
+                <FiSearch size={28} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
               </div>
-            ))}
-          </LayoutGroup>
+              <h3 className="text-lg font-extrabold font-display" style={{ color: 'var(--text-primary)' }}>No results</h3>
+              <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>No posts match "{query}"</p>
+            </motion.div>
+          ) : (
+            <LayoutGroup>
+              {monthGroups.map((group) => (
+                <div key={group.key} className="mb-8">
+                  <h2 className="text-lg font-extrabold font-display mb-3 px-1" style={{ color: 'var(--text-primary)' }}>
+                    {group.label}
+                  </h2>
+                  {viewMode === 'grid' ? (
+                    <motion.div
+                      className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3"
+                      variants={gridContainer} initial="initial" animate="animate"
+                    >
+                      {group.posts.map((post) => renderGridTile(post))}
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-8"
+                      variants={gridContainer} initial="initial" animate="animate"
+                    >
+                      {group.posts.map((post) => renderListItem(post))}
+                    </motion.div>
+                  )}
+                </div>
+              ))}
+            </LayoutGroup>
+          )}
         </div>
       </div>
 

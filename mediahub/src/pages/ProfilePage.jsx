@@ -140,6 +140,11 @@ export default function ProfilePage() {
               {user?.name || 'User'}
             </h2>
             <p className="text-xs mb-2.5" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
+            {user?.bio && (
+              <p className="text-sm mb-2.5 leading-snug" style={{ color: 'var(--text-secondary)' }}>
+                {user.bio}
+              </p>
+            )}
 
             <div className="flex gap-5">
               {stats.map(({ label, value, onClick }, i) => (
