@@ -85,9 +85,9 @@ export const authAPI = {
   },
   changePassword: (data) => api.put('/api/auth/me/password', data), // { currentPassword, newPassword }
   deleteAccount: () => api.delete('/api/auth/me'),
-  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
-  resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }),
-  getUserProfile: (userId) => api.get(`/auth/users/${userId}`),
+  forgotPassword: (email) => api.post('/api/auth/forgot-password', { email }),
+  resetPassword: (token, newPassword) => api.post('/api/auth/reset-password', { token, newPassword }),
+  getUserProfile: (userId) => api.get(`/api/auth/users/${userId}`),
 };
 
 // Posts API
