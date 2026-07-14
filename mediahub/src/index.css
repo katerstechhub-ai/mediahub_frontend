@@ -123,3 +123,5 @@ body {
   background: var(--bg-card);
   background: color-mix(in srgb, var(--bg-card) 70%, transparent);
 }
+:root  { --bg-input: #f4f5f7; }
+.dark  { --bg-input: rgba(255,255,255,0.06); }

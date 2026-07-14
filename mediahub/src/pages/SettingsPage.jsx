@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useId } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiArrowLeft, FiUser, FiMoon, FiSun, FiLock, FiTrash2,
-  FiLogOut, FiCheck, FiChevronRight, FiShield, FiSliders, FiX
+  FiLogOut, FiCheck, FiChevronRight, FiShield, FiSliders, FiX,
+  FiEye, FiEyeOff
 } from 'react-icons/fi'
 import { useAuthStore, useThemeStore } from '../store'
 import { authAPI } from '../api'
@@ -50,35 +51,107 @@ function SectionHeader({ icon: Icon, title, description, tone = 'default' }) {
   )
 }
 
-function Field({ label, children }) {
+/**
+ * FieldInput — Snapchat Settings style: a small uppercase caption sitting
+ * above a plain pill-shaped field. Label lives outside the field, not
+ * inside it, so there's no icon or floating text fighting for the same
+ * space as what the person is typing.
+ */
+function FieldInput({
+  label,
+  type = 'text',
+  value,
+  onChange,
+  autoComplete,
+  placeholder,
+  trailing,
+  id,
+}) {
+  const reactId = useId()
+  const inputId = id || reactId
+
   return (
-    <label className="block">
-      <span
-        className="text-xs font-semibold block mb-1.5"
+    <div className="flex flex-col gap-2">
+      <label
+        htmlFor={inputId}
+        className="text-[11px] font-bold tracking-wide uppercase px-1"
         style={{ color: 'var(--text-muted)' }}
       >
         {label}
-      </span>
-      {children}
-    </label>
+      </label>
+      <div
+        className="flex items-center gap-2 rounded-full px-5"
+        style={{ background: 'var(--bg-input)', minHeight: 50 }}
+      >
+        <input
+          id={inputId}
+          type={type}
+          value={value}
+          onChange={onChange}
+          autoComplete={autoComplete}
+          placeholder={placeholder}
+          className="w-full bg-transparent outline-none text-sm py-3"
+          style={{ color: 'var(--text-primary)' }}
+        />
+        {trailing}
+      </div>
+    </div>
   )
 }
 
-const inputStyle = {
-  background: 'var(--bg-input)',
-  color: 'var(--text-primary)',
-  borderColor: 'var(--border)',
+function PasswordInput(props) {
+  const [show, setShow] = useState(false)
+  return (
+    <FieldInput
+      {...props}
+      type={show ? 'text' : 'password'}
+      trailing={
+        <button
+          type="button"
+          onClick={() => setShow((s) => !s)}
+          tabIndex={-1}
+          className="flex-shrink-0 rounded-md p-1 transition-colors hover:bg-black/10 dark:hover:bg-white/10"
+          style={{ color: 'var(--text-muted)' }}
+          aria-label={show ? 'Hide password' : 'Show password'}
+        >
+          {show ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+        </button>
+      }
+    />
+  )
 }
-const inputClass =
-  'w-full rounded-xl text-sm outline-none border transition-all px-4 py-2.5 ' +
-  'focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20'
+
+function Textarea({ label, value, onChange, rows = 3, placeholder }) {
+  const reactId = useId()
+
+  return (
+    <div className="flex flex-col gap-2">
+      <label
+        htmlFor={reactId}
+        className="text-[11px] font-bold tracking-wide uppercase px-1"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        {label}
+      </label>
+      <textarea
+        id={reactId}
+        value={value}
+        onChange={onChange}
+        rows={rows}
+        placeholder={placeholder}
+        className="w-full bg-transparent outline-none text-sm resize-none rounded-2xl px-5 py-3"
+        style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+      />
+    </div>
+  )
+}
 
 function PrimaryButton({ children, loading, icon: Icon, ...rest }) {
   return (
     <button
       {...rest}
       disabled={loading || rest.disabled}
-      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white bg-amber-500 hover:bg-amber-600 active:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm text-white bg-amber-500 hover:bg-amber-600 active:bg-amber-700 shadow-lg shadow-amber-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {Icon && <Icon size={16} strokeWidth={2.5} />}
       {loading ? 'Please wait…' : children}
@@ -191,27 +264,20 @@ export default function SettingsPage() {
           {/* Profile */}
           <Card>
             <SectionHeader icon={FiUser} title="Profile" description="How others see you on MediaHub" />
-            <form onSubmit={handleSaveProfile} className="px-5 pb-5 flex flex-col gap-4">
-              <Field label="Display name">
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className={inputClass}
-                  style={inputStyle}
-                  placeholder="Your name"
-                />
-              </Field>
-              <Field label="Bio">
-                <textarea
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  rows={3}
-                  className={inputClass + ' resize-none'}
-                  style={inputStyle}
-                  placeholder="Tell people a bit about yourself"
-                />
-              </Field>
+            <form onSubmit={handleSaveProfile} className="px-5 pb-5 flex flex-col gap-3.5">
+              <FieldInput
+                label="Display name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your name"
+              />
+              <Textarea
+                label="Bio"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                rows={3}
+                placeholder="Tell people a bit about yourself"
+              />
               <div className="flex justify-end">
                 <PrimaryButton icon={FiCheck} loading={savingProfile}>
                   Save changes
@@ -224,7 +290,7 @@ export default function SettingsPage() {
           <Card>
             <SectionHeader icon={FiSliders} title="Appearance" description="Customize how the app looks" />
             <div
-              className="mx-5 mb-5 flex items-center justify-between gap-4 rounded-xl px-4 py-3"
+              className="mx-5 mb-5 flex items-center justify-between gap-4 rounded-2xl px-4 py-3"
               style={{ background: 'var(--bg-input)' }}
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -259,38 +325,26 @@ export default function SettingsPage() {
           {/* Password */}
           <Card>
             <SectionHeader icon={FiLock} title="Password" description="Use at least 6 characters" />
-            <form onSubmit={handleChangePassword} className="px-5 pb-5 flex flex-col gap-4">
-              <Field label="Current password">
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  autoComplete="current-password"
-                  className={inputClass}
-                  style={inputStyle}
+            <form onSubmit={handleChangePassword} className="px-5 pb-5 flex flex-col gap-3.5">
+              <PasswordInput
+                label="Current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+              <div className="grid sm:grid-cols-2 gap-3.5">
+                <PasswordInput
+                  label="New password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
                 />
-              </Field>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="New password">
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    autoComplete="new-password"
-                    className={inputClass}
-                    style={inputStyle}
-                  />
-                </Field>
-                <Field label="Confirm new password">
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    autoComplete="new-password"
-                    className={inputClass}
-                    style={inputStyle}
-                  />
-                </Field>
+                <PasswordInput
+                  label="Confirm new password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
               </div>
               <div className="flex justify-end">
                 <PrimaryButton icon={FiShield} loading={savingPassword}>
@@ -333,7 +387,7 @@ export default function SettingsPage() {
               <button
                 onClick={() => setShowDeleteModal(true)}
                 disabled={deleting}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white bg-red-500 hover:bg-red-600 active:bg-red-700 transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm text-white bg-red-500 hover:bg-red-600 active:bg-red-700 shadow-lg shadow-red-500/25 transition-all disabled:opacity-50"
               >
                 <FiTrash2 size={16} strokeWidth={2.5} />
                 {deleting ? 'Deleting…' : 'Delete my account'}
@@ -343,12 +397,12 @@ export default function SettingsPage() {
         </main>
       </div>
 
-      {/* ── Delete Confirmation Modal ── */}
+      {/* Delete Confirmation Modal */}
       <AnimatePresence>
         {showDeleteModal && (
           <motion.div
             key="delete-account-overlay"
-            className="fixed inset-0 flex items-center justify-center  px-4"
+            className="fixed inset-0 flex items-center justify-center px-4"
             style={{ zIndex: 10000, background: 'rgba(0,0,0,0.6)' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -357,7 +411,7 @@ export default function SettingsPage() {
             onClick={() => !deleting && setShowDeleteModal(false)}
           >
             <motion.div
-              className="relative w-full max-w-sm rounded-3xl px-8 py-8 flex flex-col items-center justify-center h-[200px]"
+              className="relative w-full max-w-sm rounded-3xl px-8 py-8 flex flex-col items-center justify-center"
               style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
               initial={{ scale: 0.85, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -365,7 +419,6 @@ export default function SettingsPage() {
               transition={{ type: 'spring', damping: 25, stiffness: 350 }}
               onClick={e => e.stopPropagation()}
             >
-              {/* Close button */}
               <button
                 onClick={() => !deleting && setShowDeleteModal(false)}
                 disabled={deleting}
@@ -382,15 +435,15 @@ export default function SettingsPage() {
                 <FiTrash2 size={28} color="#ef4444" strokeWidth={2.5} />
               </div>
 
-              <h3 className="text-base font-extrabold text-center font-display px-2" style={{ color: 'var(--text-primary)' }}>
+              <h3 className="text-base font-extrabold text-center px-2" style={{ color: 'var(--text-primary)' }}>
                 Delete your account?
               </h3>
-              
+
               <p className="text-sm text-center mt-2" style={{ color: 'var(--text-muted)' }}>
                 This permanently removes your profile and all your posts. This action cannot be undone.
               </p>
 
-              <div className="flex items-center justify-center gap-4 mt-6">
+              <div className="flex items-center justify-center gap-3 mt-6">
                 <button
                   onClick={() => setShowDeleteModal(false)}
                   disabled={deleting}
@@ -402,9 +455,9 @@ export default function SettingsPage() {
                 <button
                   onClick={handleDeleteAccount}
                   disabled={deleting}
-                  className="px-6 py-2.5 rounded-full font-bold text-sm text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="px-6 py-2.5 rounded-full font-bold text-sm text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/25 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {deleting ? 'Deleting…' : "Yes, delete my account"}
+                  {deleting ? 'Deleting…' : 'Yes, delete my account'}
                 </button>
               </div>
             </motion.div>

@@ -33,21 +33,30 @@ export default function ResetPasswordPage() {
     }
   }
 
+  const inputStyle = {
+    background: 'var(--bg-input)',
+    color: 'var(--text-primary)',
+    border: '1px solid transparent',
+    padding: '12px 18px 12px 44px',
+  }
+  const inputCls =
+    'w-full rounded-full text-sm outline-none transition-all placeholder:text-gray-400 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/15'
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--bg-primary)' }}>
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        className="w-full max-w-sm rounded-2xl p-6"
-        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+        className="w-full h-50 max-w-sm rounded-3xl p-7"
+        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', boxShadow: '0 10px 40px rgba(0,0,0,0.06)' }}
       >
         {done ? (
           <div className="text-center py-4">
             <div className="w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-4" style={{ background: 'rgba(245,158,11,0.12)' }}>
               <FiCheck size={26} color="#f59e0b" strokeWidth={2.5} />
             </div>
-            <h1 className="text-lg font-extrabold font-display mb-1" style={{ color: 'var(--text-primary)' }}>
+            <h1 className="text-lg font-extrabold mb-1" style={{ color: 'var(--text-primary)' }}>
               Password reset
             </h1>
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -56,7 +65,7 @@ export default function ResetPasswordPage() {
           </div>
         ) : !token ? (
           <div className="text-center py-4">
-            <h1 className="text-lg font-extrabold font-display mb-1" style={{ color: 'var(--text-primary)' }}>
+            <h1 className="text-lg font-extrabold mb-1" style={{ color: 'var(--text-primary)' }}>
               Invalid link
             </h1>
             <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>
@@ -68,16 +77,16 @@ export default function ResetPasswordPage() {
           </div>
         ) : (
           <>
-            <h1 className="text-lg font-extrabold font-display mb-1" style={{ color: 'var(--text-primary)' }}>
+            <h1 className="text-xl font-extrabold mb-1.5" style={{ color: 'var(--text-primary)' }}>
               Set a new password
             </h1>
-            <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
               Choose a new password for your account.
             </p>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
               <div className="relative">
-                <FiLock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+                <FiLock size={16} className="absolute left-5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
                 <input
                   type="password"
                   value={newPassword}
@@ -85,17 +94,12 @@ export default function ResetPasswordPage() {
                   placeholder="New password"
                   autoComplete="new-password"
                   required
-                  className="w-full rounded-xl text-sm outline-none border transition-all focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-                  style={{
-                    background: 'var(--bg-input)',
-                    color: 'var(--text-primary)',
-                    borderColor: 'var(--border)',
-                    padding: '11px 14px 11px 38px',
-                  }}
+                  className={inputCls}
+                  style={inputStyle}
                 />
               </div>
               <div className="relative">
-                <FiLock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+                <FiLock size={16} className="absolute left-5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
                 <input
                   type="password"
                   value={confirmPassword}
@@ -103,20 +107,15 @@ export default function ResetPasswordPage() {
                   placeholder="Confirm new password"
                   autoComplete="new-password"
                   required
-                  className="w-full rounded-xl text-sm outline-none border transition-all focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-                  style={{
-                    background: 'var(--bg-input)',
-                    color: 'var(--text-primary)',
-                    borderColor: 'var(--border)',
-                    padding: '11px 14px 11px 38px',
-                  }}
+                  className={inputCls}
+                  style={inputStyle}
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-xl py-2.5 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 transition-colors disabled:opacity-50"
+                className="w-full rounded-full py-3 mt-2 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-500/25 transition-all disabled:opacity-50"
               >
                 {loading ? 'Resetting…' : 'Reset password'}
               </button>
