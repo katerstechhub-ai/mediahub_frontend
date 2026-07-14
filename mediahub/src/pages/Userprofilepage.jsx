@@ -5,6 +5,7 @@ import { FiGrid, FiArrowLeft, FiUser, FiLayers } from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
+import { authAPI } from '../api'
 import dayjs from 'dayjs'
 
 export default function UserProfilePage() {
@@ -28,6 +29,13 @@ export default function UserProfilePage() {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)
+      try {
+        const res = await authAPI.getUserProfile(userId)
+        setProfileUser(res.data?.data || null)
+      } catch (err) {
+        console.error('Failed to fetch user profile:', err)
+        setProfileUser(null)
+      }
       await fetchPosts()
       setLoading(false)
     }
@@ -41,7 +49,10 @@ export default function UserProfilePage() {
     })
     setUserPosts(filtered)
 
-    if (filtered.length > 0) {
+    // Fallback: if the direct profile fetch failed for some reason but we
+    // do have posts by this author, use their embedded author info instead
+    // of showing "Unknown User".
+    if (!profileUser && filtered.length > 0) {
       setProfileUser(filtered[0].author)
     }
   }, [posts, userId])

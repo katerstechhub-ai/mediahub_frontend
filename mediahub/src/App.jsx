@@ -16,6 +16,8 @@ import UserProfilePage from './pages/Userprofilepage'
 import LikesPage from './pages/LikesPage';
 import CommentsPage from './pages/CommentsPage'
 import ProtectedRoute from './components/layout/ProtectedRoute'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 
 function App() {
   const { theme } = useThemeStore()
@@ -54,6 +56,8 @@ function App() {
             <Route path="explore" element={<ExplorePage />} />
             <Route path="posts/:id" element={<PostDetailPage />} />
             <Route path="users/:userId" element={<UserProfilePage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* Protected routes — require auth */}
             <Route element={<ProtectedRoute />}>
