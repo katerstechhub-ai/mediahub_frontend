@@ -21,40 +21,25 @@ import CommentsSheet from './_CommentsSheet'
 /* ─────────── Wedding Hero Slider ─────────── */
 
 const WEDDING_SLIDES = [
-  {
-    url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=1600&q=80',
-    caption: 'Two hearts, one journey',
-  },
-  {
-    url: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=1600&q=80',
-    caption: 'Where forever begins',
-  },
-  {
-    url: 'https://i.pinimg.com/1200x/05/45/04/054504e4faceeb61c885dcb08e15e317.jpg',
-    caption: 'Golden hour, golden vows',
-  },
-  {
-    url: 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=1600&q=80',
-    caption: 'Dancing into forever',
-  },
+  { url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=1600&q=80', caption: 'Two hearts, one journey' },
+  { url: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=1600&q=80', caption: 'Where forever begins' },
+  { url: 'https://i.pinimg.com/1200x/05/45/04/054504e4faceeb61c885dcb08e15e317.jpg', caption: 'Golden hour, golden vows' },
+  { url: 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=1600&q=80', caption: 'Dancing into forever' },
 ]
 
 function WeddingHero() {
   const [index, setIndex] = useState(0)
 
   useEffect(() => {
-    const t = setInterval(() => {
-      setIndex((i) => (i + 1) % WEDDING_SLIDES.length)
-    }, 5000)
+    const t = setInterval(() => setIndex((i) => (i + 1) % WEDDING_SLIDES.length), 5000)
     return () => clearInterval(t)
   }, [])
 
   const slide = WEDDING_SLIDES[index]
 
   return (
-    <section className="relative w-full max-w-7xl mx-auto px-3 sm:px-6 pt-4">
-      <div className="relative overflow-hidden aspect-[16/9] sm:aspect-[21/9] shadow-2xl">
-        {/* Slides */}
+    <section className="relative w-full">
+      <div className="relative overflow-hidden aspect-[16/9] sm:aspect-[21/9]">
         <AnimatePresence mode="sync">
           <motion.img
             key={slide.url}
@@ -68,12 +53,14 @@ function WeddingHero() {
           />
         </AnimatePresence>
 
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/20" />
+        {/* Depth overlays */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+        {/* Extra darkening under the floating header for readability */}
+        <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/45 to-transparent pointer-events-none" />
 
-        {/* Content */}
-        <div className="absolute inset-0 flex flex-col justify-end p-5 sm:p-10 md:p-14">
+        {/* Content — pushed down so it doesn't collide with the floating header */}
+        <div className="absolute inset-0 flex flex-col justify-end p-5 sm:p-10 md:p-14 pb-16 sm:pb-24 pt-24 sm:pt-28">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -114,7 +101,7 @@ function WeddingHero() {
         </div>
 
         {/* Dots */}
-        <div className="absolute bottom-3 sm:bottom-5 right-4 sm:right-8 flex gap-1.5 z-10">
+        <div className="absolute bottom-8 sm:bottom-12 right-4 sm:right-8 flex gap-1.5 z-10">
           {WEDDING_SLIDES.map((_, i) => (
             <button
               key={i}
@@ -128,6 +115,12 @@ function WeddingHero() {
             />
           ))}
         </div>
+
+        {/* Bottom fade into page background */}
+        <div
+          className="absolute inset-x-0 bottom-0 h-1/2 pointer-events-none z-[5]"
+          style={{ background: 'linear-gradient(to bottom, transparent 0%, var(--bg-primary) 100%)' }}
+        />
       </div>
     </section>
   )
@@ -156,7 +149,7 @@ function MultiImageBadge({ count }) {
   )
 }
 
-/* ─────────── Boomerang video: plays forward, then reverses back to start, on loop ─────────── */
+/* ─────────── Boomerang video ─────────── */
 
 function BoomerangVideo({ src, poster, className, style, onClick }) {
   const videoRef = useRef(null)
@@ -166,7 +159,6 @@ function BoomerangVideo({ src, poster, className, style, onClick }) {
   useEffect(() => {
     const video = videoRef.current
     if (!video || !src) return
-
     let cancelled = false
 
     const stepReverse = (timestamp) => {
@@ -219,7 +211,7 @@ function BoomerangVideo({ src, poster, className, style, onClick }) {
   )
 }
 
-/* ─────────── Inline comments (list view, Instagram-style) ─────────── */
+/* ─────────── Inline comments ─────────── */
 
 function InlineComments({ postId, user, onGoToProfile, onCountChange, onOpenAll }) {
   const [comments, setComments] = useState([])
@@ -330,7 +322,7 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange, onOpenAll 
   )
 }
 
-/* ─────────── Group posts into "July 2026", "June 2026", etc. ─────────── */
+/* ─────────── Group posts by month ─────────── */
 
 function groupPostsByMonth(posts) {
   const groups = new Map()
@@ -360,11 +352,18 @@ export default function FeedPage() {
   const [gridCommentCounts, setGridCommentCounts] = useState({})
   const [showHeartAnimation, setShowHeartAnimation] = useState(null)
   const [downloadingMap, setDownloadingMap] = useState({})
+  const [scrolled, setScrolled] = useState(false)
   const lastTapRef = useRef({})
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
   useEffect(() => { fetchPosts() }, [])
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 60)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   const fetchPosts = async () => {
     try {
@@ -697,47 +696,60 @@ export default function FeedPage() {
     <>
       <div className="min-h-screen pb-10" style={{ background: 'var(--bg-primary)' }}>
 
-        {/* ─── Wedding Hero Slider ─── */}
-        <WeddingHero />
-
-        {/* Header */}
-        <div className="sticky top-0 z-10 px-3 sm:px-6 py-3" style={{ background: 'var(--bg-primary)' }}>
+        {/* Floating header — over hero, solid on scroll */}
+        <div
+          className="fixed top-0 inset-x-0 z-30 px-3 sm:px-6 py-3 transition-all duration-300"
+          style={{
+            background: scrolled ? 'var(--bg-primary)' : 'transparent',
+            boxShadow: scrolled ? '0 1px 0 rgba(0,0,0,0.06)' : 'none',
+            backdropFilter: scrolled ? 'saturate(180%) blur(12px)' : 'none',
+          }}
+        >
           <div className="max-w-7xl mx-auto flex items-center gap-2 sm:gap-3">
-            <div className="relative grid grid-cols-2 rounded-full p-1 w-[84px] flex-shrink-0" style={{ background: 'var(--bg-secondary)' }}>
+            {/* View toggle */}
+            <div
+              className="relative grid grid-cols-2 rounded-full p-1 w-[84px] flex-shrink-0"
+              style={{
+                background: scrolled ? 'var(--bg-secondary)' : 'rgba(255,255,255,0.18)',
+                backdropFilter: 'blur(8px)',
+              }}
+            >
               <motion.div className="absolute top-1 bottom-1 rounded-full bg-amber-500"
                 style={{ left: 4, width: 'calc(50% - 4px)' }}
                 animate={{ x: viewMode === 'grid' ? 0 : '100%' }}
                 transition={{ type: 'spring', stiffness: 400, damping: 28 }} />
               <button onClick={() => setViewMode('grid')} aria-label="Grid view"
                 className="relative z-10 h-9 flex items-center justify-center rounded-full"
-                style={{ color: viewMode === 'grid' ? '#fff' : 'var(--text-muted)' }}>
+                style={{ color: viewMode === 'grid' ? '#fff' : (scrolled ? 'var(--text-muted)' : 'rgba(255,255,255,0.9)') }}>
                 <FiGrid size={18} strokeWidth={2.5} />
               </button>
               <button onClick={() => setViewMode('list')} aria-label="List view"
                 className="relative z-10 h-9 flex items-center justify-center rounded-full"
-                style={{ color: viewMode === 'list' ? '#fff' : 'var(--text-muted)' }}>
+                style={{ color: viewMode === 'list' ? '#fff' : (scrolled ? 'var(--text-muted)' : 'rgba(255,255,255,0.9)') }}>
                 <FiList size={18} strokeWidth={2.5} />
               </button>
             </div>
 
+            {/* Search */}
             <div className="relative flex-1 min-w-0 max-w-xl mx-auto">
               <FiSearch
                 size={16}
                 strokeWidth={2.25}
                 className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
-                style={{ color: 'var(--text-muted)' }}
+                style={{ color: scrolled ? 'var(--text-muted)' : 'rgba(255,255,255,0.9)' }}
               />
               <input
                 type="text"
                 placeholder="Search posts"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="w-full rounded-full text-sm outline-none border-0 transition-all focus:ring-2 focus:ring-amber-500/40"
+                className="w-full rounded-full text-sm outline-none border-0 transition-all focus:ring-2 focus:ring-amber-500/40 placeholder:opacity-80"
                 style={{
-                  background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)',
+                  background: scrolled ? 'var(--bg-secondary)' : 'rgba(255,255,255,0.18)',
+                  color: scrolled ? 'var(--text-primary)' : '#fff',
                   padding: '11px 40px 11px 42px',
                   fontWeight: 500,
+                  backdropFilter: 'blur(8px)',
                 }}
               />
               <AnimatePresence>
@@ -749,7 +761,10 @@ export default function FeedPage() {
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setQuery('')}
                     className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center"
-                    style={{ color: 'var(--text-primary)', background: 'var(--bg-input)' }}
+                    style={{
+                      color: scrolled ? 'var(--text-primary)' : '#fff',
+                      background: scrolled ? 'var(--bg-input)' : 'rgba(255,255,255,0.25)',
+                    }}
                     aria-label="Clear search"
                   >
                     <FiX size={13} strokeWidth={2.5} />
@@ -764,6 +779,9 @@ export default function FeedPage() {
             </button>
           </div>
         </div>
+
+        {/* Hero */}
+        <WeddingHero />
 
         <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-3">
           {monthGroups.length === 0 ? (
