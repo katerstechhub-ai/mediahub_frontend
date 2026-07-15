@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiSearch, FiX, FiGrid, FiLayers, FiBell, FiPlus } from 'react-icons/fi'
+import { FiSearch, FiX, FiGrid, FiLayers, FiBell, FiPlus, FiPlay } from 'react-icons/fi'
 import { useAuthStore } from '../store'
 import { EmptyState, Avatar } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
@@ -210,9 +210,25 @@ export default function ExplorePage() {
           >
             <AnimatePresence>
               {filtered.map((post) => {
-                const urls = getImageUrls(post)
-                const imageUrl = urls[0]
-                const hasMultiple = urls.length > 1
+                // ── Determine thumbnail and media info ──
+                let thumbnailUrl = null
+                let isVideo = false
+                let mediaCount = 0
+
+                // Check for videos first (use thumbnail if available)
+                if (post.videos && post.videos.length > 0) {
+                  const video = post.videos[0]
+                  thumbnailUrl = video.thumbnail || video.url || null
+                  isVideo = true
+                  mediaCount = post.videos.length + (post.images?.length || 0)
+                } else {
+                  // No videos, use images
+                  const imageUrls = getImageUrls(post)
+                  thumbnailUrl = imageUrls[0] || null
+                  mediaCount = imageUrls.length
+                }
+
+                const hasMultiple = mediaCount > 1
                 const displayText = post.title || post.content || post.caption || 'Untitled'
 
                 return (
@@ -228,22 +244,22 @@ export default function ExplorePage() {
                     onClick={() => navigate(`/posts/${post._id || post.id}`)}
                     className="break-inside-avoid cursor-pointer group"
                   >
-                    {imageUrl ? (
+                    {thumbnailUrl ? (
                       <div
                         className="relative rounded-2xl overflow-hidden transition-all duration-300 group-hover:brightness-90"
                         style={{ background: 'var(--bg-secondary)' }}
                       >
-                        {hasMultiple && (
+                        {hasMultiple && !isVideo && (
                           <div
                             className="absolute top-2.5 right-2.5 z-10 text-white bg-black/50 backdrop-blur-md rounded-full p-1.5"
-                            aria-label={`${urls.length} photos`}
+                            aria-label={`${mediaCount} photos`}
                           >
                             <FiLayers size={12} strokeWidth={2.5} />
                           </div>
                         )}
 
                         <img
-                          src={imageUrl}
+                          src={thumbnailUrl}
                           alt={displayText}
                           className="w-full h-auto object-cover block"
                           loading="lazy"
@@ -256,6 +272,21 @@ export default function ExplorePage() {
                             parent.appendChild(fallback)
                           }}
                         />
+
+                        {/* Video play icon overlay */}
+                        {isVideo && (
+                          <div
+                            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                            style={{ background: 'rgba(0,0,0,0.15)' }}
+                          >
+                            <div
+                              className="w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm"
+                              style={{ background: 'rgba(0,0,0,0.5)' }}
+                            >
+                              <FiPlay size={20} className="text-white ml-1" strokeWidth={2.5} />
+                            </div>
+                          </div>
+                        )}
 
                         {/* Hover overlay - Pinterest style */}
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-300 pointer-events-none" />

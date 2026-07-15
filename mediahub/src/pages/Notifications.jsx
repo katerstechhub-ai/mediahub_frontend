@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, useMotionValue, animate } from 'framer-motion'
-import { FiBell, FiArrowLeft, FiHeart, FiMessageCircle, FiUserPlus, FiThumbsDown, FiTrash2, FiLayers } from 'react-icons/fi'
+import { FiBell, FiArrowLeft, FiHeart, FiMessageCircle, FiUserPlus, FiThumbsDown, FiTrash2, FiLayers, FiPlay } from 'react-icons/fi'
 import { notificationsAPI } from '../api'
 import { Avatar } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
@@ -198,8 +198,7 @@ export default function Notifications() {
 
   return (
     <div className="min-h-screen fade-in" style={{ background: 'var(--bg-primary)' }}>
-      {/* Sticky header — matches Feed/Explore header treatment: plain
-          background, no border/blur, consistent px-4 sm:px-6 py-3 rhythm */}
+      {/* Sticky header */}
       <div className="sticky top-0 z-10 px-4 sm:px-6 py-3" style={{ background: 'var(--bg-primary)' }}>
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <button
@@ -244,9 +243,23 @@ export default function Notifications() {
         ) : (
           <div className="px-3 sm:px-4 py-3 flex flex-col gap-1.5">
             {notifications.map((notification) => {
-              const postImages = getImageUrls(notification.post)
-              const thumbnailUrl = postImages[0]
-              const hasMultiple = postImages.length > 1
+              const post = notification.post
+              let thumbnailUrl = null
+              let isVideo = false
+              let hasMultiple = false
+
+              if (post) {
+                // Check for video thumbnail first
+                if (post.videos && post.videos.length > 0 && post.videos[0].thumbnail) {
+                  thumbnailUrl = post.videos[0].thumbnail
+                  isVideo = true
+                } else {
+                  // Fallback to image URLs
+                  const postImages = getImageUrls(post)
+                  thumbnailUrl = postImages[0] || null
+                  hasMultiple = postImages.length > 1
+                }
+              }
 
               return (
                 <SwipeableRow
@@ -257,8 +270,8 @@ export default function Notifications() {
                   <div
                     onClick={() => {
                       handleMarkAsRead(notification._id)
-                      if (notification.post?._id) {
-                        navigate(`/posts/${notification.post._id}`)
+                      if (post?._id) {
+                        navigate(`/posts/${post._id}`)
                       }
                     }}
                     className="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
@@ -283,18 +296,27 @@ export default function Notifications() {
                       </p>
                     </div>
 
+                    {/* ── Thumbnail (with video overlay if video) ── */}
                     {thumbnailUrl && (
                       <div className="relative flex-shrink-0">
                         <img
                           src={thumbnailUrl}
-                          alt={notification.post?.title || 'Post'}
+                          alt={post?.title || 'Post'}
                           className="w-12 h-12 rounded-xl object-cover"
                           onError={(e) => (e.target.style.display = 'none')}
                         />
-                        {hasMultiple && (
+                        {isVideo && (
+                          <div
+                            className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-xl"
+                            aria-label="Video"
+                          >
+                            <FiPlay size={14} color="#fff" className="drop-shadow" />
+                          </div>
+                        )}
+                        {hasMultiple && !isVideo && (
                           <div
                             className="absolute -top-1 -right-1 bg-black/70 backdrop-blur-sm rounded-full p-0.5"
-                            aria-label={`${postImages.length} photos`}
+                            aria-label={`Multiple images`}
                           >
                             <FiLayers size={10} strokeWidth={2.5} color="#fff" />
                           </div>

@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiArrowLeft, FiHeart, FiMessageCircle, FiTrash2, FiMoreHorizontal, FiX, FiShare2 } from 'react-icons/fi'
+import {
+  FiArrowLeft, FiHeart, FiMessageCircle, FiTrash2, FiMoreHorizontal,
+  FiX, FiShare2, FiDownload, FiLoader
+} from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
-import { postsAPI, commentsAPI } from '../api'
+import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'  // ← import api + helper
 import { useAuthStore } from '../store'
 import { Avatar } from '../components/ui'
 import { getImageUrls, ImageSlider } from '../components/PostMedia'
-import CommentsSheet from './_CommentsSheet' // adjust path if needed
+import CommentsSheet from './_CommentsSheet'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -29,6 +32,7 @@ export default function PostDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [postVisible, setPostVisible] = useState(true)
   const [confirmDeletePost, setConfirmDeletePost] = useState(false)
+  const [downloading, setDownloading] = useState(false)  // ← download state
   const lastTapRef = useRef(0)
 
   const currentUserId = user?._id || user?.id
@@ -127,6 +131,31 @@ export default function PostDetailPage() {
     }
   }
 
+  // ── Download handler ──
+  const handleDownload = async (url, filename) => {
+    if (!url) return
+    setDownloading(true)
+    const toastId = toast.loading('Downloading…')
+    try {
+      const proxyUrl = getDownloadUrl(url, filename)
+      const response = await api.get(proxyUrl, { responseType: 'blob' })
+      const blob = new Blob([response.data])
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(link.href)
+      toast.success('Download complete', { id: toastId })
+    } catch (err) {
+      console.error('Download failed:', err)
+      toast.error('Download failed', { id: toastId })
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen" style={{ background: 'var(--bg-primary)' }}>
@@ -139,8 +168,14 @@ export default function PostDetailPage() {
 
   const mediaUrls = getImageUrls(post)
   const hasMedia = mediaUrls.length > 0
+  const hasVideos = post.videos && post.videos.length > 0
   const isOwner = isCurrentUser(post.author)
   const hasBody = post.content && post.content.trim() && post.content.trim() !== post.title?.trim()
+
+  // For download: use the first media URL (could be image or video)
+  const firstMediaUrl = mediaUrls[0] || null
+  const fileExt = firstMediaUrl ? firstMediaUrl.split('.').pop() || 'jpg' : 'jpg'
+  const downloadFilename = post.title ? `${post.title}.${fileExt}` : `download.${fileExt}`
 
   return (
     <>
@@ -157,7 +192,7 @@ export default function PostDetailPage() {
           >
             <div className="max-w-2xl mx-auto pb-8">
 
-              {/* Header */}
+              {/* Header – unchanged */}
               <div
                 className="sticky top-0 z-20 px-4 py-2.5 flex items-center justify-between"
                 style={{
@@ -222,7 +257,7 @@ export default function PostDetailPage() {
                 </div>
               </div>
 
-              {/* Media */}
+              {/* ── Media ── */}
               {hasMedia && (
                 <div
                   className="w-full relative select-none overflow-hidden"
@@ -232,28 +267,44 @@ export default function PostDetailPage() {
                     maxHeight: 620,
                   }}
                 >
-                  {mediaUrls.length === 1 ? (
-                    <div className="cursor-pointer w-full h-full" onClick={handleImageDoubleTap}>
-                      <img
-                        src={mediaUrls[0]}
-                        alt={post.title || 'Post image'}
-                        className="w-full h-auto block"
-                        style={{ maxHeight: 620, objectFit: 'contain', margin: '0 auto' }}
-                        onError={e => e.target.style.display = 'none'}
+                  {/* ── Image-only post ── */}
+                  {!hasVideos ? (
+                    // Use existing ImageSlider (for images only)
+                    mediaUrls.length === 1 ? (
+                      <div className="cursor-pointer w-full h-full" onClick={handleImageDoubleTap}>
+                        <img
+                          src={mediaUrls[0]}
+                          alt={post.title || 'Post image'}
+                          className="w-full h-auto block"
+                          style={{ maxHeight: 620, objectFit: 'contain', margin: '0 auto' }}
+                          onError={e => e.target.style.display = 'none'}
+                        />
+                      </div>
+                    ) : (
+                      <ImageSlider
+                        urls={mediaUrls}
+                        title={post.title}
+                        postId={post._id}
+                        onDoubleTap={handleImageDoubleTap}
+                        rounded=""
+                        className="w-full h-full"
+                      />
+                    )
+                  ) : (
+                    // ── Video post (first video) ──
+                    <div className="w-full h-full flex items-center justify-center">
+                      <video
+                        src={post.videos[0].url}
+                        poster={post.videos[0].thumbnail || undefined}
+                        controls
+                        playsInline
+                        className="w-full h-full object-contain"
+                        style={{ maxHeight: 620 }}
                       />
                     </div>
-                  ) : (
-                    <ImageSlider
-                      urls={mediaUrls}
-                      title={post.title}
-                      postId={post._id}
-                      onDoubleTap={handleImageDoubleTap}
-                      rounded=""
-                      className="w-full h-full"
-                    />
                   )}
 
-                  {/* Top gradient so avatar reads on any image */}
+                  {/* Top gradient */}
                   <div
                     className="absolute inset-x-0 top-0 h-20 pointer-events-none"
                     style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.35), transparent)' }}
@@ -276,6 +327,7 @@ export default function PostDetailPage() {
                     </span>
                   </button>
 
+                  {/* Heart animation (double‑tap) */}
                   <AnimatePresence>
                     {showHeartAnimation && (
                       <motion.div
@@ -289,12 +341,31 @@ export default function PostDetailPage() {
                       </motion.div>
                     )}
                   </AnimatePresence>
+
+                  {/* ── Download button (floating on media) ── */}
+                  {firstMediaUrl && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDownload(firstMediaUrl, downloadFilename)
+                      }}
+                      disabled={downloading}
+                      className="absolute bottom-3 right-3 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-gray-800 hover:bg-white shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Download media"
+                    >
+                      {downloading ? (
+                        <FiLoader size={18} className="animate-spin" strokeWidth={2.5} />
+                      ) : (
+                        <FiDownload size={18} strokeWidth={2.5} />
+                      )}
+                    </button>
+                  )}
                 </div>
               )}
 
-              {/* Body */}
+              {/* Body – unchanged */}
               <div className="px-4 pt-4">
-                {/* Author row (only when no media, otherwise chip is on image) */}
+                {/* Author row (only when no media) */}
                 {!hasMedia && (
                   <button
                     onClick={() => goToProfile(post.author)}
@@ -350,7 +421,7 @@ export default function PostDetailPage() {
                   </p>
                 )}
 
-                {/* Action bar */}
+                {/* Action bar – unchanged */}
                 <div
                   className="mt-4 flex items-center gap-2 pt-3"
                   style={{ borderTop: '1px solid var(--border)' }}
@@ -428,7 +499,7 @@ export default function PostDetailPage() {
         )}
       </AnimatePresence>
 
-      {/* Comments — single source of truth */}
+      {/* Comments sheet – unchanged */}
       <CommentsSheet
         postId={id}
         open={showComments}
@@ -439,7 +510,7 @@ export default function PostDetailPage() {
         onCountChange={setCommentCount}
       />
 
-      {/* Delete post modal (same styling as comment delete) */}
+      {/* Delete modal – unchanged */}
       <AnimatePresence>
         {confirmDeletePost && (
           <motion.div

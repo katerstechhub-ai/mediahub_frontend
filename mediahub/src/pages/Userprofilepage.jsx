@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiGrid, FiArrowLeft, FiUser, FiLayers } from 'react-icons/fi'
+import { FiGrid, FiArrowLeft, FiUser, FiLayers, FiDownload, FiLoader } from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
-import { authAPI } from '../api'
+import api, { authAPI, getDownloadUrl } from '../api'
+import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
 
 export default function UserProfilePage() {
@@ -17,6 +18,7 @@ export default function UserProfilePage() {
   const [profileUser, setProfileUser] = useState(null)
   const [userPosts, setUserPosts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [downloadingMap, setDownloadingMap] = useState({})
 
   // If someone lands on their own id, bounce to the real profile page
   useEffect(() => {
@@ -56,6 +58,31 @@ export default function UserProfilePage() {
       setProfileUser(filtered[0].author)
     }
   }, [posts, userId])
+
+  // ── Download handler ──
+  const handleDownload = async (postId, url, filename) => {
+    if (!url) return
+    setDownloadingMap(prev => ({ ...prev, [postId]: true }))
+    const toastId = toast.loading('Downloading…')
+    try {
+      const proxyUrl = getDownloadUrl(url, filename)
+      const response = await api.get(proxyUrl, { responseType: 'blob' })
+      const blob = new Blob([response.data])
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(link.href)
+      toast.success('Download complete', { id: toastId })
+    } catch (err) {
+      console.error('Download failed:', err)
+      toast.error('Download failed', { id: toastId })
+    } finally {
+      setDownloadingMap(prev => ({ ...prev, [postId]: false }))
+    }
+  }
 
   const memberSince = profileUser?.createdAt ? dayjs(profileUser.createdAt).format('MMM YYYY') : '—'
 
@@ -154,8 +181,18 @@ export default function UserProfilePage() {
               <AnimatePresence>
                 {userPosts.map(post => {
                   const urls = getImageUrls(post)
-                  const imageUrl = urls[0]
+                  const mediaUrl = urls[0] || null
                   const hasMultiple = urls.length > 1
+                  const hasVideos = post.videos && post.videos.length > 0
+                  const isDownloading = downloadingMap[post._id] || false
+
+                  const videoThumbnail = hasVideos ? post.videos[0].thumbnail : null
+                  const videoUrl = hasVideos ? post.videos[0].url : null
+
+                  const downloadUrl = mediaUrl || videoUrl
+                  const fileExt = downloadUrl ? downloadUrl.split('.').pop() || 'jpg' : 'jpg'
+                  const downloadFilename = post.title ? `${post.title}.${fileExt}` : `download.${fileExt}`
+
                   return (
                     <motion.div
                       key={post._id || post.id}
@@ -168,19 +205,50 @@ export default function UserProfilePage() {
                       className="cursor-pointer rounded-lg overflow-hidden group relative"
                       style={{ aspectRatio: '1/1', background: 'var(--bg-secondary)' }}
                     >
+                      {/* Multiple media badge */}
                       {hasMultiple && (
                         <div
                           className="absolute top-1.5 left-1.5 z-10 text-white"
                           style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))' }}
-                          aria-label={`${urls.length} photos`}
+                          aria-label={`${urls.length} media items`}
                         >
                           <FiLayers size={15} strokeWidth={2.5} />
                         </div>
                       )}
 
-                      {imageUrl ? (
+                      {/* Play icon overlay for videos */}
+                      {hasVideos && (
+                        <div
+                          className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
+                          style={{ background: 'rgba(0,0,0,0.15)' }}
+                        >
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm"
+                            style={{ background: 'rgba(0,0,0,0.5)' }}
+                          >
+                            <FiImage
+                              size={18}
+                              className="text-white"
+                              style={{ marginLeft: 2 }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Media rendering */}
+                      {hasVideos ? (
+                        <video
+                          src={videoUrl}
+                          poster={videoThumbnail || undefined}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                          onClick={(e) => e.stopPropagation()}
+                          onError={(e) => e.target.style.display = 'none'}
+                        />
+                      ) : mediaUrl ? (
                         <img
-                          src={imageUrl}
+                          src={mediaUrl}
                           alt={post.title || 'Post'}
                           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                           loading="lazy"
@@ -192,6 +260,29 @@ export default function UserProfilePage() {
                             {post.title || post.content || 'Untitled'}
                           </p>
                         </div>
+                      )}
+
+                      {/* ── Download button (appears on hover, bottom-right) ── */}
+                      {downloadUrl && (
+                        <motion.button
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 0, scale: 0.8 }}
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDownload(post._id, downloadUrl, downloadFilename)
+                          }}
+                          disabled={isDownloading}
+                          className="absolute bottom-1.5 right-1.5 z-10 p-1.5 rounded-full bg-white/80 backdrop-blur-sm text-gray-800 hover:bg-white shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100"
+                          aria-label="Download media"
+                        >
+                          {isDownloading ? (
+                            <FiLoader size={12} className="animate-spin" strokeWidth={2.5} />
+                          ) : (
+                            <FiDownload size={12} strokeWidth={2.5} />
+                          )}
+                        </motion.button>
                       )}
                     </motion.div>
                   )

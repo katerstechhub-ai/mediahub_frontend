@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'https://media-hub-bq9w.onrender.com';
+export const API_URL = 'https://media-hub-bq9w.onrender.com';
 
 console.log('🔍 API_URL:', API_URL);
 
@@ -103,14 +103,19 @@ export const postsAPI = {
       ...(config.headers || {}),
     },
   }),
-  update: (id, data) => api.put(`/api/posts/${id}`, data),
+  update: (id, data, config = {}) => api.put(`/api/posts/${id}`, data, {
+    ...config,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+      ...(config.headers || {}),
+    },
+  }),
   delete: (id) => api.delete(`/api/posts/${id}`),
   like: (id) => api.post(`/api/posts/${id}/like`),
   dislike: (id) => api.post(`/api/posts/${id}/dislike`),
   comment: (id, content) => api.post(`/api/comments/${id}`, { content }),
   getMyPosts: () => api.get('/api/posts/my-posts'),
   getLikers: (postId) => api.get(`/api/posts/${postId}/likes`),
-
 };
 
 // Notifications API
@@ -127,6 +132,49 @@ export const commentsAPI = {
   create: (postId, content) => api.post(`/api/comments/${postId}`, { content }),
   delete: (commentId) => api.delete(`/api/comments/${commentId}`),
   like: (commentId) => api.post(`/api/comments/${commentId}/like`),
+};
+
+/**
+ * Media download helpers
+ * ------------------------------------------------------------------
+ * The backend proxies Cloudinary media through GET /api/posts/download
+ * (see download.controller.js) so it can attach a Content-Disposition:
+ * attachment header — Cloudinary itself doesn't send one, and the classic
+ * `<a href={cloudinaryUrl} download>` trick is silently ignored by browsers
+ * for cross-origin URLs. It's a public route (no auth) and only proxies
+ * res.cloudinary.com/.../mediahub/... URLs, so it's safe to link to directly.
+ */
+
+// Build the proxy URL for a single Cloudinary asset.
+export const getDownloadUrl = (url, filename) => {
+  const params = new URLSearchParams({ url });
+  if (filename) params.set('filename', filename);
+  return `${API_URL}/api/posts/download?${params.toString()}`;
+};
+
+// Trigger a save for a single media item ({ type, url }).
+export const downloadMediaItem = (item, filename) => {
+  if (!item?.url) return;
+  const ext = item.type === 'video' ? 'mp4' : (item.url.split('.').pop() || 'jpg').split('?')[0];
+  const name = filename || `mediahub.${ext}`;
+  const link = document.createElement('a');
+  link.href = getDownloadUrl(item.url, name);
+  link.setAttribute('download', name);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
+
+// Trigger saves for every media item on a post. Browsers will happily save
+// several files back-to-back, but firing them all in the same tick can get
+// the 2nd+ ones blocked as a "download popup" — stagger them slightly.
+export const downloadAllMedia = (items, baseName = 'mediahub-post') => {
+  (items || []).forEach((item, i) => {
+    if (!item?.url) return;
+    const ext = item.type === 'video' ? 'mp4' : (item.url.split('.').pop() || 'jpg').split('?')[0];
+    const name = items.length > 1 ? `${baseName}-${i + 1}.${ext}` : `${baseName}.${ext}`;
+    setTimeout(() => downloadMediaItem(item, name), i * 350);
+  });
 };
 
 export default api;

@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import {
   FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList,
-  FiCopy, FiSend, FiSearch, FiX
+  FiCopy, FiSend, FiSearch, FiX, FiDownload, FiLoader
 } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
-import { postsAPI, commentsAPI } from '../api'
+import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'   // ← import api as default
 import { useAuthStore } from '../store'
 import { Avatar } from '../components/ui'
 import { getImageUrls, ImageSlider } from '../components/PostMedia'
@@ -74,7 +74,6 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange, onOpenAll 
 
     const optimisticAuthor = normalizeAuthor(user)
     const tempId = `temp-${Date.now()}`
-    // Show it immediately — don't wait on the server's response shape to render it
     setComments((prev) => [...prev, { _id: tempId, content, author: optimisticAuthor }])
     setText('')
     onCountChange?.(1)
@@ -82,7 +81,6 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange, onOpenAll 
     try {
       const res = await commentsAPI.create(postId, content)
       const newC = res.data?.data?.comment || res.data?.comment || res.data?.data || res.data
-      // Reconcile temp entry with the real one from the server, if we can identify it
       if (newC && (newC._id || newC.id)) {
         setComments((prev) => prev.map((c) => (
           c._id === tempId
@@ -93,7 +91,6 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange, onOpenAll 
     } catch (err) {
       console.error('Comment failed:', err)
       toast.error('Could not post comment')
-      // Roll back the optimistic entry since it never actually posted
       setComments((prev) => prev.filter((c) => c._id !== tempId))
       onCountChange?.(-1)
     } finally {
@@ -179,10 +176,11 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState('grid')
   const [query, setQuery] = useState('')
-  const [activeCommentPostId, setActiveCommentPostId] = useState(null) // used by grid icon AND list "view all"
-  const [commentDeltas, setCommentDeltas] = useState({})               // optimistic counts (list view)
-  const [gridCommentCounts, setGridCommentCounts] = useState({})       // live counts (grid modal)
+  const [activeCommentPostId, setActiveCommentPostId] = useState(null)
+  const [commentDeltas, setCommentDeltas] = useState({})
+  const [gridCommentCounts, setGridCommentCounts] = useState({})
   const [showHeartAnimation, setShowHeartAnimation] = useState(null)
+  const [downloadingMap, setDownloadingMap] = useState({})
   const lastTapRef = useRef({})
   const navigate = useNavigate()
   const { user } = useAuthStore()
@@ -253,6 +251,31 @@ export default function FeedPage() {
       )}
     </AnimatePresence>
   )
+
+  // ── Download handler with loader ──
+  const handleDownload = async (postId, url, filename) => {
+    if (!url) return
+    setDownloadingMap(prev => ({ ...prev, [postId]: true }))
+    const toastId = toast.loading('Downloading…')
+    try {
+      const proxyUrl = getDownloadUrl(url, filename)
+      const response = await api.get(proxyUrl, { responseType: 'blob' })
+      const blob = new Blob([response.data])
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(link.href)
+      toast.success('Download complete', { id: toastId })
+    } catch (err) {
+      console.error('Download failed:', err)
+      toast.error('Download failed', { id: toastId })
+    } finally {
+      setDownloadingMap(prev => ({ ...prev, [postId]: false }))
+    }
+  }
 
   if (loading) {
     return (
@@ -355,6 +378,7 @@ export default function FeedPage() {
     const isLiked = post.likes?.includes(user?._id)
     const baseCount = post.commentCount ?? 0
     const commentCount = baseCount + (commentDeltas[post._id] || 0)
+    const isDownloading = downloadingMap[post._id] || false
 
     return (
       <motion.article key={post._id} layoutId={`post-${post._id}`} variants={gridItem}
@@ -392,6 +416,27 @@ export default function FeedPage() {
             )}
             <MultiImageBadge count={urls.length} />
             <HeartAnimation postId={post._id} />
+
+            {/* ── Download button with spinner ── */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const firstUrl = urls[0];
+                if (!firstUrl) return;
+                const ext = firstUrl.split('.').pop() || 'jpg';
+                const filename = post.title ? `${post.title}.${ext}` : `download.${ext}`;
+                handleDownload(post._id, firstUrl, filename);
+              }}
+              disabled={isDownloading}
+              className="absolute bottom-3 right-3 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-gray-800 hover:bg-white shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Download media"
+            >
+              {isDownloading ? (
+                <FiLoader size={18} className="animate-spin" strokeWidth={2.5} />
+              ) : (
+                <FiDownload size={18} strokeWidth={2.5} />
+              )}
+            </button>
           </div>
         )}
 
@@ -440,7 +485,6 @@ export default function FeedPage() {
           </div>
         </div>
 
-        {/* Inline comments — always visible, "View all" opens the shared modal */}
         <InlineComments
           postId={post._id}
           user={user}
@@ -460,7 +504,6 @@ export default function FeedPage() {
         {/* Header */}
         <div className="sticky top-0 z-10 px-3 sm:px-6 py-3" style={{ background: 'var(--bg-primary)' }}>
           <div className="max-w-7xl mx-auto flex items-center gap-2 sm:gap-3">
-            {/* Grid / List toggle on the left */}
             <div className="relative grid grid-cols-2 rounded-full p-1 w-[84px] flex-shrink-0" style={{ background: 'var(--bg-secondary)' }}>
               <motion.div className="absolute top-1 bottom-1 rounded-full bg-amber-500"
                 style={{ left: 4, width: 'calc(50% - 4px)' }}
@@ -478,7 +521,6 @@ export default function FeedPage() {
               </button>
             </div>
 
-            {/* Search bar — center, shrinks to fit on mobile */}
             <div className="relative flex-1 min-w-0 max-w-xl mx-auto">
               <FiSearch
                 size={16}
@@ -517,7 +559,6 @@ export default function FeedPage() {
               </AnimatePresence>
             </div>
 
-            {/* Create icon-only amber button on the right */}
             <button onClick={() => navigate('/create')} aria-label="Create post"
               className="flex items-center justify-center h-10 w-10 rounded-full bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-500/30 transition-colors flex-shrink-0">
               <FiPlusSquare size={20} strokeWidth={2.5} />
@@ -564,7 +605,6 @@ export default function FeedPage() {
         </div>
       </div>
 
-      {/* Shared modal: grid comment icon AND list "View all" both open this */}
       <CommentsSheet
         postId={activeCommentPostId}
         open={!!activeCommentPostId}

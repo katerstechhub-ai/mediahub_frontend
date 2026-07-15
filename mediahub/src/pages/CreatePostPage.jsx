@@ -13,23 +13,29 @@ import toast from 'react-hot-toast'
  *  • Framer Motion drives every state change (no CSS transitions)
  *  • Feels native on mobile (sticky glass top bar, big tap targets)
  *  • Feels premium on desktop (drag tilt, paste-from-clipboard, spring reveals)
- *  • Supports up to MAX_IMAGES photos per post
+ *  • Supports up to MAX_IMAGES photos/videos per post
  */
-const MAX_IMAGES = 5
+const MAX_MEDIA = 5
 // Images are downscaled to this max dimension + re-encoded as JPEG before upload.
 // This is the main lever for upload speed — a 4000x3000 phone photo (6-8MB) usually
 // compresses down to a few hundred KB with no visible quality loss at feed size.
 const MAX_DIMENSION = 1600
 const JPEG_QUALITY = 0.82
 let idSeq = 0
-const nextId = () => `img_${Date.now()}_${idSeq++}`
+const nextId = () => `media_${Date.now()}_${idSeq++}`
 
 // Resize + re-encode an image file in the browser using a canvas. Falls back to the
 // original file if anything goes wrong (e.g. unsupported format) so uploads never break.
+// Videos are skipped (returned as-is).
 function compressImage(file) {
   return new Promise((resolve) => {
-    if (!file.type.startsWith('image/') || file.type === 'image/gif') {
-      resolve(file) // don't touch gifs/non-images
+    // Skip videos and GIFs
+    if (file.type.startsWith('video/') || file.type === 'image/gif') {
+      resolve(file)
+      return
+    }
+    if (!file.type.startsWith('image/')) {
+      resolve(file)
       return
     }
     const img = new window.Image()
@@ -70,7 +76,7 @@ export default function CreatePostPage() {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   // files/previews are parallel arrays, each entry keyed by a stable id
-  const [images, setImages] = useState([]) // [{ id, file, preview, compressing }]
+  const [mediaItems, setMediaItems] = useState([]) // [{ id, file, preview, compressing }]
   const [loading, setLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0) // 0-100 while the request is in flight
   const [dragOver, setDragOver] = useState(false)
@@ -81,15 +87,15 @@ export default function CreatePostPage() {
   const my = useMotionValue(0)
   const rotateX = useTransform(my, [-40, 40], [4, -4])
   const rotateY = useTransform(mx, [-40, 40], [-4, 4])
-  const remainingSlots = MAX_IMAGES - images.length
-  const anyCompressing = images.some(img => img.compressing)
+  const remainingSlots = MAX_MEDIA - mediaItems.length
+  const anyCompressing = mediaItems.some(item => item.compressing)
   // ---- validation --------------------------------------------------
   const validate = () => {
     const e = {}
     const t = title.trim()
     if (t && t.length < 3) e.title = 'Title must be at least 3 characters'
     else if (t.length > 100) e.title = 'Title must be under 100 characters'
-    if (!content.trim() && images.length === 0) e.content = 'Add a photo or a few words'
+    if (!content.trim() && mediaItems.length === 0) e.content = 'Add a photo/video or a few words'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -98,17 +104,20 @@ export default function CreatePostPage() {
     const incoming = Array.from(fileListLike || [])
     if (!incoming.length) return
     if (remainingSlots <= 0) {
-      toast.error(`You can add up to ${MAX_IMAGES} images`)
+      toast.error(`You can add up to ${MAX_MEDIA} media items`)
       return
     }
     const accepted = []
     for (const f of incoming) {
       if (accepted.length >= remainingSlots) {
-        toast.error(`Only ${remainingSlots} more image${remainingSlots === 1 ? '' : 's'} allowed`)
+        toast.error(`Only ${remainingSlots} more media item${remainingSlots === 1 ? '' : 's'} allowed`)
         break
       }
-      if (!f.type.startsWith('image/')) { toast.error(`${f.name || 'File'} isn't an image`); continue }
-      if (f.size > 10 * 1024 * 1024) { toast.error(`${f.name || 'Image'} is too large. Max 10MB`); continue }
+      if (!f.type.startsWith('image/') && !f.type.startsWith('video/')) {
+        toast.error(`${f.name || 'File'} isn't an image or video`)
+        continue
+      }
+      if (f.size > 10 * 1024 * 1024) { toast.error(`${f.name || 'File'} is too large. Max 10MB`); continue }
       accepted.push(f)
     }
     if (!accepted.length) return
@@ -117,14 +126,14 @@ export default function CreatePostPage() {
       const id = nextId()
       // Add a placeholder immediately with compressing:true, then swap in the
       // compressed file + preview once ready. Keeps the UI responsive for many images.
-      setImages(prev => [...prev, { id, file: f, preview: null, compressing: true }])
+      setMediaItems(prev => [...prev, { id, file: f, preview: null, compressing: true }])
       ;(async () => {
         const compressed = await compressImage(f)
         const reader = new FileReader()
         reader.onloadend = () => {
-          setImages(prev => prev.map(img => img.id === id
-            ? { ...img, file: compressed, preview: reader.result, compressing: false }
-            : img))
+          setMediaItems(prev => prev.map(item => item.id === id
+            ? { ...item, file: compressed, preview: reader.result, compressing: false }
+            : item))
         }
         reader.readAsDataURL(compressed)
       })()
@@ -135,9 +144,9 @@ export default function CreatePostPage() {
     setDragOver(false)
     handleFiles(e.dataTransfer.files)
   }
-  const removeImage = (id, e) => {
+  const removeMedia = (id, e) => {
     e?.stopPropagation()
-    setImages(prev => prev.filter(img => img.id !== id))
+    setMediaItems(prev => prev.filter(item => item.id !== id))
     if (fileRef.current) fileRef.current.value = ''
   }
   // Paste image(s) from clipboard anywhere on the page — desktop delight
@@ -163,8 +172,8 @@ export default function CreatePostPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, content, images, loading])
-  const canPost = Boolean((title.trim() || content.trim() || images.length > 0) && !loading && !anyCompressing)
+  }, [title, content, mediaItems, loading])
+  const canPost = Boolean((title.trim() || content.trim() || mediaItems.length > 0) && !loading && !anyCompressing)
   const handleSubmit = async () => {
     if (!canPost || !validate()) return
     setLoading(true)
@@ -173,8 +182,9 @@ export default function CreatePostPage() {
       const fd = new FormData()
       if (title.trim()) fd.append('title', title.trim())
       if (content.trim()) fd.append('content', content.trim())
-      else if (images.length) fd.append('content', ' ')
-      images.forEach(({ file }) => fd.append('images', file))
+      else if (mediaItems.length) fd.append('content', ' ')
+      // 🔁 CHANGED: field name from 'images' → 'media'
+      mediaItems.forEach(({ file }) => fd.append('media', file))
       await postsAPI.create(fd, {
         onUploadProgress: (evt) => {
           if (!evt.total) return
@@ -274,9 +284,9 @@ export default function CreatePostPage() {
                 <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
                   {uploadProgress < 100 ? 'Uploading…' : 'Almost done…'}
                 </p>
-                {images.length > 0 && (
+                {mediaItems.length > 0 && (
                   <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                    {images.length} photo{images.length > 1 ? 's' : ''}
+                    {mediaItems.length} media item{mediaItems.length > 1 ? 's' : ''}
                   </p>
                 )}
               </div>
@@ -297,7 +307,7 @@ export default function CreatePostPage() {
           className="mb-8"
         >
           <AnimatePresence mode="wait">
-            {images.length > 0 ? (
+            {mediaItems.length > 0 ? (
               <motion.div
                 key="grid"
                 initial={{ opacity: 0 }}
@@ -307,7 +317,7 @@ export default function CreatePostPage() {
               >
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
-                    {images.length} / {MAX_IMAGES} photos
+                    {mediaItems.length} / {MAX_MEDIA} media
                     {anyCompressing && <span style={{ color: '#f59e0b' }}> · optimizing…</span>}
                   </span>
                   {justPasted && (
@@ -324,7 +334,7 @@ export default function CreatePostPage() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <AnimatePresence>
-                    {images.map(({ id, preview, file, compressing }) => (
+                    {mediaItems.map(({ id, preview, file, compressing }) => (
                       <motion.div
                         key={id}
                         layout
@@ -339,14 +349,23 @@ export default function CreatePostPage() {
                         }}
                       >
                         {preview ? (
-                          <motion.img
-                            src={preview}
-                            alt={file?.name || 'Preview'}
-                            initial={{ scale: 1.08, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                            className="w-full h-full object-cover"
-                          />
+                          file?.type?.startsWith('video/') ? (
+                            <video
+                              src={preview}
+                              className="w-full h-full object-cover"
+                              muted
+                              playsInline
+                            />
+                          ) : (
+                            <motion.img
+                              src={preview}
+                              alt={file?.name || 'Preview'}
+                              initial={{ scale: 1.08, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                              className="w-full h-full object-cover"
+                            />
+                          )
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
                             <motion.span
@@ -371,8 +390,8 @@ export default function CreatePostPage() {
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
-                          onClick={(e) => removeImage(id, e)}
-                          aria-label="Remove image"
+                          onClick={(e) => removeMedia(id, e)}
+                          aria-label="Remove media"
                           className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-md"
                           style={{ background: 'rgba(0,0,0,0.55)' }}
                         >
@@ -403,7 +422,7 @@ export default function CreatePostPage() {
                       >
                         <FiPlus size={20} color="#f59e0b" />
                         <span className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
-                          Add photo
+                          Add media
                         </span>
                       </motion.button>
                     )}
@@ -454,16 +473,16 @@ export default function CreatePostPage() {
                 </motion.div>
                 <div className="space-y-1">
                   <p className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
-                    {dragOver ? 'Drop it here' : 'Add photos'}
+                    {dragOver ? 'Drop it here' : 'Add photos & videos'}
                   </p>
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                     Drag & drop, click to browse, or <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono"
-                      style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>⌘V</kbd> to paste — up to {MAX_IMAGES}
+                      style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>⌘V</kbd> to paste — up to {MAX_MEDIA}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 mt-1 text-[10px] uppercase tracking-wider"
                   style={{ color: 'var(--text-muted)' }}>
-                  <span>PNG</span><span>·</span><span>JPG</span><span>·</span><span>WEBP</span><span>·</span><span>10MB each</span>
+                  <span>PNG</span><span>·</span><span>JPG</span><span>·</span><span>WEBP</span><span>·</span><span>MP4</span><span>·</span><span>10MB each</span>
                 </div>
                 <AnimatePresence>
                   {justPasted && (
@@ -481,10 +500,11 @@ export default function CreatePostPage() {
               </motion.div>
             )}
           </AnimatePresence>
+          {/* File input accepts images AND videos */}
           <input
             ref={fileRef}
             type="file"
-            accept="image/*"
+            accept="image/*,video/*"
             multiple
             className="hidden"
             onChange={(e) => { handleFiles(e.target.files); e.target.value = '' }}

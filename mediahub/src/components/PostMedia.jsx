@@ -14,7 +14,14 @@ export function getImageUrls(post) {
       else if (img?.url) urls.push(img.url)
     })
   }
-  // Media array
+  // Videos – add their URLs so video posts have media
+  if (Array.isArray(post.videos)) {
+    post.videos.forEach(vid => {
+      if (typeof vid === 'string') urls.push(vid)
+      else if (vid?.url) urls.push(vid.url)
+    })
+  }
+  // Media array (legacy)
   if (Array.isArray(post.media)) {
     post.media.forEach(m => {
       const u = typeof m === 'string' ? m : m?.url
