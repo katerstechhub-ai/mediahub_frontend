@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiGrid, FiArrowLeft, FiUser, FiLayers, FiDownload, FiLoader } from 'react-icons/fi'
+import { FiGrid, FiArrowLeft, FiUser, FiLayers, FiDownload, FiLoader, FiPlay } from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
@@ -51,9 +51,6 @@ export default function UserProfilePage() {
     })
     setUserPosts(filtered)
 
-    // Fallback: if the direct profile fetch failed for some reason but we
-    // do have posts by this author, use their embedded author info instead
-    // of showing "Unknown User".
     if (!profileUser && filtered.length > 0) {
       setProfileUser(filtered[0].author)
     }
@@ -114,7 +111,7 @@ export default function UserProfilePage() {
           </motion.button>
         </div>
 
-        {/* Avatar + name + stats, side by side, flat */}
+        {/* Avatar + name + stats */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -205,8 +202,8 @@ export default function UserProfilePage() {
                       className="cursor-pointer rounded-lg overflow-hidden group relative"
                       style={{ aspectRatio: '1/1', background: 'var(--bg-secondary)' }}
                     >
-                      {/* Multiple media badge */}
-                      {hasMultiple && (
+                      {/* Multiple media badge (only for images) */}
+                      {hasMultiple && !hasVideos && (
                         <div
                           className="absolute top-1.5 left-1.5 z-10 text-white"
                           style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))' }}
@@ -226,7 +223,7 @@ export default function UserProfilePage() {
                             className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm"
                             style={{ background: 'rgba(0,0,0,0.5)' }}
                           >
-                            <FiImage
+                            <FiPlay
                               size={18}
                               className="text-white"
                               style={{ marginLeft: 2 }}
@@ -243,7 +240,7 @@ export default function UserProfilePage() {
                           className="w-full h-full object-cover"
                           muted
                           playsInline
-                          onClick={(e) => e.stopPropagation()}
+                          // 🔁 REMOVED onClick → now the parent handles navigation
                           onError={(e) => e.target.style.display = 'none'}
                         />
                       ) : mediaUrl ? (
@@ -262,7 +259,7 @@ export default function UserProfilePage() {
                         </div>
                       )}
 
-                      {/* ── Download button (appears on hover, bottom-right) ── */}
+                      {/* Download button */}
                       {downloadUrl && (
                         <motion.button
                           initial={{ opacity: 0, scale: 0.8 }}

@@ -4,7 +4,7 @@ import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import {
   FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList,
   FiCopy, FiSend, FiSearch, FiX, FiDownload, FiLoader,
-  FiCalendar, FiMapPin   // ← new icons for wedding hero
+  FiCalendar, FiMapPin
 } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'
@@ -53,7 +53,7 @@ function WeddingHero() {
 
   return (
     <section className="relative w-full max-w-7xl mx-auto px-3 sm:px-6 pt-4">
-      <div className="relative overflow-hidden  aspect-[16/9] sm:aspect-[21/9] shadow-2xl">
+      <div className="relative overflow-hidden aspect-[16/9] sm:aspect-[21/9] shadow-2xl">
         {/* Slides */}
         <AnimatePresence mode="sync">
           <motion.img
@@ -103,10 +103,10 @@ function WeddingHero() {
             </AnimatePresence>
 
             <div className="mt-4 sm:mt-6 flex flex-wrap items-center gap-3 sm:gap-5 text-white/90 text-xs sm:text-sm">
-              <span className="flex items-center gap-2 px-3 py-1.5  ">
+              <span className="flex items-center gap-2 px-3 py-1.5">
                 <FiCalendar size={14} /> November 14, 2026
               </span>
-              <span className="flex items-center gap-2 px-3 py-1.5 ">
+              <span className="flex items-center gap-2 px-3 py-1.5">
                 <FiMapPin size={14} /> Amalfi Coast, Abuja
               </span>
             </div>
@@ -153,6 +153,69 @@ function MultiImageBadge({ count }) {
       <FiCopy size={11} strokeWidth={2.8} />
       {count}
     </div>
+  )
+}
+
+/* ─────────── Boomerang video: plays forward, then reverses back to start, on loop ─────────── */
+
+function BoomerangVideo({ src, poster, className, style, onClick }) {
+  const videoRef = useRef(null)
+  const rafRef = useRef(null)
+  const lastTimeRef = useRef(null)
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !src) return
+
+    let cancelled = false
+
+    const stepReverse = (timestamp) => {
+      if (cancelled || !videoRef.current) return
+      const v = videoRef.current
+      if (lastTimeRef.current == null) lastTimeRef.current = timestamp
+      const delta = (timestamp - lastTimeRef.current) / 1000
+      lastTimeRef.current = timestamp
+
+      const next = v.currentTime - delta
+      if (next <= 0) {
+        v.currentTime = 0
+        lastTimeRef.current = null
+        v.play().catch(() => {})
+      } else {
+        v.currentTime = next
+        rafRef.current = requestAnimationFrame(stepReverse)
+      }
+    }
+
+    const handleEnded = () => {
+      if (cancelled) return
+      lastTimeRef.current = null
+      rafRef.current = requestAnimationFrame(stepReverse)
+    }
+
+    video.addEventListener('ended', handleEnded)
+    video.play().catch(() => {})
+
+    return () => {
+      cancelled = true
+      video.removeEventListener('ended', handleEnded)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
+  }, [src])
+
+  return (
+    <video
+      ref={videoRef}
+      src={src}
+      poster={poster || undefined}
+      className={className}
+      style={style}
+      muted
+      playsInline
+      autoPlay
+      onClick={onClick}
+      onError={(e) => { e.target.style.display = 'none' }}
+    />
   )
 }
 
@@ -237,7 +300,7 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange, onOpenAll 
                 </div>
                 <p className="text-sm leading-snug" style={{ color: 'var(--text-primary)' }}>
                   <span className="font-bold mr-1.5 cursor-pointer hover:underline"
-                        onClick={(e) => onGoToProfile?.(e, c.author)}>
+                      onClick={(e) => onGoToProfile?.(e, c.author)}>
                     {c.author?.name || 'Unknown'}
                   </span>
                   <span style={{ color: 'var(--text-secondary)' }}>{c.content}</span>
@@ -435,6 +498,9 @@ export default function FeedPage() {
 
   const renderGridTile = (post) => {
     const urls = getImageUrls(post)
+    const hasVideos = post.videos && post.videos.length > 0
+    const videoUrl = hasVideos ? post.videos[0].url : null
+    const videoThumbnail = hasVideos ? post.videos[0].thumbnail : null
     const isLiked = post.likes?.includes(user?._id)
     const commentCount = gridCommentCounts[post._id] ?? (post.commentCount ?? 0)
     return (
@@ -447,7 +513,14 @@ export default function FeedPage() {
         className="relative group cursor-pointer rounded-[20%] overflow-hidden aspect-[4/5] shadow-sm"
         style={{ background: 'var(--bg-secondary)' }}
       >
-        {urls.length > 0 ? (
+        {hasVideos ? (
+          <BoomerangVideo
+            src={videoUrl}
+            poster={videoThumbnail}
+            className="w-full h-full object-cover"
+            onClick={(e) => handleDoubleTap(e, post._id, true)}
+          />
+        ) : urls.length > 0 ? (
           urls.length > 1 ? (
             <ImageSlider urls={urls} title={post.title} postId={post._id}
               onDoubleTap={(e) => handleDoubleTap(e, post._id, true)}
@@ -463,7 +536,7 @@ export default function FeedPage() {
           </div>
         )}
 
-        <MultiImageBadge count={urls.length} />
+        {!hasVideos && <MultiImageBadge count={urls.length} />}
 
         <div onClick={(e) => goToProfile(e, post.author)} className="absolute top-1.5 left-1.5 cursor-pointer z-10">
           <Avatar src={post.author?.avatar} name={post.author?.name} size={22} className="ring-2 ring-white/70 shadow" />
@@ -490,17 +563,21 @@ export default function FeedPage() {
 
   const renderListItem = (post) => {
     const urls = getImageUrls(post)
+    const hasVideos = post.videos && post.videos.length > 0
+    const videoUrl = hasVideos ? post.videos[0].url : null
+    const videoThumbnail = hasVideos ? post.videos[0].thumbnail : null
     const isLiked = post.likes?.includes(user?._id)
     const baseCount = post.commentCount ?? 0
     const commentCount = baseCount + (commentDeltas[post._id] || 0)
     const isDownloading = downloadingMap[post._id] || false
+    const downloadTarget = hasVideos ? videoUrl : urls[0]
 
     return (
       <motion.article key={post._id} layoutId={`post-${post._id}`} variants={gridItem}
-        className="border-b pb-5"
-        style={{ borderColor: 'var(--border)' }}>
+        className="rounded-2xl p-4 sm:p-5 transition-shadow hover:shadow-md"
+        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
 
-        <header className="flex items-center gap-3 px-3 md:px-0 mb-2">
+        <header className="flex items-center gap-3 mb-2">
           <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
             <Avatar src={post.author?.avatar} name={post.author?.name} size={38} />
           </div>
@@ -516,10 +593,14 @@ export default function FeedPage() {
           </div>
         </header>
 
-        {urls.length > 0 && (
+        {(hasVideos || urls.length > 0) && (
           <div className="relative w-full mb-3 rounded-xl overflow-hidden cursor-pointer aspect-square"
                style={{ background: 'var(--bg-secondary)' }}>
-            {urls.length === 1 ? (
+            {hasVideos ? (
+              <div onClick={e => handleDoubleTap(e, post._id, true)} className="w-full h-full">
+                <BoomerangVideo src={videoUrl} poster={videoThumbnail} className="w-full h-full object-cover" />
+              </div>
+            ) : urls.length === 1 ? (
               <div onClick={e => handleDoubleTap(e, post._id, true)} className="w-full h-full">
                 <img src={urls[0]} alt={post.title || 'Post'}
                      className="w-full h-full object-cover"
@@ -529,13 +610,13 @@ export default function FeedPage() {
               <ImageSlider urls={urls} title={post.title} postId={post._id}
                 onDoubleTap={(e) => handleDoubleTap(e, post._id, true)} rounded="" className="w-full h-full" hideDots tapToNavigate={false} />
             )}
-            <MultiImageBadge count={urls.length} />
+            {!hasVideos && <MultiImageBadge count={urls.length} />}
             <HeartAnimation postId={post._id} />
 
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                const firstUrl = urls[0];
+                const firstUrl = downloadTarget;
                 if (!firstUrl) return;
                 const ext = firstUrl.split('.').pop() || 'jpg';
                 const filename = post.title ? `${post.title}.${ext}` : `download.${ext}`;
@@ -554,7 +635,7 @@ export default function FeedPage() {
           </div>
         )}
 
-        <div className="flex items-start justify-between gap-4 px-3 md:px-0">
+        <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
             {post.title && (
               <h3 className="font-extrabold font-display text-base leading-snug"
@@ -581,7 +662,7 @@ export default function FeedPage() {
 
           <div className="flex items-center gap-2.5 flex-shrink-0">
             <motion.button onClick={e => handleLike(e, post._id)} whileTap={{ scale: 0.9 }}
-              className="flex items-center gap-1.5 h-10 px-4 rounded-full hover:bg-[var(--bg-secondary)] leading-none">
+              className="flex items-center gap-1.5 h-10 px-4 rounded-full hover:bg-[var(--bg-primary)] leading-none">
               {isLiked
                 ? <FaHeart size={18} color="#ef4444" />
                 : <FiHeart size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
@@ -710,7 +791,7 @@ export default function FeedPage() {
                     </motion.div>
                   ) : (
                     <motion.div
-                      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-8"
+                      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-5"
                       variants={gridContainer} initial="initial" animate="animate"
                     >
                       {group.posts.map((post) => renderListItem(post))}

@@ -19,22 +19,11 @@ export default function BottomNav() {
   const { user } = useAuthStore()
   const setBottomNavHeight = useUIStore((s) => s.setBottomNavHeight)
   const [unreadCount, setUnreadCount] = useState(0)
-  const [expanded, setExpanded] = useState(false)
   const outerRef = useRef(null)
 
   const visibleTabs = allTabs.filter((t) => !t.authOnly || user)
 
-  useEffect(() => { setExpanded(false) }, [location.pathname])
-
-  useEffect(() => {
-    if (!expanded) return
-    const onDown = (e) => {
-      if (outerRef.current && !outerRef.current.contains(e.target)) setExpanded(false)
-    }
-    document.addEventListener('pointerdown', onDown)
-    return () => document.removeEventListener('pointerdown', onDown)
-  }, [expanded])
-
+  // Measure height for layout offset
   useEffect(() => {
     const el = outerRef.current
     if (!el || typeof window === 'undefined') return
@@ -53,8 +42,9 @@ export default function BottomNav() {
       window.removeEventListener('resize', measure)
       window.removeEventListener('orientationchange', measure)
     }
-  }, [visibleTabs.length, expanded, setBottomNavHeight])
+  }, [visibleTabs.length, setBottomNavHeight])
 
+  // Fetch unread notification count
   useEffect(() => {
     if (!user) return
     const fetchUnread = async () => {
@@ -71,34 +61,29 @@ export default function BottomNav() {
   const isActiveTab = (to) => (to === '/' ? location.pathname === '/' : location.pathname.startsWith(to))
 
   const handleAvatarClick = () => {
-    if (!user) return navigate('/login')
-    if (expanded) {
-      // Second tap on avatar → go to profile
-      navigate('/profile')
-      setExpanded(false)
+    if (!user) {
+      navigate('/login')
     } else {
-      setExpanded(true)
+      navigate('/profile')
     }
   }
 
   return createPortal(
     <motion.div
       ref={outerRef}
-      className="lg:hidden fixed z-50 flex"
+      className="lg:hidden fixed z-50 flex justify-center"
       style={{
         bottom: 'calc(1rem + env(safe-area-inset-bottom))',
         left: 0,
         right: 0,
-        justifyContent: expanded ? 'center' : 'flex-start',
-        paddingLeft: expanded ? 0 : 'calc(1rem + env(safe-area-inset-left))',
-        transition: 'justify-content 0.35s cubic-bezier(0.22, 1, 0.36, 1), padding-left 0.35s cubic-bezier(0.22, 1, 0.36, 1)',
+        paddingLeft: 'calc(1rem + env(safe-area-inset-left))',
+        paddingRight: 'calc(1rem + env(safe-area-inset-right))',
       }}
     >
       <motion.nav
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-        layout
         className="flex items-center gap-1 p-1.5 rounded-full backdrop-blur-2xl"
         style={{
           background: 'color-mix(in oklab, var(--background) 70%, transparent)',
@@ -106,74 +91,59 @@ export default function BottomNav() {
           boxShadow: '0 12px 40px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.08)',
         }}
       >
-        <AnimatePresence initial={false} mode="popLayout">
-          {expanded && visibleTabs.map(({ to, icon: Icon, label }) => {
-            const active = isActiveTab(to)
-            return (
-              <motion.div
-                key={to}
-                layout
-                initial={{ opacity: 0, scale: 0.6, width: 0 }}
-                animate={{ opacity: 1, scale: 1, width: 'auto' }}
-                exit={{ opacity: 0, scale: 0.6, width: 0 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              >
-                <NavLink
-                  to={to}
-                  end={to === '/'}
-                  aria-label={label}
-                  className="relative flex items-center justify-center w-11 h-11 rounded-full"
+        {/* All tabs always visible */}
+        {visibleTabs.map(({ to, icon: Icon, label }) => {
+          const active = isActiveTab(to)
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              aria-label={label}
+              className="relative flex items-center justify-center w-11 h-11 rounded-full"
+            >
+              {active && (
+                <div
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    background: 'linear-gradient(135deg,#fbbf24,#f59e0b)',
+                    boxShadow: '0 6px 18px rgba(245,158,11,0.45)',
+                  }}
+                />
+              )}
+              <Icon
+                size={20}
+                color={active ? '#fff' : 'var(--text-muted)'}
+                strokeWidth={2.5}
+                style={{ position: 'relative', zIndex: 1 }}
+              />
+              {to === '/notifications' && unreadCount > 0 && (
+                <span
+                  className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white z-20"
+                  style={{ background: '#ef4444', boxShadow: '0 0 0 2px var(--background)' }}
                 >
-                  {active && (
-                    <div
-                      className="absolute inset-0 rounded-full"
-                      style={{
-                        background: 'linear-gradient(135deg,#fbbf24,#f59e0b)',
-                        boxShadow: '0 6px 18px rgba(245,158,11,0.45)',
-                      }}
-                    />
-                  )}
-                  <Icon
-                    size={20}
-                    color={active ? '#fff' : 'var(--text-muted)'}
-                    strokeWidth={2.5}
-                    style={{ position: 'relative', zIndex: 1 }}
-                  />
-                  {to === '/notifications' && unreadCount > 0 && (
-                    <span
-                      className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white z-20"
-                      style={{ background: '#ef4444', boxShadow: '0 0 0 2px var(--background)' }}
-                    >
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  )}
-                </NavLink>
-              </motion.div>
-            )
-          })}
-        </AnimatePresence>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </NavLink>
+          )
+        })}
 
-        {/* Avatar: collapsed → expand. Expanded → go to profile. */}
+        {/* Avatar / Profile tab – always visible, always goes to profile */}
         <motion.button
-          layout
           onClick={handleAvatarClick}
           whileTap={{ scale: 0.9 }}
-          aria-label={
-            !user ? 'Sign in' : expanded ? 'Go to profile' : 'Open menu'
-          }
+          aria-label={user ? 'Profile' : 'Sign in'}
           className="relative flex items-center justify-center w-12 h-12 rounded-full flex-shrink-0"
           style={{
-            background: expanded
-              ? 'linear-gradient(135deg,#fbbf24,#f59e0b)'
-              : 'transparent',
-            transition: 'background 0.25s ease',
+            background: 'transparent',
           }}
         >
           {user ? (
             user.avatar ? (
               <img
                 src={user.avatar}
-                alt={user.name}
+                alt={user.name || 'Profile'}
                 className="w-9 h-9 rounded-full object-cover"
                 style={{ boxShadow: '0 0 0 2px rgba(245,158,11,0.6)' }}
               />

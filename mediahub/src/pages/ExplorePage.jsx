@@ -7,6 +7,71 @@ import { EmptyState, Avatar } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
 import { postsAPI, notificationsAPI } from '../api'
 
+/* ─────────── Boomerang video: plays forward, then reverses back to start, on loop ─────────── */
+
+function BoomerangVideo({ src, poster, className, style, onClick }) {
+  const videoRef = useRef(null)
+  const rafRef = useRef(null)
+  const lastTimeRef = useRef(null)
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !src) return
+
+    let cancelled = false
+
+    const stepReverse = (timestamp) => {
+      if (cancelled || !videoRef.current) return
+      const v = videoRef.current
+      if (lastTimeRef.current == null) lastTimeRef.current = timestamp
+      const delta = (timestamp - lastTimeRef.current) / 1000
+      lastTimeRef.current = timestamp
+
+      const next = v.currentTime - delta
+      if (next <= 0) {
+        v.currentTime = 0
+        lastTimeRef.current = null
+        v.play().catch(() => {})
+      } else {
+        v.currentTime = next
+        rafRef.current = requestAnimationFrame(stepReverse)
+      }
+    }
+
+    const handleEnded = () => {
+      if (cancelled) return
+      lastTimeRef.current = null
+      rafRef.current = requestAnimationFrame(stepReverse)
+    }
+
+    video.addEventListener('ended', handleEnded)
+    video.play().catch(() => {})
+
+    return () => {
+      cancelled = true
+      video.removeEventListener('ended', handleEnded)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
+  }, [src])
+
+  return (
+    <video
+      ref={videoRef}
+      src={src}
+      poster={poster || undefined}
+      className={className}
+      style={style}
+      muted
+      playsInline
+      autoPlay
+      onClick={onClick}
+      onError={(e) => { e.target.style.display = 'none' }}
+    />
+  )
+}
+
+/* ─────────── ExplorePage ─────────── */
+
 export default function ExplorePage() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -214,11 +279,15 @@ export default function ExplorePage() {
                 let thumbnailUrl = null
                 let isVideo = false
                 let mediaCount = 0
+                let videoUrl = null
+                let videoThumbnail = null
 
-                // Check for videos first (use thumbnail if available)
+                // Check for videos first
                 if (post.videos && post.videos.length > 0) {
                   const video = post.videos[0]
-                  thumbnailUrl = video.thumbnail || video.url || null
+                  videoUrl = video.url
+                  videoThumbnail = video.thumbnail || null
+                  thumbnailUrl = videoThumbnail || videoUrl
                   isVideo = true
                   mediaCount = post.videos.length + (post.images?.length || 0)
                 } else {
@@ -258,34 +327,29 @@ export default function ExplorePage() {
                           </div>
                         )}
 
-                        <img
-                          src={thumbnailUrl}
-                          alt={displayText}
-                          className="w-full h-auto object-cover block"
-                          loading="lazy"
-                          onError={(e) => {
-                            e.target.style.display = 'none'
-                            const parent = e.target.parentElement
-                            const fallback = document.createElement('div')
-                            fallback.className = 'p-4 min-h-[140px] flex items-center justify-center'
-                            fallback.innerHTML = `<p class="text-xs text-center line-clamp-4" style="color: var(--text-secondary)">${displayText}</p>`
-                            parent.appendChild(fallback)
-                          }}
-                        />
-
-                        {/* Video play icon overlay */}
-                        {isVideo && (
-                          <div
-                            className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                            style={{ background: 'rgba(0,0,0,0.15)' }}
-                          >
-                            <div
-                              className="w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm"
-                              style={{ background: 'rgba(0,0,0,0.5)' }}
-                            >
-                              <FiPlay size={20} className="text-white ml-1" strokeWidth={2.5} />
-                            </div>
-                          </div>
+                        {/* ── Render video with Boomerang if video, else static image ── */}
+                        {isVideo ? (
+                          <BoomerangVideo
+                            src={videoUrl}
+                            poster={videoThumbnail}
+                            className="w-full h-auto object-cover block"
+                            // 🔁 REMOVED onClick → parent handles navigation
+                          />
+                        ) : (
+                          <img
+                            src={thumbnailUrl}
+                            alt={displayText}
+                            className="w-full h-auto object-cover block"
+                            loading="lazy"
+                            onError={(e) => {
+                              e.target.style.display = 'none'
+                              const parent = e.target.parentElement
+                              const fallback = document.createElement('div')
+                              fallback.className = 'p-4 min-h-[140px] flex items-center justify-center'
+                              fallback.innerHTML = `<p class="text-xs text-center line-clamp-4" style="color: var(--text-secondary)">${displayText}</p>`
+                              parent.appendChild(fallback)
+                            }}
+                          />
                         )}
 
                         {/* Hover overlay - Pinterest style */}

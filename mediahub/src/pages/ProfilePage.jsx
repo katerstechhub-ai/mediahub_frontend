@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiGrid, FiArrowLeft, FiHeart, FiMessageCircle, FiUser, FiEdit2,
-  FiSettings, FiLayers, FiImage, FiCalendar, FiDownload, FiLoader
+  FiSettings, FiLayers, FiImage, FiCalendar, FiDownload, FiLoader, FiPlay
 } from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
@@ -228,11 +228,9 @@ export default function ProfilePage() {
                   const hasVideos = post.videos && post.videos.length > 0
                   const isDownloading = downloadingMap[post._id] || false
 
-                  // Video thumbnail
                   const videoThumbnail = hasVideos ? post.videos[0].thumbnail : null
                   const videoUrl = hasVideos ? post.videos[0].url : null
 
-                  // For download: use the first media URL
                   const downloadUrl = mediaUrl || videoUrl
                   const fileExt = downloadUrl ? downloadUrl.split('.').pop() || 'jpg' : 'jpg'
                   const downloadFilename = post.title ? `${post.title}.${fileExt}` : `download.${fileExt}`
@@ -261,7 +259,7 @@ export default function ProfilePage() {
                       </motion.button>
 
                       {/* Multiple media badge */}
-                      {hasMultiple && (
+                      {hasMultiple && !hasVideos && (
                         <div
                           className="absolute top-1.5 left-1.5 z-10 text-white"
                           style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))' }}
@@ -281,7 +279,7 @@ export default function ProfilePage() {
                             className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm"
                             style={{ background: 'rgba(0,0,0,0.5)' }}
                           >
-                            <FiImage
+                            <FiPlay
                               size={18}
                               className="text-white"
                               style={{ marginLeft: 2 }}
