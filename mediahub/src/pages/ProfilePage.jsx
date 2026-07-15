@@ -67,7 +67,6 @@ export default function ProfilePage() {
     }
   }
 
-  // ── Download handler ──
   const handleDownload = async (postId, url, filename) => {
     if (!url) return
     setDownloadingMap(prev => ({ ...prev, [postId]: true }))
@@ -125,7 +124,7 @@ export default function ProfilePage() {
           </motion.button>
         </div>
 
-        {/* Avatar + name + stats, side by side, flat */}
+        {/* Avatar + name + stats */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -288,7 +287,7 @@ export default function ProfilePage() {
                         </div>
                       )}
 
-                      {/* Media rendering */}
+                      {/* ── FIXED: removed onClick from video ── */}
                       {hasVideos ? (
                         <video
                           src={videoUrl}
@@ -296,7 +295,7 @@ export default function ProfilePage() {
                           className="w-full h-full object-cover"
                           muted
                           playsInline
-                          onClick={(e) => e.stopPropagation()}
+                          // 🔁 REMOVED onClick → now clicks bubble to parent and navigate
                           onError={(e) => e.target.style.display = 'none'}
                         />
                       ) : mediaUrl ? (
@@ -315,7 +314,7 @@ export default function ProfilePage() {
                         </div>
                       )}
 
-                      {/* ── Download button (appears on hover, bottom-right) ── */}
+                      {/* Download button */}
                       {downloadUrl && (
                         <motion.button
                           initial={{ opacity: 0, scale: 0.8 }}
