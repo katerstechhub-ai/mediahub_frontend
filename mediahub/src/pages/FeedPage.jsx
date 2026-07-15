@@ -53,7 +53,7 @@ function WeddingHero() {
 
   return (
     <section className="relative w-full max-w-7xl mx-auto px-3 sm:px-6 pt-4">
-      <div className="relative overflow-hidden rounded-3xl aspect-[16/9] sm:aspect-[21/9] shadow-2xl">
+      <div className="relative overflow-hidden  aspect-[16/9] sm:aspect-[21/9] shadow-2xl">
         {/* Slides */}
         <AnimatePresence mode="sync">
           <motion.img
