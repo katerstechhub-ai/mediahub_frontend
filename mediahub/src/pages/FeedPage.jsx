@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import {
   FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList,
-  FiCopy, FiSend, FiSearch, FiX, FiDownload, FiLoader
+  FiCopy, FiSend, FiSearch, FiX, FiDownload, FiLoader,
+  FiCalendar, FiMapPin   // ← new icons for wedding hero
 } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
-import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'   // ← import api as default
+import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'
 import { useAuthStore } from '../store'
 import { Avatar } from '../components/ui'
 import { getImageUrls, ImageSlider } from '../components/PostMedia'
@@ -16,6 +17,121 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
 
 import CommentsSheet from './_CommentsSheet'
+
+/* ─────────── Wedding Hero Slider ─────────── */
+
+const WEDDING_SLIDES = [
+  {
+    url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=1600&q=80',
+    caption: 'Two hearts, one journey',
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=1600&q=80',
+    caption: 'Where forever begins',
+  },
+  {
+    url: 'https://i.pinimg.com/1200x/05/45/04/054504e4faceeb61c885dcb08e15e317.jpg',
+    caption: 'Golden hour, golden vows',
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=1600&q=80',
+    caption: 'Dancing into forever',
+  },
+]
+
+function WeddingHero() {
+  const [index, setIndex] = useState(0)
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setIndex((i) => (i + 1) % WEDDING_SLIDES.length)
+    }, 5000)
+    return () => clearInterval(t)
+  }, [])
+
+  const slide = WEDDING_SLIDES[index]
+
+  return (
+    <section className="relative w-full max-w-7xl mx-auto px-3 sm:px-6 pt-4">
+      <div className="relative overflow-hidden rounded-3xl aspect-[16/9] sm:aspect-[21/9] shadow-2xl">
+        {/* Slides */}
+        <AnimatePresence mode="sync">
+          <motion.img
+            key={slide.url}
+            src={slide.url}
+            alt={slide.caption}
+            initial={{ opacity: 0, scale: 1.08 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.02 }}
+            transition={{ duration: 1.2, ease: 'easeOut' }}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </AnimatePresence>
+
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
+
+        {/* Content */}
+        <div className="absolute inset-0 flex flex-col justify-end p-5 sm:p-10 md:p-14">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.7 }}
+          >
+            <span className="inline-block text-[10px] sm:text-xs tracking-[0.3em] uppercase text-amber-300 font-semibold mb-2 sm:mb-3">
+              You're invited
+            </span>
+            <h1
+              className="font-display text-white font-extrabold leading-[0.95] tracking-tight"
+              style={{ fontSize: 'clamp(2rem, 6vw, 4.5rem)' }}
+            >
+              Paloma <span className="italic font-light text-amber-300">&</span> Kenneth
+            </h1>
+
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={slide.caption}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.5 }}
+                className="mt-2 sm:mt-3 text-white/85 text-sm sm:text-lg italic max-w-lg"
+              >
+                “{slide.caption}”
+              </motion.p>
+            </AnimatePresence>
+
+            <div className="mt-4 sm:mt-6 flex flex-wrap items-center gap-3 sm:gap-5 text-white/90 text-xs sm:text-sm">
+              <span className="flex items-center gap-2 px-3 py-1.5  ">
+                <FiCalendar size={14} /> November 14, 2026
+              </span>
+              <span className="flex items-center gap-2 px-3 py-1.5 ">
+                <FiMapPin size={14} /> Amalfi Coast, Abuja
+              </span>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Dots */}
+        <div className="absolute bottom-3 sm:bottom-5 right-4 sm:right-8 flex gap-1.5 z-10">
+          {WEDDING_SLIDES.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setIndex(i)}
+              aria-label={`Slide ${i + 1}`}
+              className="h-1.5 rounded-full transition-all duration-500"
+              style={{
+                width: i === index ? 28 : 8,
+                background: i === index ? '#fbbf24' : 'rgba(255,255,255,0.5)',
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
 
 /* ─────────── Normalize a user object into the shape comments expect ─────────── */
 
@@ -252,7 +368,6 @@ export default function FeedPage() {
     </AnimatePresence>
   )
 
-  // ── Download handler with loader ──
   const handleDownload = async (postId, url, filename) => {
     if (!url) return
     setDownloadingMap(prev => ({ ...prev, [postId]: true }))
@@ -417,7 +532,6 @@ export default function FeedPage() {
             <MultiImageBadge count={urls.length} />
             <HeartAnimation postId={post._id} />
 
-            {/* ── Download button with spinner ── */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -501,6 +615,10 @@ export default function FeedPage() {
   return (
     <>
       <div className="min-h-screen pb-10" style={{ background: 'var(--bg-primary)' }}>
+
+        {/* ─── Wedding Hero Slider ─── */}
+        <WeddingHero />
+
         {/* Header */}
         <div className="sticky top-0 z-10 px-3 sm:px-6 py-3" style={{ background: 'var(--bg-primary)' }}>
           <div className="max-w-7xl mx-auto flex items-center gap-2 sm:gap-3">
