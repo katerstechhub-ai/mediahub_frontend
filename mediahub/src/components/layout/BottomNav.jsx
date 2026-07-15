@@ -68,6 +68,17 @@ export default function BottomNav() {
     }
   }
 
+  // ── Handle tab click with refresh logic ──
+  const handleTabClick = (to, e) => {
+    // If already on this tab and it's NOT the create page, refresh
+    if (isActiveTab(to) && to !== '/create') {
+      e.preventDefault()
+      // Reload the current route – triggers a full page refresh
+      navigate(0)
+    }
+    // Otherwise, let the NavLink handle navigation normally
+  }
+
   return createPortal(
     <motion.div
       ref={outerRef}
@@ -100,6 +111,7 @@ export default function BottomNav() {
               to={to}
               end={to === '/'}
               aria-label={label}
+              onClick={(e) => handleTabClick(to, e)}
               className="relative flex items-center justify-center w-11 h-11 rounded-full"
             >
               {active && (

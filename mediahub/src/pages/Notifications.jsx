@@ -1,10 +1,9 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, useMotionValue, animate } from 'framer-motion'
-import { FiBell, FiArrowLeft, FiHeart, FiMessageCircle, FiUserPlus, FiThumbsDown, FiTrash2, FiLayers } from 'react-icons/fi'
+import { FiBell, FiArrowLeft, FiHeart, FiMessageCircle, FiUserPlus, FiThumbsDown, FiTrash2, FiLayers, FiPlay } from 'react-icons/fi'
 import { notificationsAPI } from '../api'
 import { Avatar } from '../components/ui'
-import { getImageUrls } from '../components/PostMedia'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
@@ -44,7 +43,6 @@ function SwipeableRow({ notificationId, onDelete, children }) {
       >
         {React.cloneElement(children, {
           onClickCapture: (e) => {
-            // Suppress the row's onClick if this was actually a drag, not a tap
             if (dragging) {
               e.stopPropagation()
               e.preventDefault()
@@ -98,14 +96,12 @@ export default function Notifications() {
   }
 
   const handleDeleteNotification = async (notificationId) => {
-    // Optimistically remove from UI first
     const previous = notifications
     setNotifications((prev) => prev.filter((n) => n._id !== notificationId))
     try {
       await notificationsAPI.delete(notificationId)
     } catch (error) {
       console.error('Error deleting notification:', error)
-      // Roll back on failure
       setNotifications(previous)
     }
   }
@@ -129,21 +125,22 @@ export default function Notifications() {
 
   const getNotificationMessage = (notification) => {
     const userName = notification.sender?.name || 'Someone'
+    const postTitle = notification.post?.title || 'your post'
     switch (notification.type) {
       case 'like_post':
         return (
           <span>
             <span className="font-semibold">{userName}</span>
-            {' liked your post '}
-            <span className="font-medium">{notification.post?.title || ''}</span>
+            {' liked '}
+            <span className="font-medium">{postTitle}</span>
           </span>
         )
       case 'dislike_post':
         return (
           <span>
             <span className="font-semibold">{userName}</span>
-            {' disliked your post '}
-            <span className="font-medium">{notification.post?.title || ''}</span>
+            {' disliked '}
+            <span className="font-medium">{postTitle}</span>
           </span>
         )
       case 'comment':
@@ -152,6 +149,8 @@ export default function Notifications() {
             <span className="font-semibold">{userName}</span>
             {' commented: '}
             <span className="font-medium">"{notification.comment?.content || ''}"</span>
+            {' on '}
+            <span className="font-medium">{postTitle}</span>
           </span>
         )
       case 'reply':
@@ -180,10 +179,50 @@ export default function Notifications() {
         return (
           <span>
             <span className="font-semibold">{userName}</span>
-            {' interacted with your post'}
+            {' interacted with '}
+            <span className="font-medium">{postTitle}</span>
           </span>
         )
     }
+  }
+
+  // ── Robust thumbnail extraction (supports images & videos) ──
+  const getThumbnail = (post) => {
+    if (!post) return null
+
+    // 1. Direct thumbnail field (if backend adds it)
+    if (post.thumbnail) {
+      return { url: post.thumbnail, isVideo: false, multiple: false }
+    }
+
+    // 2. Videos array
+    if (post.videos && Array.isArray(post.videos) && post.videos.length > 0) {
+      const video = post.videos[0]
+      const url = video?.thumbnail || video?.url || null
+      if (url) return { url, isVideo: true, multiple: false }
+    }
+
+    // 3. Images array
+    if (post.images && Array.isArray(post.images) && post.images.length > 0) {
+      const first = post.images[0]
+      const url = typeof first === 'string' ? first : first?.url
+      if (url) {
+        return {
+          url,
+          isVideo: false,
+          multiple: post.images.length > 1,
+        }
+      }
+    }
+
+    // 4. Legacy single image fields
+    const legacyUrl = post.image?.url || post.imageUrl || null
+    if (legacyUrl) {
+      return { url: legacyUrl, isVideo: false, multiple: false }
+    }
+
+    // 5. No media
+    return null
   }
 
   if (loading) {
@@ -198,8 +237,7 @@ export default function Notifications() {
 
   return (
     <div className="min-h-screen fade-in" style={{ background: 'var(--bg-primary)' }}>
-      {/* Sticky header — matches Feed/Explore header treatment: plain
-          background, no border/blur, consistent px-4 sm:px-6 py-3 rhythm */}
+      {/* Sticky header */}
       <div className="sticky top-0 z-10 px-4 sm:px-6 py-3" style={{ background: 'var(--bg-primary)' }}>
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <button
@@ -244,9 +282,14 @@ export default function Notifications() {
         ) : (
           <div className="px-3 sm:px-4 py-3 flex flex-col gap-1.5">
             {notifications.map((notification) => {
-              const postImages = getImageUrls(notification.post)
-              const thumbnailUrl = postImages[0]
-              const hasMultiple = postImages.length > 1
+              const post = notification.post
+              const thumbnail = getThumbnail(post)
+
+              // Fallback color from post ID
+              const fallbackColor = post?._id
+                ? `hsl(${parseInt(post._id.slice(-6), 16) % 360}, 70%, 55%)`
+                : 'var(--bg-secondary)'
+              const initial = post?.title?.[0]?.toUpperCase() || '📄'
 
               return (
                 <SwipeableRow
@@ -257,8 +300,8 @@ export default function Notifications() {
                   <div
                     onClick={() => {
                       handleMarkAsRead(notification._id)
-                      if (notification.post?._id) {
-                        navigate(`/posts/${notification.post._id}`)
+                      if (post?._id) {
+                        navigate(`/posts/${post._id}`)
                       }
                     }}
                     className="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
@@ -283,22 +326,41 @@ export default function Notifications() {
                       </p>
                     </div>
 
-                    {thumbnailUrl && (
+                    {/* ── Thumbnail or placeholder ── */}
+                    {thumbnail?.url ? (
                       <div className="relative flex-shrink-0">
                         <img
-                          src={thumbnailUrl}
-                          alt={notification.post?.title || 'Post'}
+                          src={thumbnail.url}
+                          alt={post?.title || 'Post'}
                           className="w-12 h-12 rounded-xl object-cover"
-                          onError={(e) => (e.target.style.display = 'none')}
+                          onError={(e) => {
+                            console.error('❌ Image failed to load:', thumbnail.url)
+                            e.target.style.display = 'none'
+                          }}
                         />
-                        {hasMultiple && (
+                        {thumbnail.isVideo && (
+                          <div
+                            className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-xl"
+                            aria-label="Video"
+                          >
+                            <FiPlay size={14} color="#fff" className="drop-shadow" />
+                          </div>
+                        )}
+                        {thumbnail.multiple && !thumbnail.isVideo && (
                           <div
                             className="absolute -top-1 -right-1 bg-black/70 backdrop-blur-sm rounded-full p-0.5"
-                            aria-label={`${postImages.length} photos`}
+                            aria-label="Multiple images"
                           >
                             <FiLayers size={10} strokeWidth={2.5} color="#fff" />
                           </div>
                         )}
+                      </div>
+                    ) : (
+                      <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 text-white font-bold text-sm shadow-sm"
+                        style={{ background: fallbackColor }}
+                      >
+                        {initial}
                       </div>
                     )}
 

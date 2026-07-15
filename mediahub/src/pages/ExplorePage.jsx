@@ -158,12 +158,7 @@ export default function ExplorePage() {
         style={{ background: 'color-mix(in oklab, var(--bg-primary) 82%, transparent)' }}
       >
         <div className="max-w-7xl mx-auto flex items-center gap-3">
-          <h1
-            className="text-2xl sm:text-3xl font-black tracking-tight flex-shrink-0"
-            style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}
-          >
-            Explore
-          </h1>
+          {/* ── Removed "Explore" heading ── */}
 
           {/* Inline search bar - Pinterest style */}
           <div className="relative flex-1 max-w-xl mx-auto">
@@ -333,7 +328,6 @@ export default function ExplorePage() {
                             src={videoUrl}
                             poster={videoThumbnail}
                             className="w-full h-auto object-cover block"
-                            // 🔁 REMOVED onClick → parent handles navigation
                           />
                         ) : (
                           <img
