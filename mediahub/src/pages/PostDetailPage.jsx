@@ -278,7 +278,7 @@ export default function PostDetailPage() {
                   style={{
                     background: 'var(--bg-secondary)',
                     aspectRatio: mediaRatio,
-                    maxHeight: 620,
+                    maxHeight: '80vh',
                   }}
                 >
                   <MediaSlider
@@ -294,7 +294,7 @@ export default function PostDetailPage() {
                         src={item.url}
                         poster={item.thumbnail}
                         className="w-full h-full object-contain"
-                        style={{ maxHeight: 620 }}
+                        style={{ maxHeight: '80vh' }}
                       />
                     )}
                   />
@@ -320,7 +320,7 @@ export default function PostDetailPage() {
                     </span>
                   </button>
 
-                  {/* ── Download button — moved to top-right, clear of the mute toggle at bottom-right ── */}
+                  {/* Download button — matches list-view style exactly */}
                   {firstMediaUrl && (
                     <button
                       onClick={(e) => {
@@ -328,13 +328,13 @@ export default function PostDetailPage() {
                         handleDownload(firstMediaUrl, downloadFilename)
                       }}
                       disabled={downloading}
-                      className="absolute top-3 right-3 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-gray-800 hover:bg-white shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="absolute top-3 right-3 z-10 h-9 w-9 rounded-full flex items-center justify-center bg-white/85 backdrop-blur-sm text-gray-900 hover:bg-white shadow-md transition disabled:opacity-50"
                       aria-label="Download media"
                     >
                       {downloading ? (
-                        <FiLoader size={18} className="animate-spin" strokeWidth={2.5} />
+                        <FiLoader size={17} className="animate-spin" strokeWidth={2.5} />
                       ) : (
-                        <FiDownload size={18} strokeWidth={2.5} />
+                        <FiDownload size={17} strokeWidth={2.5} />
                       )}
                     </button>
                   )}

@@ -229,7 +229,11 @@ function BoomerangVideo({ src, poster, className, style, onClick }) {
   )
 }
 
-/* ─────────── List video (SOUND enabled, one-at-a-time) ─────────── */
+/* ─────────── List video (SOUND enabled, one-at-a-time) ───────────
+   NOTE: clicking the video itself now navigates to the post (handled by
+   the parent MediaSlider's tap logic) — sound is toggled ONLY via the
+   dedicated mute/unmute button, so the click doesn't get swallowed by
+   stopPropagation() before it can bubble up to the navigation handler. */
 
 function FeedVideo({ src, poster, postId, className, style }) {
   const videoRef = useRef(null)
@@ -238,7 +242,6 @@ function FeedVideo({ src, poster, postId, className, style }) {
   const [inView, setInView] = useState(false)
   const [needsTap, setNeedsTap] = useState(false)
 
-  // Track "which video owns the audio"
   const isActive = SoundBus.getActive() === postId
 
   useEffect(() => {
@@ -252,7 +255,6 @@ function FeedVideo({ src, poster, postId, className, style }) {
     })
   }, [postId])
 
-  // Visibility → autoplay muted; pause when off-screen
   useEffect(() => {
     const el = wrapRef.current
     if (!el) return
@@ -280,7 +282,7 @@ function FeedVideo({ src, poster, postId, className, style }) {
     const v = videoRef.current
     if (!v) return
     if (muted) {
-      SoundBus.setActive(postId) // will mute all others
+      SoundBus.setActive(postId)
       v.muted = false
       setMuted(false)
       v.play()
@@ -303,15 +305,14 @@ function FeedVideo({ src, poster, postId, className, style }) {
         ref={videoRef}
         src={src}
         poster={poster || undefined}
-        className="w-full h-full object-contain bg-black"
+        className="w-full h-full object-cover bg-black"
         muted
         playsInline
         loop
         autoPlay
-        onClick={toggleSound}
       />
 
-      {/* Sound toggle — bottom-right */}
+      {/* Sound toggle — bottom-right. This is the ONLY element that toggles sound. */}
       <button
         onClick={toggleSound}
         aria-label={muted ? 'Unmute' : 'Mute'}
@@ -499,7 +500,7 @@ function PostListItem({
         boxShadow: '0 4px 24px -12px rgba(0,0,0,0.15)'
       }}
     >
-      {/* Media block — full-bleed at top, like collection cards */}
+      {/* Media block — full-bleed, filled edge-to-edge (no letterboxing) */}
       {mediaItems.length > 0 && (
         <div className="relative w-full cursor-pointer overflow-hidden"
              style={{ background: '#000', aspectRatio: mediaRatio, maxHeight: 560 }}>
@@ -511,8 +512,8 @@ function PostListItem({
             rounded=""
             className="w-full h-full"
             hideDots
-            tapToNavigate={false}
-            fit="contain"
+            tapToNavigate
+            fit="cover"
             renderVideo={(item) => (
               <FeedVideo
                 src={item.url}
@@ -953,10 +954,6 @@ export default function FeedPage() {
                       {group.label}
                     </h2>
                     <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
-                      style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
-                      {group.posts.length}
-                    </span>
                   </div>
 
                   {viewMode === 'grid' ? (
