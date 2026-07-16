@@ -4,9 +4,21 @@ export const API_URL = 'https://media-hub-bq9w.onrender.com';
 
 console.log('🔍 API_URL:', API_URL);
 
+// The 45s default below is tuned for Render free-tier cold starts on normal
+// JSON requests (login, fetch posts, etc). It is deliberately NOT used for
+// media uploads — see UPLOAD_TIMEOUT below. Applying the cold-start timeout
+// to an upload meant large files (esp. video) got silently aborted by axios
+// partway through, which looked like "upload freezes/cancels around 30%".
+const DEFAULT_TIMEOUT = 45000;
+// Uploads need a much longer budget: cold start (~30-50s) + actual transfer
+// time for a large file on a possibly slow connection. 10 minutes gives real
+// videos room to finish; adjust down if your backend/multer caps file size
+// lower and uploads should never legitimately take this long.
+const UPLOAD_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 45000, // Render free-tier cold starts can take ~30-50s; give it real runway
+  timeout: DEFAULT_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -81,6 +93,7 @@ export const authAPI = {
     formData.append('avatar', file);
     return api.put('/api/auth/me/avatar', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: UPLOAD_TIMEOUT,
     });
   },
   changePassword: (data) => api.put('/api/auth/me/password', data), // { currentPassword, newPassword }
@@ -94,9 +107,12 @@ export const authAPI = {
 export const postsAPI = {
   getAll: () => api.get('/api/posts'),
   getOne: (id) => api.get(`/api/posts/${id}`),
-  // `config` lets callers pass extra axios options (e.g. onUploadProgress) through
-  // without clobbering the multipart header below.
+  // `config` lets callers pass extra axios options (e.g. onUploadProgress) through.
+  // timeout defaults to UPLOAD_TIMEOUT (not the global 45s cold-start timeout)
+  // since this endpoint carries the actual media file — a caller can still
+  // override it by passing `timeout` in `config` if it ever needs to.
   create: (data, config = {}) => api.post('/api/posts', data, {
+    timeout: UPLOAD_TIMEOUT,
     ...config,
     headers: {
       'Content-Type': 'multipart/form-data',
@@ -104,6 +120,7 @@ export const postsAPI = {
     },
   }),
   update: (id, data, config = {}) => api.put(`/api/posts/${id}`, data, {
+    timeout: UPLOAD_TIMEOUT,
     ...config,
     headers: {
       'Content-Type': 'multipart/form-data',
