@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import {
   FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList,
   FiCopy, FiSend, FiSearch, FiX, FiDownload, FiLoader,
-  FiCalendar, FiMapPin
+  FiCalendar, FiMapPin, FiVolume2, FiVolumeX, FiPlay
 } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'
@@ -18,7 +18,25 @@ dayjs.extend(relativeTime)
 
 import CommentsSheet from './_CommentsSheet'
 
-/* ─────────── Wedding Hero Slider ─────────── */
+/* ─────────── Global sound state (only one video audible at a time) ─────────── */
+
+const SoundBus = (() => {
+  let currentId = null
+  const listeners = new Set()
+  return {
+    setActive(id) {
+      currentId = id
+      listeners.forEach((l) => l(id))
+    },
+    getActive: () => currentId,
+    subscribe(fn) {
+      listeners.add(fn)
+      return () => listeners.delete(fn)
+    },
+  }
+})()
+
+/* ─────────── Wedding Hero ─────────── */
 
 const WEDDING_SLIDES = [
   { url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=1600&q=80', caption: 'Two hearts, one journey' },
@@ -53,8 +71,8 @@ function WeddingHero() {
           />
         </AnimatePresence>
 
-        <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/10 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
         <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/45 to-transparent pointer-events-none" />
 
         <div className="absolute inset-0 flex flex-col justify-end p-5 sm:p-10 md:p-14 pb-16 sm:pb-24 pt-24 sm:pt-28">
@@ -127,7 +145,7 @@ function WeddingHero() {
   )
 }
 
-/* ─────────── Normalize a user object ─────────── */
+/* ─────────── Helpers ─────────── */
 
 function normalizeAuthor(u) {
   if (!u) return null
@@ -138,7 +156,6 @@ function normalizeAuthor(u) {
   }
 }
 
-/* ─────────── Small helper: multi-media badge ─────────── */
 function MultiImageBadge({ count }) {
   if (!count || count < 2) return null
   return (
@@ -149,7 +166,7 @@ function MultiImageBadge({ count }) {
   )
 }
 
-/* ─────────── Boomerang video (grid + list preview) ─────────── */
+/* ─────────── Boomerang video for GRID (always muted, ping-pong) ─────────── */
 
 function BoomerangVideo({ src, poster, className, style, onClick }) {
   const videoRef = useRef(null)
@@ -205,9 +222,122 @@ function BoomerangVideo({ src, poster, className, style, onClick }) {
       muted
       playsInline
       autoPlay
+      loop={false}
       onClick={onClick}
       onError={(e) => { e.target.style.display = 'none' }}
     />
+  )
+}
+
+/* ─────────── List video (SOUND enabled, one-at-a-time) ─────────── */
+
+function FeedVideo({ src, poster, postId, className, style }) {
+  const videoRef = useRef(null)
+  const wrapRef = useRef(null)
+  const [muted, setMuted] = useState(true)
+  const [inView, setInView] = useState(false)
+  const [needsTap, setNeedsTap] = useState(false)
+
+  // Track "which video owns the audio"
+  const isActive = SoundBus.getActive() === postId
+
+  useEffect(() => {
+    return SoundBus.subscribe((activeId) => {
+      const v = videoRef.current
+      if (!v) return
+      if (activeId !== postId) {
+        v.muted = true
+        setMuted(true)
+      }
+    })
+  }, [postId])
+
+  // Visibility → autoplay muted; pause when off-screen
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting && entry.intersectionRatio > 0.5),
+      { threshold: [0, 0.5, 1] }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    if (inView) {
+      v.play().catch(() => {})
+    } else {
+      v.pause()
+      if (SoundBus.getActive() === postId) SoundBus.setActive(null)
+    }
+  }, [inView, postId])
+
+  const toggleSound = (e) => {
+    e.stopPropagation()
+    const v = videoRef.current
+    if (!v) return
+    if (muted) {
+      SoundBus.setActive(postId) // will mute all others
+      v.muted = false
+      setMuted(false)
+      v.play()
+        .then(() => setNeedsTap(false))
+        .catch(() => {
+          v.muted = true
+          setMuted(true)
+          setNeedsTap(true)
+        })
+    } else {
+      v.muted = true
+      setMuted(true)
+      if (SoundBus.getActive() === postId) SoundBus.setActive(null)
+    }
+  }
+
+  return (
+    <div ref={wrapRef} className={`relative ${className || ''}`} style={style}>
+      <video
+        ref={videoRef}
+        src={src}
+        poster={poster || undefined}
+        className="w-full h-full object-contain bg-black"
+        muted
+        playsInline
+        loop
+        autoPlay
+        onClick={toggleSound}
+      />
+
+      {/* Sound toggle — bottom-right */}
+      <button
+        onClick={toggleSound}
+        aria-label={muted ? 'Unmute' : 'Mute'}
+        className="absolute bottom-3 right-3 z-10 h-9 w-9 rounded-full flex items-center justify-center bg-black/60 backdrop-blur-md text-white hover:bg-black/80 transition"
+      >
+        {muted ? <FiVolumeX size={17} strokeWidth={2.4} /> : <FiVolume2 size={17} strokeWidth={2.4} />}
+      </button>
+
+      {/* Tap-to-play overlay if browser blocked unmuted playback */}
+      {needsTap && (
+        <button
+          onClick={toggleSound}
+          className="absolute inset-0 z-[5] flex items-center justify-center bg-black/30"
+        >
+          <span className="h-14 w-14 rounded-full bg-white/90 text-black flex items-center justify-center shadow-xl">
+            <FiPlay size={22} />
+          </span>
+        </button>
+      )}
+
+      {isActive && !muted && (
+        <span className="absolute top-3 left-3 z-10 text-[10px] tracking-widest uppercase font-bold px-2 py-1 rounded-full bg-amber-500 text-white shadow">
+          Live sound
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -342,7 +472,7 @@ function groupPostsByMonth(posts) {
   return Array.from(groups.values()).sort((a, b) => b.sortKey - a.sortKey)
 }
 
-/* ─────────── List-view post (needs its own hook scope) ─────────── */
+/* ─────────── List-view post card (NFT-marketplace inspired) ─────────── */
 
 function PostListItem({
   post, user, gridItem, navigate,
@@ -359,29 +489,20 @@ function PostListItem({
   const downloadTarget = mediaItems[0]?.url
 
   return (
-    <motion.article layoutId={`post-${post._id}`} variants={gridItem}
-      className="rounded-2xl p-4 sm:p-5 transition-shadow hover:shadow-md"
-      style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-
-      <header className="flex items-center gap-3 mb-2">
-        <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
-          <Avatar src={post.author?.avatar} name={post.author?.name} size={38} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-bold text-sm hover:underline truncate"
-             style={{ color: 'var(--text-primary)' }}
-             onClick={(e) => goToProfile(e, post.author)}>
-            {post.author?.name || 'Unknown'}
-          </p>
-          <p className="text-[11px] leading-none" style={{ color: 'var(--text-muted)' }}>
-            {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
-          </p>
-        </div>
-      </header>
-
+    <motion.article
+      layoutId={`post-${post._id}`}
+      variants={gridItem}
+      className="group relative rounded-3xl overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-2xl"
+      style={{
+        background: 'var(--bg-secondary)',
+        border: '1px solid var(--border)',
+        boxShadow: '0 4px 24px -12px rgba(0,0,0,0.15)'
+      }}
+    >
+      {/* Media block — full-bleed at top, like collection cards */}
       {mediaItems.length > 0 && (
-        <div className="relative w-full mb-3 rounded-xl overflow-hidden cursor-pointer"
-             style={{ background: 'var(--bg-secondary)', aspectRatio: mediaRatio, maxHeight: 520 }}>
+        <div className="relative w-full cursor-pointer overflow-hidden"
+             style={{ background: '#000', aspectRatio: mediaRatio, maxHeight: 560 }}>
           <MediaSlider
             items={mediaItems}
             title={post.title}
@@ -393,91 +514,124 @@ function PostListItem({
             tapToNavigate={false}
             fit="contain"
             renderVideo={(item) => (
-              <BoomerangVideo src={item.url} poster={item.thumbnail} className="w-full h-full object-contain" />
+              <FeedVideo
+                src={item.url}
+                poster={item.thumbnail}
+                postId={post._id}
+                className="w-full h-full"
+              />
             )}
           />
           <MultiImageBadge count={mediaItems.length} />
           <HeartAnimation postId={post._id} />
 
-          {/* ── Download button — moved to top-right, clear of the mute toggle at bottom-right ── */}
+          {/* Author chip — top-left floating */}
+          <div
+            className="absolute top-3 left-3 z-10 flex items-center gap-2 pl-1 pr-3 py-1 rounded-full backdrop-blur-md cursor-pointer"
+            style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.15)' }}
+            onClick={(e) => goToProfile(e, post.author)}
+          >
+            <Avatar src={post.author?.avatar} name={post.author?.name} size={26} />
+            <div className="text-white leading-tight">
+              <p className="text-xs font-bold truncate max-w-[140px]">{post.author?.name || 'Unknown'}</p>
+              <p className="text-[10px] opacity-80">{post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}</p>
+            </div>
+          </div>
+
+          {/* Download — top-right, doesn't clash with sound toggle */}
           <button
             onClick={(e) => {
-              e.stopPropagation();
-              if (!downloadTarget) return;
-              const ext = downloadTarget.split('.').pop() || 'jpg';
-              const filename = post.title ? `${post.title}.${ext}` : `download.${ext}`;
-              handleDownload(post._id, downloadTarget, filename);
+              e.stopPropagation()
+              if (!downloadTarget) return
+              const ext = downloadTarget.split('.').pop() || 'jpg'
+              const filename = post.title ? `${post.title}.${ext}` : `download.${ext}`
+              handleDownload(post._id, downloadTarget, filename)
             }}
             disabled={isDownloading}
-            className="absolute top-3 right-3 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-gray-800 hover:bg-white shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="absolute top-3 right-3 z-10 h-9 w-9 rounded-full flex items-center justify-center bg-white/85 backdrop-blur-sm text-gray-900 hover:bg-white shadow-md transition disabled:opacity-50"
             aria-label="Download media"
           >
-            {isDownloading ? (
-              <FiLoader size={18} className="animate-spin" strokeWidth={2.5} />
-            ) : (
-              <FiDownload size={18} strokeWidth={2.5} />
-            )}
+            {isDownloading
+              ? <FiLoader size={17} className="animate-spin" strokeWidth={2.5} />
+              : <FiDownload size={17} strokeWidth={2.5} />}
           </button>
         </div>
       )}
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
-          {post.title && (
-            <h3 className="font-extrabold font-display text-base leading-snug"
-                style={{ color: 'var(--text-primary)' }}>
-              {post.title}
-            </h3>
-          )}
-          {post.content && post.content.trim() !== '' && post.content !== post.title && (
-            <p className="text-sm mt-0.5 line-clamp-3" style={{ color: 'var(--text-secondary)' }}>
-              {post.content}
-            </p>
-          )}
-          {post.tags?.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {post.tags.slice(0, 3).map(tag => (
-                <span key={tag} className="text-xs font-bold px-2.5 py-0.5 rounded-full"
-                      style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2.5 flex-shrink-0">
-          <motion.button onClick={e => handleLike(e, post._id)} whileTap={{ scale: 0.9 }}
-            className="flex items-center gap-1.5 h-10 px-4 rounded-full hover:bg-[var(--bg-primary)] leading-none">
-            {isLiked
-              ? <FaHeart size={18} color="#ef4444" />
-              : <FiHeart size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
-            <span className="text-sm font-bold leading-none"
-                  style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
-              {post.likes?.length || 0}
-            </span>
-          </motion.button>
-          <div className="flex items-center gap-1.5 h-10 px-4 leading-none">
-            <FiMessageCircle size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
-            <span className="text-sm font-bold leading-none" style={{ color: 'var(--text-muted)' }}>
-              {commentCount}
-            </span>
+      {/* Meta strip */}
+      <div className="p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
+            {post.title && (
+              <h3 className="font-extrabold font-display text-lg leading-tight tracking-tight"
+                  style={{ color: 'var(--text-primary)' }}>
+                {post.title}
+              </h3>
+            )}
+            {post.content && post.content.trim() !== '' && post.content !== post.title && (
+              <p className="text-sm mt-1 line-clamp-3" style={{ color: 'var(--text-secondary)' }}>
+                {post.content}
+              </p>
+            )}
+            {post.tags?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2.5">
+                {post.tags.slice(0, 4).map(tag => (
+                  <span key={tag}
+                    className="text-[11px] font-bold px-2.5 py-1 rounded-full"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(251,191,36,0.12), rgba(251,191,36,0.04))',
+                      color: '#b45309',
+                      border: '1px solid rgba(251,191,36,0.25)'
+                    }}>
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      </div>
 
-      <InlineComments
-        postId={post._id}
-        user={user}
-        onGoToProfile={(e, author) => goToProfile(e, author)}
-        onOpenAll={(id) => setActiveCommentPostId(id)}
-        onCountChange={(delta) =>
-          setCommentDeltas((s) => ({ ...s, [post._id]: (s[post._id] || 0) + delta }))
-        }
-      />
+        {/* Stat pills — NFT-card inspired */}
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <motion.button onClick={e => handleLike(e, post._id)} whileTap={{ scale: 0.96 }}
+            className="flex items-center justify-center gap-2 h-11 rounded-full transition"
+            style={{
+              background: isLiked ? 'rgba(239,68,68,0.08)' : 'var(--bg-primary)',
+              border: `1px solid ${isLiked ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
+              color: isLiked ? '#ef4444' : 'var(--text-primary)',
+            }}>
+            {isLiked ? <FaHeart size={16} color="#ef4444" /> : <FiHeart size={16} strokeWidth={2.4} />}
+            <span className="text-sm font-bold">{post.likes?.length || 0}</span>
+          </motion.button>
+
+          <motion.button onClick={(e) => { e.stopPropagation(); setActiveCommentPostId(post._id) }}
+            whileTap={{ scale: 0.96 }}
+            className="flex items-center justify-center gap-2 h-11 rounded-full transition"
+            style={{
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-primary)',
+            }}>
+            <FiMessageCircle size={16} strokeWidth={2.4} />
+            <span className="text-sm font-bold">{commentCount}</span>
+          </motion.button>
+        </div>
+
+        <InlineComments
+          postId={post._id}
+          user={user}
+          onGoToProfile={(e, author) => goToProfile(e, author)}
+          onOpenAll={(id) => setActiveCommentPostId(id)}
+          onCountChange={(delta) =>
+            setCommentDeltas((s) => ({ ...s, [post._id]: (s[post._id] || 0) + delta }))
+          }
+        />
+      </div>
     </motion.article>
   )
 }
+
+/* ─────────── Main FeedPage ─────────── */
 
 export default function FeedPage() {
   const [posts, setPosts] = useState([])
@@ -695,7 +849,7 @@ export default function FeedPage() {
     <>
       <div className="min-h-screen pb-10" style={{ background: 'var(--bg-primary)' }}>
 
-        {/* Floating header — over hero, solid on scroll */}
+        {/* Floating header */}
         <div
           className="fixed top-0 inset-x-0 z-30 px-3 sm:px-6 py-3 transition-all duration-300"
           style={{
@@ -777,7 +931,6 @@ export default function FeedPage() {
           </div>
         </div>
 
-        {/* Hero */}
         <WeddingHero />
 
         <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-3">
@@ -793,10 +946,19 @@ export default function FeedPage() {
           ) : (
             <LayoutGroup>
               {monthGroups.map((group) => (
-                <div key={group.key} className="mb-8">
-                  <h2 className="text-lg font-extrabold font-display mb-3 px-1" style={{ color: 'var(--text-primary)' }}>
-                    {group.label}
-                  </h2>
+                <div key={group.key} className="mb-10">
+                  <div className="flex items-center gap-3 mb-4 px-1">
+                    <h2 className="text-lg font-extrabold font-display tracking-tight"
+                        style={{ color: 'var(--text-primary)' }}>
+                      {group.label}
+                    </h2>
+                    <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                      style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+                      {group.posts.length}
+                    </span>
+                  </div>
+
                   {viewMode === 'grid' ? (
                     <motion.div
                       className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3"
@@ -806,7 +968,7 @@ export default function FeedPage() {
                     </motion.div>
                   ) : (
                     <motion.div
-                      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-5"
+                      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"
                       variants={gridContainer} initial="initial" animate="animate"
                     >
                       {group.posts.map((post) => (
