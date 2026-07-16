@@ -2,8 +2,27 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
 import { FiImage, FiX, FiCamera, FiArrowLeft, FiClipboard, FiCheck, FiPlus, FiPlay } from 'react-icons/fi'
+import axios from 'axios'
 import { postsAPI } from '../api'
 import toast from 'react-hot-toast'
+
+// Plain axios, NOT the configured `api` instance — this goes straight to
+// Cloudinary, not our backend, so it must NOT carry the Authorization header
+// or Render baseURL that `api` attaches to every request.
+const uploadToCloudinaryDirect = (file, { cloudName, apiKey, timestamp, signature, folder, isVideo, onProgress }) => {
+  const fd = new FormData()
+  fd.append('file', file)
+  fd.append('api_key', apiKey)
+  fd.append('timestamp', timestamp)
+  fd.append('signature', signature)
+  fd.append('folder', folder)
+  const resourceType = isVideo ? 'video' : 'image'
+  return axios.post(
+    `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+    fd,
+    { onUploadProgress: (evt) => onProgress?.(evt.loaded) }
+  )
+}
 /**
  * CreatePostPage — refined compose screen
  * -------------------------------------------------
@@ -240,24 +259,67 @@ export default function CreatePostPage() {
     setLoading(true)
     setUploadProgress(0)
     try {
-      const fd = new FormData()
-      if (title.trim()) fd.append('title', title.trim())
-      if (content.trim()) fd.append('content', content.trim())
-      else if (mediaItems.length) fd.append('content', ' ')
-      // Field name 'media' — backend is expected to split these by mimetype
-      // into post.images / post.videos on its side.
-      mediaItems.forEach(({ file }) => fd.append('media', file))
-      await postsAPI.create(fd, {
-        onUploadProgress: (evt) => {
-          if (!evt.total) return
-          setUploadProgress(Math.round((evt.loaded / evt.total) * 100))
-        },
+      let imagesData = []
+      let videosData = []
+
+      if (mediaItems.length > 0) {
+        // 1. Ask our backend for a short-lived signed upload — this is what
+        // lets the browser upload straight to Cloudinary next, instead of
+        // routing the file bytes through Render first.
+        const sigRes = await postsAPI.getUploadSignature()
+        const { signature, timestamp, folder, apiKey, cloudName } = sigRes.data.data
+
+        // Aggregate progress across every file, weighted by size, so the
+        // overlay's percentage reflects real bytes transferred rather than
+        // "files completed" (which would jump unevenly for mixed sizes).
+        const totalBytes = mediaItems.reduce((sum, m) => sum + (m.file?.size || 0), 0)
+        const loadedById = {}
+        const recalcProgress = () => {
+          const loaded = Object.values(loadedById).reduce((a, b) => a + b, 0)
+          setUploadProgress(totalBytes ? Math.min(99, Math.round((loaded / totalBytes) * 100)) : 0)
+        }
+
+        const uploadOne = async (item) => {
+          const res = await uploadToCloudinaryDirect(item.file, {
+            cloudName, apiKey, timestamp, signature, folder,
+            isVideo: item.isVideo,
+            onProgress: (loaded) => { loadedById[item.id] = loaded; recalcProgress() },
+          })
+          return { item, result: res.data }
+        }
+
+        // 2. Upload everything directly to Cloudinary in parallel.
+        const uploaded = await Promise.all(mediaItems.map(uploadOne))
+
+        for (const { item, result } of uploaded) {
+          if (item.isVideo) {
+            videosData.push({
+              url: result.secure_url,
+              public_id: result.public_id,
+              thumbnail: `https://res.cloudinary.com/${cloudName}/video/upload/${result.public_id}.jpg`,
+              duration: result.duration || null,
+            })
+          } else {
+            imagesData.push({ url: result.secure_url, public_id: result.public_id })
+          }
+        }
+      }
+
+      // 3. Now hand the (tiny) JSON payload — title/content + the Cloudinary
+      // URLs we just got back — to our backend. No file bytes touch Render
+      // at all, so this request stays fast regardless of video size.
+      await postsAPI.create({
+        title: title.trim() || '',
+        content: content.trim() || (mediaItems.length ? ' ' : ''),
+        images: imagesData,
+        videos: videosData,
       })
+      setUploadProgress(100)
       toast.success('Posted 🎉')
       navigate('/')
     } catch (err) {
       console.error(err)
-      toast.error(err.response?.data?.message || 'Failed to create post')
+      toast.error(err.response?.data?.message || err.message || 'Failed to create post')
     } finally {
       setLoading(false)
       setUploadProgress(0)
