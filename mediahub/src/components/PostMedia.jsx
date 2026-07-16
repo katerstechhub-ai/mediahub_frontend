@@ -38,9 +38,47 @@ export function getImageUrls(post) {
   return urls.filter(Boolean)
 }
 
+// ── getMediaItems — ordered {type, url, thumbnail} list for a post ───────────
+// Unlike getImageUrls, this keeps videos as their own type instead of pushing
+// their URL into the image array (which would break plain <img> tags).
+// Caveat: images and videos are stored as two separate backend arrays with no
+// shared ordering field, so this can only place "all images, then all
+// videos" — it can't recover the exact order they were originally uploaded in
+// unless the backend starts returning an explicit order/index per item.
+export function getMediaItems(post) {
+  if (!post) return []
+  const items = []
+  if (Array.isArray(post.images)) {
+    post.images.forEach(img => {
+      const url = typeof img === 'string' ? img : img?.url
+      if (url) items.push({ type: 'image', url })
+    })
+  }
+  if (Array.isArray(post.videos)) {
+    post.videos.forEach(vid => {
+      if (typeof vid === 'string') items.push({ type: 'video', url: vid, thumbnail: null })
+      else if (vid?.url) items.push({ type: 'video', url: vid.url, thumbnail: vid.thumbnail || null })
+    })
+  }
+  if (items.length === 0 && Array.isArray(post.media)) {
+    post.media.forEach(m => {
+      const url = typeof m === 'string' ? m : m?.url
+      const type = m?.type || (url && /\.(mp4|mov|webm|m4v)$/i.test(url) ? 'video' : 'image')
+      if (url) items.push({ type, url, thumbnail: m?.thumbnail })
+    })
+  }
+  if (items.length === 0) {
+    if (post.image?.url) items.push({ type: 'image', url: post.image.url })
+    else if (typeof post.image === 'string') items.push({ type: 'image', url: post.image })
+    else if (post.imageUrl) items.push({ type: 'image', url: post.imageUrl })
+    else if (post.thumbnail) items.push({ type: 'image', url: post.thumbnail })
+  }
+  return items
+}
+
 // ── MultiImage — animated bento collage for 1 or up to 4 images ──────────────
 // Kept for any place that still wants the collage layout. FeedPage's grid view
-// uses ImageSlider instead (see below), but this stays available/unused
+// uses MediaSlider instead (see below), but this stays available/unused
 // elsewhere without breaking anything.
 export function MultiImage({ urls, title, postId, onDoubleTap, tileRadius = 'rounded-xl', gapClass = 'gap-1.5', children }) {
   const count = Math.min(urls.length, 4)
@@ -118,9 +156,7 @@ export function MultiImage({ urls, title, postId, onDoubleTap, tileRadius = 'rou
 }
 
 // ── ImageSlider — tap/swipe carousel with an optional tilted photo-stack look ─
-// Position is driven by React state (`index`), not native scroll — this is
-// what keeps the last image reachable, since browser scroll-snap can round
-// awkwardly on the final slide at certain container widths.
+// Images only. See MediaSlider below for the mixed image+video version.
 //
 // Tap zones:
 //   - Left ~25% of the frame  → previous image (no-op at the first image)
@@ -130,10 +166,7 @@ export function MultiImage({ urls, title, postId, onDoubleTap, tileRadius = 'rou
 // Swiping still works via drag too.
 //
 // peek: when true (used on grid tiles), the current photo renders as a
-// tilted card with up to two more photos fanned out behind it (each more
-// rotated, offset, and dimmed than the last) — a visible pile of photos
-// rather than one flat image. Purely decorative; navigation logic above is
-// unaffected.
+// tilted card with up to two more photos fanned out behind it.
 //
 // hideDots / showCounter control the bottom dot row and the "1/4" badge.
 export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '', showCounter = true, hideDots = false, peek = false, tapToNavigate = true }) {
@@ -188,10 +221,6 @@ export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'round
         return
       }
     }
-    // tapToNavigate === false: no edge zones — every tap (anywhere on the
-    // image) passes straight through. Moving between images is drag-only,
-    // which is what makes this feel like a normal swipe carousel instead
-    // of a tap-through-photos control.
     onDoubleTap?.(e)
   }
 
@@ -209,10 +238,6 @@ export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'round
 
   return (
     <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${rounded} ${className}`} style={{ touchAction: 'pan-y' }} onClick={handleTap}>
-      {/* Furthest back card: photo two ahead — rotated further and dimmed
-          more than the first back card. Only renders when at least 3 images
-          remain in the stack from here, so it doesn't flash in/out oddly
-          near the end of a set. */}
       {showStack2 && (
         <div
           className="absolute inset-0 overflow-hidden rounded-[20%] pointer-events-none"
@@ -227,10 +252,6 @@ export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'round
         </div>
       )}
 
-      {/* Back card: the next photo, tilted and dimmed, sitting behind the
-          current one. Because the front card below is also rotated (the
-          opposite way), its corners don't fully cover this container, so a
-          slice of this back card pops out — the "pile of photos" look. */}
       {showStack && (
         <div
           className="absolute inset-0 overflow-hidden rounded-[20%] pointer-events-none"
@@ -245,9 +266,6 @@ export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'round
         </div>
       )}
 
-      {/* Front card: the actual sliding track, tilted the opposite way when
-          stacked, so the cards behind it fan out clearly rather than hiding
-          directly underneath. */}
       <div
         className={`absolute inset-0 overflow-hidden ${showStack ? 'rounded-[20%]' : ''}`}
         style={showStack ? { transform: 'rotate(-10deg)', boxShadow: '0 6px 20px rgba(0,0,0,0.35)' } : undefined}
@@ -297,6 +315,164 @@ export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'round
               key={i}
               onClick={(e) => goTo(i, e)}
               aria-label={`Go to image ${i + 1}`}
+              className="h-1.5 rounded-full transition-all pointer-events-auto"
+              style={{ width: i === index ? 14 : 6, background: i === index ? '#fff' : 'rgba(255,255,255,0.55)' }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── MediaSlider — same tap/swipe/peek carousel as ImageSlider, but each slide
+// can be an image OR a video. Pass items from getMediaItems(post).
+//
+// renderVideo(item, isActive) lets the caller control exactly how a video
+// slide renders (e.g. FeedPage's own BoomerangVideo component). If omitted,
+// falls back to a plain <video> with native controls.
+export function MediaSlider({ items, title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '', showCounter = true, hideDots = false, peek = false, tapToNavigate = true, renderVideo }) {
+  const [index, setIndex] = useState(0)
+  const containerRef = useRef(null)
+  const dragInfo = useRef({ dragged: false })
+
+  if (!items || items.length === 0) return null
+
+  const renderSlide = (item, isActive) => (
+    item.type === 'video'
+      ? (renderVideo
+          ? renderVideo(item, isActive)
+          : (
+            <video
+              src={item.url}
+              poster={item.thumbnail || undefined}
+              className="w-full h-full object-cover"
+              muted
+              playsInline
+              controls
+            />
+          ))
+      : (
+        <img
+          src={item.url}
+          alt={title || 'Post'}
+          className="w-full h-full object-cover"
+          loading="lazy"
+          draggable={false}
+          onError={(e) => (e.target.style.display = 'none')}
+        />
+      )
+  )
+
+  if (items.length === 1) {
+    return (
+      <div className={`relative w-full h-full overflow-hidden ${rounded} ${className}`} onClick={onDoubleTap}>
+        {renderSlide(items[0], true)}
+      </div>
+    )
+  }
+
+  const hasNext = index < items.length - 1
+  const hasNextNext = index < items.length - 2
+  const clampIndex = (i) => Math.max(0, Math.min(items.length - 1, i))
+
+  const goTo = (i, e) => { e?.stopPropagation(); setIndex(clampIndex(i)) }
+
+  const handleTap = (e) => {
+    if (dragInfo.current.dragged) { dragInfo.current.dragged = false; return }
+    if (tapToNavigate) {
+      const rect = containerRef.current.getBoundingClientRect()
+      const ratio = (e.clientX - rect.left) / rect.width
+      if (ratio < 0.25) {
+        if (index > 0) goTo(index - 1, e); else e.stopPropagation()
+        return
+      }
+      if (ratio > 0.75) {
+        if (index < items.length - 1) goTo(index + 1, e); else e.stopPropagation()
+        return
+      }
+    }
+    onDoubleTap?.(e)
+  }
+
+  const handleDragEnd = (e, info) => {
+    const threshold = 40
+    if (Math.abs(info.offset.x) > threshold) {
+      dragInfo.current.dragged = true
+      if (info.offset.x < 0) setIndex((i) => clampIndex(i + 1))
+      else setIndex((i) => clampIndex(i - 1))
+    }
+  }
+
+  // For the peek "photo stack" effect behind the current card, use the
+  // item's own thumbnail (video) or url (image) — whichever gives a static
+  // image to render behind the front card.
+  const stackImg = (item) => item.thumbnail || (item.type === 'image' ? item.url : null)
+  const showStack = peek && hasNext
+  const showStack2 = peek && hasNextNext
+
+  return (
+    <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${rounded} ${className}`} style={{ touchAction: 'pan-y' }} onClick={handleTap}>
+      {showStack2 && stackImg(items[index + 2]) && (
+        <div
+          className="absolute inset-0 overflow-hidden rounded-[20%] pointer-events-none"
+          style={{ transform: 'rotate(22deg) scale(0.86) translate(9%, -7%)', filter: 'brightness(0.55)' }}
+        >
+          <img src={stackImg(items[index + 2])} alt="" className="w-full h-full object-cover" draggable={false} />
+        </div>
+      )}
+
+      {showStack && stackImg(items[index + 1]) && (
+        <div
+          className="absolute inset-0 overflow-hidden rounded-[20%] pointer-events-none"
+          style={{ transform: 'rotate(16deg) scale(0.91) translate(4.5%, -3.5%)', filter: 'brightness(0.75)' }}
+        >
+          <img src={stackImg(items[index + 1])} alt="" className="w-full h-full object-cover" draggable={false} />
+        </div>
+      )}
+
+      <div
+        className={`absolute inset-0 overflow-hidden ${showStack ? 'rounded-[20%]' : ''}`}
+        style={showStack ? { transform: 'rotate(-10deg)', boxShadow: '0 6px 20px rgba(0,0,0,0.35)' } : undefined}
+      >
+        <motion.div
+          className="flex h-full"
+          style={{ width: `${items.length * 100}%` }}
+          drag="x"
+          dragConstraints={containerRef}
+          dragElastic={0.06}
+          dragMomentum={false}
+          onDragEnd={handleDragEnd}
+          animate={{ x: `-${index * (100 / items.length)}%` }}
+          transition={{ type: 'spring', stiffness: 380, damping: 38 }}
+        >
+          {items.map((item, i) => (
+            <div
+              key={`${postId}-${i}`}
+              className="h-full flex-shrink-0 pointer-events-none"
+              style={{ width: `${100 / items.length}%` }}
+            >
+              {renderSlide(item, i === index)}
+            </div>
+          ))}
+        </motion.div>
+      </div>
+
+      {showCounter && (
+        <div
+          className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-bold text-white z-20 pointer-events-none"
+          style={{ background: 'rgba(0,0,0,0.55)' }}
+        >
+          {index + 1}/{items.length}
+        </div>
+      )}
+      {!hideDots && (
+        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-20 pointer-events-none">
+          {items.map((_, i) => (
+            <button
+              key={i}
+              onClick={(e) => goTo(i, e)}
+              aria-label={`Go to item ${i + 1}`}
               className="h-1.5 rounded-full transition-all pointer-events-auto"
               style={{ width: i === index ? 14 : 6, background: i === index ? '#fff' : 'rgba(255,255,255,0.55)' }}
             />

@@ -10,7 +10,7 @@ import { FaHeart } from 'react-icons/fa'
 import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'
 import { useAuthStore } from '../store'
 import { Avatar } from '../components/ui'
-import { getImageUrls, ImageSlider } from '../components/PostMedia'
+import { getMediaItems, MediaSlider } from '../components/PostMedia'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -137,8 +137,9 @@ function normalizeAuthor(u) {
   }
 }
 
-/* ─────────── Small helper: multi-image badge ─────────── */
-
+/* ─────────── Small helper: multi-media badge ─────────── */
+// Renamed from MultiImageBadge in spirit — now counts ANY media items
+// (images + videos combined), not just images.
 function MultiImageBadge({ count }) {
   if (!count || count < 2) return null
   return (
@@ -496,10 +497,9 @@ export default function FeedPage() {
   const monthGroups = groupPostsByMonth(visiblePosts)
 
   const renderGridTile = (post) => {
-    const urls = getImageUrls(post)
-    const hasVideos = post.videos && post.videos.length > 0
-    const videoUrl = hasVideos ? post.videos[0].url : null
-    const videoThumbnail = hasVideos ? post.videos[0].thumbnail : null
+    // Ordered list of every image AND video on this post — no more
+    // "only show the first video, drop everything else" behavior.
+    const mediaItems = getMediaItems(post)
     const isLiked = post.likes?.includes(user?._id)
     const commentCount = gridCommentCounts[post._id] ?? (post.commentCount ?? 0)
     return (
@@ -512,30 +512,27 @@ export default function FeedPage() {
         className="relative group cursor-pointer rounded-[20%] overflow-hidden aspect-[4/5] shadow-sm"
         style={{ background: 'var(--bg-secondary)' }}
       >
-        {hasVideos ? (
-          <BoomerangVideo
-            src={videoUrl}
-            poster={videoThumbnail}
-            className="w-full h-full object-cover"
-            onClick={(e) => handleDoubleTap(e, post._id, true)}
+        {mediaItems.length > 0 ? (
+          <MediaSlider
+            items={mediaItems}
+            title={post.title}
+            postId={post._id}
+            onDoubleTap={(e) => handleDoubleTap(e, post._id, true)}
+            rounded=""
+            className="w-full h-full"
+            hideDots
+            peek
+            renderVideo={(item) => (
+              <BoomerangVideo src={item.url} poster={item.thumbnail} className="w-full h-full object-cover" />
+            )}
           />
-        ) : urls.length > 0 ? (
-          urls.length > 1 ? (
-            <ImageSlider urls={urls} title={post.title} postId={post._id}
-              onDoubleTap={(e) => handleDoubleTap(e, post._id, true)}
-              rounded="" className="w-full h-full" hideDots peek />
-          ) : (
-            <img src={urls[0]} alt={post.title || 'Post'} className="w-full h-full object-cover"
-              loading="lazy" onClick={(e) => handleDoubleTap(e, post._id, true)}
-              onError={e => e.target.style.display = 'none'} />
-          )
         ) : (
           <div onClick={(e) => handleDoubleTap(e, post._id, true)} className="w-full h-full flex items-center justify-center">
             <FiImage size={22} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
           </div>
         )}
 
-        {!hasVideos && <MultiImageBadge count={urls.length} />}
+        <MultiImageBadge count={mediaItems.length} />
 
         <div onClick={(e) => goToProfile(e, post.author)} className="absolute top-1.5 left-1.5 cursor-pointer z-10">
           <Avatar src={post.author?.avatar} name={post.author?.name} size={22} className="ring-2 ring-white/70 shadow" />
@@ -561,15 +558,15 @@ export default function FeedPage() {
   }
 
   const renderListItem = (post) => {
-    const urls = getImageUrls(post)
-    const hasVideos = post.videos && post.videos.length > 0
-    const videoUrl = hasVideos ? post.videos[0].url : null
-    const videoThumbnail = hasVideos ? post.videos[0].thumbnail : null
+    const mediaItems = getMediaItems(post)
     const isLiked = post.likes?.includes(user?._id)
     const baseCount = post.commentCount ?? 0
     const commentCount = baseCount + (commentDeltas[post._id] || 0)
     const isDownloading = downloadingMap[post._id] || false
-    const downloadTarget = hasVideos ? videoUrl : urls[0]
+    // Download button downloads whichever slide is first in the carousel —
+    // previously this assumed "video first, else first image" and could
+    // silently point at the wrong item once mixed media was involved.
+    const downloadTarget = mediaItems[0]?.url
 
     return (
       <motion.article key={post._id} layoutId={`post-${post._id}`} variants={gridItem}
@@ -592,34 +589,32 @@ export default function FeedPage() {
           </div>
         </header>
 
-        {(hasVideos || urls.length > 0) && (
+        {mediaItems.length > 0 && (
           <div className="relative w-full mb-3 rounded-xl overflow-hidden cursor-pointer aspect-square"
                style={{ background: 'var(--bg-secondary)' }}>
-            {hasVideos ? (
-              <div onClick={e => handleDoubleTap(e, post._id, true)} className="w-full h-full">
-                <BoomerangVideo src={videoUrl} poster={videoThumbnail} className="w-full h-full object-cover" />
-              </div>
-            ) : urls.length === 1 ? (
-              <div onClick={e => handleDoubleTap(e, post._id, true)} className="w-full h-full">
-                <img src={urls[0]} alt={post.title || 'Post'}
-                     className="w-full h-full object-cover"
-                     loading="lazy" onError={e => e.target.style.display = 'none'} />
-              </div>
-            ) : (
-              <ImageSlider urls={urls} title={post.title} postId={post._id}
-                onDoubleTap={(e) => handleDoubleTap(e, post._id, true)} rounded="" className="w-full h-full" hideDots tapToNavigate={false} />
-            )}
-            {!hasVideos && <MultiImageBadge count={urls.length} />}
+            <MediaSlider
+              items={mediaItems}
+              title={post.title}
+              postId={post._id}
+              onDoubleTap={(e) => handleDoubleTap(e, post._id, true)}
+              rounded=""
+              className="w-full h-full"
+              hideDots
+              tapToNavigate={false}
+              renderVideo={(item) => (
+                <BoomerangVideo src={item.url} poster={item.thumbnail} className="w-full h-full object-cover" />
+              )}
+            />
+            <MultiImageBadge count={mediaItems.length} />
             <HeartAnimation postId={post._id} />
 
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                const firstUrl = downloadTarget;
-                if (!firstUrl) return;
-                const ext = firstUrl.split('.').pop() || 'jpg';
+                if (!downloadTarget) return;
+                const ext = downloadTarget.split('.').pop() || 'jpg';
                 const filename = post.title ? `${post.title}.${ext}` : `download.${ext}`;
-                handleDownload(post._id, firstUrl, filename);
+                handleDownload(post._id, downloadTarget, filename);
               }}
               disabled={isDownloading}
               className="absolute bottom-3 right-3 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-gray-800 hover:bg-white shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
-import { FiImage, FiX, FiCamera, FiArrowLeft, FiClipboard, FiCheck, FiPlus } from 'react-icons/fi'
+import { FiImage, FiX, FiCamera, FiArrowLeft, FiClipboard, FiCheck, FiPlus, FiPlay } from 'react-icons/fi'
 import { postsAPI } from '../api'
 import toast from 'react-hot-toast'
 /**
@@ -13,7 +13,7 @@ import toast from 'react-hot-toast'
  *  • Framer Motion drives every state change (no CSS transitions)
  *  • Feels native on mobile (sticky glass top bar, big tap targets)
  *  • Feels premium on desktop (drag tilt, paste-from-clipboard, spring reveals)
- *  • Supports up to MAX_IMAGES photos/videos per post
+ *  • Supports up to MAX_IMAGES photos/videos per post, freely mixed
  */
 const MAX_MEDIA = 5
 // Images are downscaled to this max dimension + re-encoded as JPEG before upload.
@@ -26,14 +26,9 @@ const nextId = () => `media_${Date.now()}_${idSeq++}`
 
 // Resize + re-encode an image file in the browser using a canvas. Falls back to the
 // original file if anything goes wrong (e.g. unsupported format) so uploads never break.
-// Videos are skipped (returned as-is).
+// Videos are skipped (returned as-is) — see generateVideoThumbnail below for their preview.
 function compressImage(file) {
   return new Promise((resolve) => {
-    // Skip videos and GIFs
-    if (file.type.startsWith('video/') || file.type === 'image/gif') {
-      resolve(file)
-      return
-    }
     if (!file.type.startsWith('image/')) {
       resolve(file)
       return
@@ -69,14 +64,57 @@ function compressImage(file) {
   })
 }
 
+// Grabs a single frame from a video file and returns it as a JPEG data URL, so
+// video previews behave exactly like image previews — no <video> tag needed,
+// no risk of it rendering blank because autoplay never fired.
+function generateVideoThumbnail(file) {
+  return new Promise((resolve) => {
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.muted = true
+    video.playsInline = true
+    const url = URL.createObjectURL(file)
+    video.src = url
+
+    const cleanup = () => URL.revokeObjectURL(url)
+    // Safety net — if a video never fires loadedmetadata/seeked (corrupt file,
+    // unsupported codec), don't leave the tile stuck spinning forever.
+    const timeout = setTimeout(() => { cleanup(); resolve(null) }, 8000)
+
+    video.onloadedmetadata = () => {
+      // The very first frame is often black/undecoded — seek in a touch.
+      video.currentTime = Math.min(0.3, (video.duration || 1) / 4)
+    }
+    video.onseeked = () => {
+      clearTimeout(timeout)
+      const canvas = document.createElement('canvas')
+      canvas.width = video.videoWidth || MAX_DIMENSION
+      canvas.height = video.videoHeight || MAX_DIMENSION
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob((blob) => {
+        cleanup()
+        if (!blob) { resolve(null); return }
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result)
+        reader.onerror = () => resolve(null)
+        reader.readAsDataURL(blob)
+      }, 'image/jpeg', 0.8)
+    }
+    video.onerror = () => { clearTimeout(timeout); cleanup(); resolve(null) }
+  })
+}
+
 export default function CreatePostPage() {
   const navigate = useNavigate()
   const fileRef = useRef(null)
   const titleRef = useRef(null)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  // files/previews are parallel arrays, each entry keyed by a stable id
-  const [mediaItems, setMediaItems] = useState([]) // [{ id, file, preview, compressing }]
+  // files/previews are parallel arrays, each entry keyed by a stable id.
+  // preview is ALWAYS a static image data URL (a real photo for images, a
+  // captured frame for videos) — isVideo just controls the play-icon badge.
+  const [mediaItems, setMediaItems] = useState([]) // [{ id, file, preview, compressing, isVideo }]
   const [loading, setLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0) // 0-100 while the request is in flight
   const [dragOver, setDragOver] = useState(false)
@@ -100,6 +138,7 @@ export default function CreatePostPage() {
     return Object.keys(e).length === 0
   }
   // ---- file handling -----------------------------------------------
+  // Images and videos can be freely mixed, up to MAX_MEDIA total, in any order.
   const handleFiles = useCallback((fileListLike) => {
     const incoming = Array.from(fileListLike || [])
     if (!incoming.length) return
@@ -124,19 +163,29 @@ export default function CreatePostPage() {
     setErrors(prev => ({ ...prev, content: '' }))
     accepted.forEach((f) => {
       const id = nextId()
+      const isVideo = f.type.startsWith('video/')
       // Add a placeholder immediately with compressing:true, then swap in the
-      // compressed file + preview once ready. Keeps the UI responsive for many images.
-      setMediaItems(prev => [...prev, { id, file: f, preview: null, compressing: true }])
-      ;(async () => {
-        const compressed = await compressImage(f)
-        const reader = new FileReader()
-        reader.onloadend = () => {
+      // real preview once ready. Keeps the UI responsive for many items.
+      setMediaItems(prev => [...prev, { id, file: f, preview: null, compressing: true, isVideo }])
+      if (isVideo) {
+        ;(async () => {
+          const thumb = await generateVideoThumbnail(f)
           setMediaItems(prev => prev.map(item => item.id === id
-            ? { ...item, file: compressed, preview: reader.result, compressing: false }
+            ? { ...item, preview: thumb, compressing: false }
             : item))
-        }
-        reader.readAsDataURL(compressed)
-      })()
+        })()
+      } else {
+        ;(async () => {
+          const compressed = await compressImage(f)
+          const reader = new FileReader()
+          reader.onloadend = () => {
+            setMediaItems(prev => prev.map(item => item.id === id
+              ? { ...item, file: compressed, preview: reader.result, compressing: false }
+              : item))
+          }
+          reader.readAsDataURL(compressed)
+        })()
+      }
     })
   }, [remainingSlots])
   const handleDrop = (e) => {
@@ -183,7 +232,8 @@ export default function CreatePostPage() {
       if (title.trim()) fd.append('title', title.trim())
       if (content.trim()) fd.append('content', content.trim())
       else if (mediaItems.length) fd.append('content', ' ')
-      // 🔁 CHANGED: field name from 'images' → 'media'
+      // Field name 'media' — backend is expected to split these by mimetype
+      // into post.images / post.videos on its side.
       mediaItems.forEach(({ file }) => fd.append('media', file))
       await postsAPI.create(fd, {
         onUploadProgress: (evt) => {
@@ -334,7 +384,7 @@ export default function CreatePostPage() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <AnimatePresence>
-                    {mediaItems.map(({ id, preview, file, compressing }) => (
+                    {mediaItems.map(({ id, preview, file, compressing, isVideo }) => (
                       <motion.div
                         key={id}
                         layout
@@ -349,23 +399,14 @@ export default function CreatePostPage() {
                         }}
                       >
                         {preview ? (
-                          file?.type?.startsWith('video/') ? (
-                            <video
-                              src={preview}
-                              className="w-full h-full object-cover"
-                              muted
-                              playsInline
-                            />
-                          ) : (
-                            <motion.img
-                              src={preview}
-                              alt={file?.name || 'Preview'}
-                              initial={{ scale: 1.08, opacity: 0 }}
-                              animate={{ scale: 1, opacity: 1 }}
-                              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                              className="w-full h-full object-cover"
-                            />
-                          )
+                          <motion.img
+                            src={preview}
+                            alt={file?.name || 'Preview'}
+                            initial={{ scale: 1.08, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
                             <motion.span
@@ -384,6 +425,14 @@ export default function CreatePostPage() {
                               className="rounded-full h-6 w-6 border-2 block"
                               style={{ borderColor: 'rgba(255,255,255,0.4)', borderTopColor: '#fff' }}
                             />
+                          </div>
+                        )}
+                        {/* Play badge marks video items — preview is a captured frame, not a live video */}
+                        {isVideo && preview && !compressing && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                              <FiPlay size={16} color="white" fill="white" style={{ marginLeft: 2 }} />
+                            </div>
                           </div>
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent pointer-events-none" />
@@ -477,7 +526,7 @@ export default function CreatePostPage() {
                   </p>
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                     Drag & drop, click to browse, or <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono"
-                      style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>⌘V</kbd> to paste — up to {MAX_MEDIA}
+                      style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>⌘V</kbd> to paste — up to {MAX_MEDIA}, mix photos and videos freely
                   </p>
                 </div>
                 <div className="flex items-center gap-2 mt-1 text-[10px] uppercase tracking-wider"
