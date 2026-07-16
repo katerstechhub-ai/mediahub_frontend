@@ -21,6 +21,11 @@ const MAX_MEDIA = 5
 // compresses down to a few hundred KB with no visible quality loss at feed size.
 const MAX_DIMENSION = 1600
 const JPEG_QUALITY = 0.82
+// Size caps are split by media type — video files are naturally much larger than
+// photos (a couple minutes of phone footage is routinely 50-150MB), so reusing the
+// image cap here silently rejected every real-world video.
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024 // 100MB
 let idSeq = 0
 const nextId = () => `media_${Date.now()}_${idSeq++}`
 
@@ -152,11 +157,18 @@ export default function CreatePostPage() {
         toast.error(`Only ${remainingSlots} more media item${remainingSlots === 1 ? '' : 's'} allowed`)
         break
       }
-      if (!f.type.startsWith('image/') && !f.type.startsWith('video/')) {
+      const isVideoFile = f.type.startsWith('video/')
+      const isImageFile = f.type.startsWith('image/')
+      if (!isImageFile && !isVideoFile) {
         toast.error(`${f.name || 'File'} isn't an image or video`)
         continue
       }
-      if (f.size > 10 * 1024 * 1024) { toast.error(`${f.name || 'File'} is too large. Max 10MB`); continue }
+      const maxSize = isVideoFile ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE
+      if (f.size > maxSize) {
+        const maxLabel = isVideoFile ? `${MAX_VIDEO_SIZE / (1024 * 1024)}MB` : `${MAX_IMAGE_SIZE / (1024 * 1024)}MB`
+        toast.error(`${f.name || 'File'} is too large. Max ${maxLabel}`)
+        continue
+      }
       accepted.push(f)
     }
     if (!accepted.length) return
@@ -531,7 +543,7 @@ export default function CreatePostPage() {
                 </div>
                 <div className="flex items-center gap-2 mt-1 text-[10px] uppercase tracking-wider"
                   style={{ color: 'var(--text-muted)' }}>
-                  <span>PNG</span><span>·</span><span>JPG</span><span>·</span><span>WEBP</span><span>·</span><span>MP4</span><span>·</span><span>10MB each</span>
+                  <span>PNG</span><span>·</span><span>JPG</span><span>·</span><span>WEBP</span><span>·</span><span>MP4</span><span>·</span><span>10MB photos / 100MB video</span>
                 </div>
                 <AnimatePresence>
                   {justPasted && (

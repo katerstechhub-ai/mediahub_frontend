@@ -9,7 +9,7 @@ import { FaHeart } from 'react-icons/fa'
 import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'  // ← import api + helper
 import { useAuthStore } from '../store'
 import { Avatar } from '../components/ui'
-import { getImageUrls, ImageSlider } from '../components/PostMedia'
+import { getMediaItems, MediaSlider } from '../components/PostMedia'
 import CommentsSheet from './_CommentsSheet'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
@@ -166,14 +166,16 @@ export default function PostDetailPage() {
 
   if (!post) return null
 
-  const mediaUrls = getImageUrls(post)
-  const hasMedia = mediaUrls.length > 0
-  const hasVideos = post.videos && post.videos.length > 0
+  // Ordered list of every image AND video on this post, same helper FeedPage
+  // uses — a post with multiple videos, or mixed images+videos, now shows
+  // everything in one slider instead of only ever rendering post.videos[0].
+  const mediaItems = getMediaItems(post)
+  const hasMedia = mediaItems.length > 0
   const isOwner = isCurrentUser(post.author)
   const hasBody = post.content && post.content.trim() && post.content.trim() !== post.title?.trim()
 
-  // For download: use the first media URL (could be image or video)
-  const firstMediaUrl = mediaUrls[0] || null
+  // Download uses whichever item is first in the carousel, image or video
+  const firstMediaUrl = mediaItems[0]?.url || null
   const fileExt = firstMediaUrl ? firstMediaUrl.split('.').pop() || 'jpg' : 'jpg'
   const downloadFilename = post.title ? `${post.title}.${fileExt}` : `download.${fileExt}`
 
@@ -263,46 +265,31 @@ export default function PostDetailPage() {
                   className="w-full relative select-none overflow-hidden"
                   style={{
                     background: 'var(--bg-secondary)',
-                    aspectRatio: mediaUrls.length === 1 ? 'auto' : '4/5',
+                    aspectRatio: mediaItems.length === 1 ? 'auto' : '4/5',
                     maxHeight: 620,
                   }}
                 >
-                  {/* ── Image-only post ── */}
-                  {!hasVideos ? (
-                    // Use existing ImageSlider (for images only)
-                    mediaUrls.length === 1 ? (
-                      <div className="cursor-pointer w-full h-full" onClick={handleImageDoubleTap}>
-                        <img
-                          src={mediaUrls[0]}
-                          alt={post.title || 'Post image'}
-                          className="w-full h-auto block"
-                          style={{ maxHeight: 620, objectFit: 'contain', margin: '0 auto' }}
-                          onError={e => e.target.style.display = 'none'}
-                        />
-                      </div>
-                    ) : (
-                      <ImageSlider
-                        urls={mediaUrls}
-                        title={post.title}
-                        postId={post._id}
-                        onDoubleTap={handleImageDoubleTap}
-                        rounded=""
-                        className="w-full h-full"
-                      />
-                    )
-                  ) : (
-                    // ── Video post (first video) ──
-                    <div className="w-full h-full flex items-center justify-center">
+                  <MediaSlider
+                    items={mediaItems}
+                    title={post.title}
+                    postId={post._id}
+                    onDoubleTap={handleImageDoubleTap}
+                    rounded=""
+                    className="w-full h-full"
+                    // Detail page is a "watch it" context, not a "scroll past it"
+                    // context — give videos real playback controls instead of the
+                    // silent boomerang loop used for feed/grid previews.
+                    renderVideo={(item) => (
                       <video
-                        src={post.videos[0].url}
-                        poster={post.videos[0].thumbnail || undefined}
+                        src={item.url}
+                        poster={item.thumbnail || undefined}
                         controls
                         playsInline
                         className="w-full h-full object-contain"
                         style={{ maxHeight: 620 }}
                       />
-                    </div>
-                  )}
+                    )}
+                  />
 
                   {/* Top gradient */}
                   <div
