@@ -4,14 +4,17 @@ export const API_URL = 'https://media-hub-bq9w.onrender.com';
 
 console.log('🔍 API_URL:', API_URL);
 
-// The 45s default below is tuned for Render free-tier cold starts.
-// Media files no longer travel through this axios instance at all — they're
-// uploaded directly from the browser to Cloudinary using a signed upload
-// (see uploadToCloudinaryDirect in CreatePostPage.jsx), so postsAPI.create/
-// update now only ever carry small JSON bodies (title/content/tags + the
-// Cloudinary URLs already returned). The old UPLOAD_TIMEOUT override for
-// large file bodies is no longer needed for that reason.
+// The 45s default below is tuned for Render free-tier cold starts on normal
+// JSON requests (login, fetch posts, etc). It is deliberately NOT used for
+// media uploads — see UPLOAD_TIMEOUT below. Applying the cold-start timeout
+// to an upload meant large files (esp. video) got silently aborted by axios
+// partway through, which looked like "upload freezes/cancels around 30%".
 const DEFAULT_TIMEOUT = 45000;
+// Uploads need a much longer budget: cold start (~30-50s) + actual transfer
+// time for a large file on a possibly slow connection. 10 minutes gives real
+// videos room to finish; adjust down if your backend/multer caps file size
+// lower and uploads should never legitimately take this long.
+const UPLOAD_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
 const api = axios.create({
   baseURL: API_URL,
@@ -104,16 +107,27 @@ export const authAPI = {
 export const postsAPI = {
   getAll: () => api.get('/api/posts'),
   getOne: (id) => api.get(`/api/posts/${id}`),
-  // Plain JSON now — media has already been uploaded directly to Cloudinary
-  // by the time this is called; `data.images`/`data.videos` are just the
-  // resulting { url, public_id, ... } metadata, not files. That's what keeps
-  // this request small and fast regardless of video size.
-  create: (data) => api.post('/api/posts', data),
-  update: (id, data) => api.put(`/api/posts/${id}`, data),
+  // `config` lets callers pass extra axios options (e.g. onUploadProgress) through.
+  // timeout defaults to UPLOAD_TIMEOUT (not the global 45s cold-start timeout)
+  // since this endpoint carries the actual media file — a caller can still
+  // override it by passing `timeout` in `config` if it ever needs to.
+  create: (data, config = {}) => api.post('/api/posts', data, {
+    timeout: UPLOAD_TIMEOUT,
+    ...config,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+      ...(config.headers || {}),
+    },
+  }),
+  update: (id, data, config = {}) => api.put(`/api/posts/${id}`, data, {
+    timeout: UPLOAD_TIMEOUT,
+    ...config,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+      ...(config.headers || {}),
+    },
+  }),
   delete: (id) => api.delete(`/api/posts/${id}`),
-  // Requests a short-lived signed upload from our backend so the browser can
-  // upload a file straight to Cloudinary, skipping Render for the transfer.
-  getUploadSignature: () => api.get('/api/uploads/sign'),
   like: (id) => api.post(`/api/posts/${id}/like`),
   dislike: (id) => api.post(`/api/posts/${id}/dislike`),
   comment: (id, content) => api.post(`/api/comments/${id}`, { content }),
