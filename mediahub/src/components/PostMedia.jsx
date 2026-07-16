@@ -1,6 +1,7 @@
 // MediaSlider.js – fully functional, passes isActive to renderVideo
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { FiPlay, FiVolume2, FiVolumeX } from 'react-icons/fi'
 
 // ── Helper: normalize a post's images into an array of URLs ──────────────────
 export function getImageUrls(post) {
@@ -64,40 +65,144 @@ export function getMediaItems(post) {
   return items
 }
 
+// ── NEW: measures the real aspect ratio of a post's first media item, the
+// same way Instagram sizes a post's frame off its first photo/video, instead
+// of forcing every post into a fixed square/4:5 box that crops content.
+// Clamped to IG's own portrait/landscape bounds (4:5 .. 1.91:1) so a very
+// tall or very wide file doesn't blow out the feed layout.
+export function useMediaAspect(items, { min = 4 / 5, max = 1.91, fallback = 1 } = {}) {
+  const [ratio, setRatio] = useState(fallback)
+  const firstUrl = items?.[0]?.url
+  const firstType = items?.[0]?.type
+
+  useEffect(() => {
+    if (!firstUrl) { setRatio(fallback); return }
+    let cancelled = false
+
+    if (firstType === 'video') {
+      const v = document.createElement('video')
+      v.preload = 'metadata'
+      v.src = firstUrl
+      v.onloadedmetadata = () => {
+        if (cancelled) return
+        if (v.videoWidth && v.videoHeight) {
+          const r = v.videoWidth / v.videoHeight
+          setRatio(Math.min(max, Math.max(min, r)))
+        }
+      }
+    } else {
+      const img = new window.Image()
+      img.src = firstUrl
+      img.onload = () => {
+        if (cancelled) return
+        if (img.naturalWidth && img.naturalHeight) {
+          const r = img.naturalWidth / img.naturalHeight
+          setRatio(Math.min(max, Math.max(min, r)))
+        }
+      }
+    }
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstUrl, firstType])
+
+  return ratio
+}
+
+// ── NEW: Instagram-style video — always autoplaying, muted, looping, no
+// native browser controls (so no "paused" chrome flashes on refresh), tap
+// toggles play/pause, small mute toggle bottom-right.
+export function InstagramVideo({ src, poster, className, style }) {
+  const videoRef = useRef(null)
+  const [muted, setMuted] = useState(true)
+  const [paused, setPaused] = useState(false)
+
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    const tryPlay = () => v.play().catch(() => {})
+    tryPlay()
+    const onVisible = () => { if (document.visibilityState === 'visible') tryPlay() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [src])
+
+  const togglePlay = (e) => {
+    e.stopPropagation()
+    const v = videoRef.current
+    if (!v) return
+    if (v.paused) v.play().catch(() => {})
+    else v.pause()
+  }
+
+  return (
+    <div className="relative w-full h-full" onClick={togglePlay}>
+      <video
+        ref={videoRef}
+        src={src}
+        poster={poster || undefined}
+        className={className}
+        style={style}
+        muted={muted}
+        loop
+        playsInline
+        autoPlay
+        onPlay={() => setPaused(false)}
+        onPause={() => setPaused(true)}
+        onError={(e) => { e.target.style.display = 'none' }}
+      />
+      {paused && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div
+            className="w-14 h-14 rounded-full flex items-center justify-center backdrop-blur-md"
+            style={{ background: 'rgba(0,0,0,0.45)' }}
+          >
+            <FiPlay size={22} color="white" fill="white" style={{ marginLeft: 3 }} />
+          </div>
+        </div>
+      )}
+      <button
+        onClick={(e) => { e.stopPropagation(); setMuted(m => !m) }}
+        aria-label={muted ? 'Unmute' : 'Mute'}
+        className="absolute bottom-3 right-3 z-10 w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md"
+        style={{ background: 'rgba(0,0,0,0.5)' }}
+      >
+        {muted ? <FiVolumeX size={15} color="white" /> : <FiVolume2 size={15} color="white" />}
+      </button>
+    </div>
+  )
+}
+
 export function MultiImage({ urls, title, postId, onDoubleTap, tileRadius = 'rounded-xl', gapClass = 'gap-1.5', children }) {
-  // ... (same as you pasted, no changes)
+  // ... (same as you pasted, no changes) — keep your existing implementation here
 }
 
 export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '', showCounter = true, hideDots = false, peek = false, tapToNavigate = true }) {
-  // ... (same as you pasted, no changes)
+  // ... (same as you pasted, no changes) — keep your existing implementation here
 }
 
-export function MediaSlider({ items, title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '', showCounter = true, hideDots = false, peek = false, tapToNavigate = true, renderVideo }) {
+export function MediaSlider({
+  items, title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '',
+  showCounter = true, hideDots = false, peek = false, tapToNavigate = true,
+  renderVideo, fit = 'cover', // ← NEW: 'cover' (default, unchanged for grid) or 'contain' (full media visible)
+}) {
   const [index, setIndex] = useState(0)
   const containerRef = useRef(null)
   const dragInfo = useRef({ dragged: false })
 
   if (!items || items.length === 0) return null
 
+  const fitClass = fit === 'contain' ? 'object-contain' : 'object-cover'
+
   const renderSlide = (item, isActive) => (
     item.type === 'video'
       ? (renderVideo
           ? renderVideo(item, isActive)
-          : (
-            <video
-              src={item.url}
-              poster={item.thumbnail || undefined}
-              className="w-full h-full object-cover"
-              muted
-              playsInline
-              controls
-            />
-          ))
+          : <InstagramVideo src={item.url} poster={item.thumbnail} className={`w-full h-full ${fitClass}`} />)
       : (
         <img
           src={item.url}
           alt={title || 'Post'}
-          className="w-full h-full object-cover"
+          className={`w-full h-full ${fitClass}`}
           loading="lazy"
           draggable={false}
           onError={(e) => (e.target.style.display = 'none')}
@@ -184,15 +289,24 @@ export function MediaSlider({ items, title, postId, onDoubleTap, rounded = 'roun
           animate={{ x: `-${index * (100 / items.length)}%` }}
           transition={{ type: 'spring', stiffness: 380, damping: 38 }}
         >
-          {items.map((item, i) => (
-            <div
-              key={`${postId}-${i}`}
-              className="h-full flex-shrink-0 pointer-events-none"
-              style={{ width: `${100 / items.length}%` }}
-            >
-              {renderSlide(item, i === index)}
-            </div>
-          ))}
+          {items.map((item, i) => {
+            const isActive = i === index
+            // FIX: only the active slide should be interactive, and only when
+            // it's a video (so its play/pause + mute controls can receive
+            // taps). Every slide being pointer-events-none was why video
+            // playback controls never worked once there was more than one
+            // media item on a post.
+            const interactive = item.type === 'video' && isActive
+            return (
+              <div
+                key={`${postId}-${i}`}
+                className={`h-full flex-shrink-0 ${interactive ? '' : 'pointer-events-none'}`}
+                style={{ width: `${100 / items.length}%` }}
+              >
+                {renderSlide(item, isActive)}
+              </div>
+            )
+          })}
         </motion.div>
       </div>
 

@@ -6,10 +6,10 @@ import {
   FiX, FiShare2, FiDownload, FiLoader
 } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
-import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'  // ← import api + helper
+import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'
 import { useAuthStore } from '../store'
 import { Avatar } from '../components/ui'
-import { getMediaItems, MediaSlider } from '../components/PostMedia'
+import { getMediaItems, MediaSlider, useMediaAspect, InstagramVideo } from '../components/PostMedia'
 import CommentsSheet from './_CommentsSheet'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
@@ -32,8 +32,9 @@ export default function PostDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [postVisible, setPostVisible] = useState(true)
   const [confirmDeletePost, setConfirmDeletePost] = useState(false)
-  const [downloading, setDownloading] = useState(false)  // ← download state
+  const [downloading, setDownloading] = useState(false)
   const lastTapRef = useRef(0)
+  const menuRef = useRef(null)
 
   const currentUserId = user?._id || user?.id
   const isCurrentUser = (author) => {
@@ -57,7 +58,6 @@ export default function PostDetailPage() {
       if (currentUserId && p.likes) setLiked(p.likes.includes(currentUserId))
       setLikeCount(p.likes?.length || 0)
 
-      // preload comment count without opening the sheet
       try {
         const cRes = await commentsAPI.getByPost(id)
         setCommentCount((cRes.data?.data || []).length)
@@ -71,6 +71,21 @@ export default function PostDetailPage() {
   }
 
   useEffect(() => { fetchPost() }, [id])
+
+  useEffect(() => {
+    if (!showMenu) return
+    const handleOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setShowMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('touchstart', handleOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('touchstart', handleOutside)
+    }
+  }, [showMenu])
 
   const handleLike = async () => {
     if (!user) {
@@ -131,7 +146,6 @@ export default function PostDetailPage() {
     }
   }
 
-  // ── Download handler ──
   const handleDownload = async (url, filename) => {
     if (!url) return
     setDownloading(true)
@@ -156,6 +170,9 @@ export default function PostDetailPage() {
     }
   }
 
+  const mediaItems = getMediaItems(post)
+  const mediaRatio = useMediaAspect(mediaItems)
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen" style={{ background: 'var(--bg-primary)' }}>
@@ -166,15 +183,10 @@ export default function PostDetailPage() {
 
   if (!post) return null
 
-  // Ordered list of every image AND video on this post, same helper FeedPage
-  // uses — a post with multiple videos, or mixed images+videos, now shows
-  // everything in one slider instead of only ever rendering post.videos[0].
-  const mediaItems = getMediaItems(post)
   const hasMedia = mediaItems.length > 0
   const isOwner = isCurrentUser(post.author)
   const hasBody = post.content && post.content.trim() && post.content.trim() !== post.title?.trim()
 
-  // Download uses whichever item is first in the carousel, image or video
   const firstMediaUrl = mediaItems[0]?.url || null
   const fileExt = firstMediaUrl ? firstMediaUrl.split('.').pop() || 'jpg' : 'jpg'
   const downloadFilename = post.title ? `${post.title}.${fileExt}` : `download.${fileExt}`
@@ -194,7 +206,7 @@ export default function PostDetailPage() {
           >
             <div className="max-w-2xl mx-auto pb-8">
 
-              {/* Header – unchanged */}
+              {/* Header */}
               <div
                 className="sticky top-0 z-20 px-4 py-2.5 flex items-center justify-between"
                 style={{
@@ -224,7 +236,7 @@ export default function PostDetailPage() {
                     <FiShare2 size={18} style={{ color: 'var(--text-primary)' }} />
                   </button>
                   {isOwner ? (
-                    <div className="relative">
+                    <div className="relative" ref={menuRef}>
                       <button
                         onClick={() => setShowMenu(v => !v)}
                         disabled={isDeleting}
@@ -265,7 +277,7 @@ export default function PostDetailPage() {
                   className="w-full relative select-none overflow-hidden"
                   style={{
                     background: 'var(--bg-secondary)',
-                    aspectRatio: mediaItems.length === 1 ? 'auto' : '4/5',
+                    aspectRatio: mediaRatio,
                     maxHeight: 620,
                   }}
                 >
@@ -276,31 +288,25 @@ export default function PostDetailPage() {
                     onDoubleTap={handleImageDoubleTap}
                     rounded=""
                     className="w-full h-full"
-                    // Detail page is a "watch it" context, not a "scroll past it"
-                    // context — give videos real playback controls instead of the
-                    // silent boomerang loop used for feed/grid previews.
+                    fit="contain"
                     renderVideo={(item) => (
-                      <video
+                      <InstagramVideo
                         src={item.url}
-                        poster={item.thumbnail || undefined}
-                        controls
-                        playsInline
+                        poster={item.thumbnail}
                         className="w-full h-full object-contain"
                         style={{ maxHeight: 620 }}
                       />
                     )}
                   />
 
-                  {/* Top gradient */}
                   <div
                     className="absolute inset-x-0 top-0 h-20 pointer-events-none"
                     style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.35), transparent)' }}
                   />
 
-                  {/* Floating author chip */}
                   <button
                     onClick={() => goToProfile(post.author)}
-                    className="absolute top-3 left-3 flex items-center gap-2 pl-1 pr-3 py-1 rounded-full backdrop-blur-md active:scale-95 transition"
+                    className="absolute top-3 left-3 flex items-center gap-2 pl-1 pr-3 py-1 rounded-full backdrop-blur-md active:scale-95 transition z-10"
                     style={{ background: 'rgba(0,0,0,0.35)' }}
                   >
                     <Avatar
@@ -314,7 +320,25 @@ export default function PostDetailPage() {
                     </span>
                   </button>
 
-                  {/* Heart animation (double‑tap) */}
+                  {/* ── Download button — moved to top-right, clear of the mute toggle at bottom-right ── */}
+                  {firstMediaUrl && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDownload(firstMediaUrl, downloadFilename)
+                      }}
+                      disabled={downloading}
+                      className="absolute top-3 right-3 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-gray-800 hover:bg-white shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Download media"
+                    >
+                      {downloading ? (
+                        <FiLoader size={18} className="animate-spin" strokeWidth={2.5} />
+                      ) : (
+                        <FiDownload size={18} strokeWidth={2.5} />
+                      )}
+                    </button>
+                  )}
+
                   <AnimatePresence>
                     {showHeartAnimation && (
                       <motion.div
@@ -328,31 +352,11 @@ export default function PostDetailPage() {
                       </motion.div>
                     )}
                   </AnimatePresence>
-
-                  {/* ── Download button (floating on media) ── */}
-                  {firstMediaUrl && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDownload(firstMediaUrl, downloadFilename)
-                      }}
-                      disabled={downloading}
-                      className="absolute bottom-3 right-3 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-gray-800 hover:bg-white shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label="Download media"
-                    >
-                      {downloading ? (
-                        <FiLoader size={18} className="animate-spin" strokeWidth={2.5} />
-                      ) : (
-                        <FiDownload size={18} strokeWidth={2.5} />
-                      )}
-                    </button>
-                  )}
                 </div>
               )}
 
-              {/* Body – unchanged */}
+              {/* Body */}
               <div className="px-4 pt-4">
-                {/* Author row (only when no media) */}
                 {!hasMedia && (
                   <button
                     onClick={() => goToProfile(post.author)}
@@ -408,7 +412,6 @@ export default function PostDetailPage() {
                   </p>
                 )}
 
-                {/* Action bar – unchanged */}
                 <div
                   className="mt-4 flex items-center gap-2 pt-3"
                   style={{ borderTop: '1px solid var(--border)' }}
@@ -470,7 +473,6 @@ export default function PostDetailPage() {
                   </button>
                 </div>
 
-                {/* Comments teaser */}
                 <button
                   onClick={() => setShowComments(true)}
                   className="mt-3 text-sm font-semibold hover:opacity-70 transition"
@@ -486,7 +488,6 @@ export default function PostDetailPage() {
         )}
       </AnimatePresence>
 
-      {/* Comments sheet – unchanged */}
       <CommentsSheet
         postId={id}
         open={showComments}
@@ -497,7 +498,6 @@ export default function PostDetailPage() {
         onCountChange={setCommentCount}
       />
 
-      {/* Delete modal – unchanged */}
       <AnimatePresence>
         {confirmDeletePost && (
           <motion.div

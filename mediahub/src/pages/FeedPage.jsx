@@ -10,7 +10,7 @@ import { FaHeart } from 'react-icons/fa'
 import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'
 import { useAuthStore } from '../store'
 import { Avatar } from '../components/ui'
-import { getMediaItems, MediaSlider } from '../components/PostMedia'
+import { getMediaItems, MediaSlider, useMediaAspect } from '../components/PostMedia'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -53,13 +53,10 @@ function WeddingHero() {
           />
         </AnimatePresence>
 
-        {/* Depth overlays */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-        {/* Extra darkening under the floating header for readability */}
         <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/45 to-transparent pointer-events-none" />
 
-        {/* Content — pushed down so it doesn't collide with the floating header */}
         <div className="absolute inset-0 flex flex-col justify-end p-5 sm:p-10 md:p-14 pb-16 sm:pb-24 pt-24 sm:pt-28">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -106,7 +103,6 @@ function WeddingHero() {
           </motion.div>
         </div>
 
-        {/* Dots */}
         <div className="absolute bottom-8 sm:bottom-12 right-4 sm:right-8 flex gap-1.5 z-10">
           {WEDDING_SLIDES.map((_, i) => (
             <button
@@ -122,7 +118,6 @@ function WeddingHero() {
           ))}
         </div>
 
-        {/* Bottom fade into page background */}
         <div
           className="absolute inset-x-0 bottom-0 h-1/2 pointer-events-none z-[5]"
           style={{ background: 'linear-gradient(to bottom, transparent 0%, var(--bg-primary) 100%)' }}
@@ -132,7 +127,7 @@ function WeddingHero() {
   )
 }
 
-/* ─────────── Normalize a user object into the shape comments expect ─────────── */
+/* ─────────── Normalize a user object ─────────── */
 
 function normalizeAuthor(u) {
   if (!u) return null
@@ -144,8 +139,6 @@ function normalizeAuthor(u) {
 }
 
 /* ─────────── Small helper: multi-media badge ─────────── */
-// Renamed from MultiImageBadge in spirit — now counts ANY media items
-// (images + videos combined), not just images.
 function MultiImageBadge({ count }) {
   if (!count || count < 2) return null
   return (
@@ -156,7 +149,7 @@ function MultiImageBadge({ count }) {
   )
 }
 
-/* ─────────── Boomerang video ─────────── */
+/* ─────────── Boomerang video (grid + list preview) ─────────── */
 
 function BoomerangVideo({ src, poster, className, style, onClick }) {
   const videoRef = useRef(null)
@@ -349,6 +342,143 @@ function groupPostsByMonth(posts) {
   return Array.from(groups.values()).sort((a, b) => b.sortKey - a.sortKey)
 }
 
+/* ─────────── List-view post (needs its own hook scope) ─────────── */
+
+function PostListItem({
+  post, user, gridItem, navigate,
+  handleLike, handleDoubleTap, goToProfile, HeartAnimation,
+  downloadingMap, handleDownload,
+  commentDeltas, setCommentDeltas, setActiveCommentPostId,
+}) {
+  const mediaItems = getMediaItems(post)
+  const mediaRatio = useMediaAspect(mediaItems)
+  const isLiked = post.likes?.includes(user?._id)
+  const baseCount = post.commentCount ?? 0
+  const commentCount = baseCount + (commentDeltas[post._id] || 0)
+  const isDownloading = downloadingMap[post._id] || false
+  const downloadTarget = mediaItems[0]?.url
+
+  return (
+    <motion.article layoutId={`post-${post._id}`} variants={gridItem}
+      className="rounded-2xl p-4 sm:p-5 transition-shadow hover:shadow-md"
+      style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+
+      <header className="flex items-center gap-3 mb-2">
+        <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
+          <Avatar src={post.author?.avatar} name={post.author?.name} size={38} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-sm hover:underline truncate"
+             style={{ color: 'var(--text-primary)' }}
+             onClick={(e) => goToProfile(e, post.author)}>
+            {post.author?.name || 'Unknown'}
+          </p>
+          <p className="text-[11px] leading-none" style={{ color: 'var(--text-muted)' }}>
+            {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
+          </p>
+        </div>
+      </header>
+
+      {mediaItems.length > 0 && (
+        <div className="relative w-full mb-3 rounded-xl overflow-hidden cursor-pointer"
+             style={{ background: 'var(--bg-secondary)', aspectRatio: mediaRatio, maxHeight: 520 }}>
+          <MediaSlider
+            items={mediaItems}
+            title={post.title}
+            postId={post._id}
+            onDoubleTap={(e) => handleDoubleTap(e, post._id, true)}
+            rounded=""
+            className="w-full h-full"
+            hideDots
+            tapToNavigate={false}
+            fit="contain"
+            renderVideo={(item) => (
+              <BoomerangVideo src={item.url} poster={item.thumbnail} className="w-full h-full object-contain" />
+            )}
+          />
+          <MultiImageBadge count={mediaItems.length} />
+          <HeartAnimation postId={post._id} />
+
+          {/* ── Download button — moved to top-right, clear of the mute toggle at bottom-right ── */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!downloadTarget) return;
+              const ext = downloadTarget.split('.').pop() || 'jpg';
+              const filename = post.title ? `${post.title}.${ext}` : `download.${ext}`;
+              handleDownload(post._id, downloadTarget, filename);
+            }}
+            disabled={isDownloading}
+            className="absolute top-3 right-3 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-gray-800 hover:bg-white shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Download media"
+          >
+            {isDownloading ? (
+              <FiLoader size={18} className="animate-spin" strokeWidth={2.5} />
+            ) : (
+              <FiDownload size={18} strokeWidth={2.5} />
+            )}
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
+          {post.title && (
+            <h3 className="font-extrabold font-display text-base leading-snug"
+                style={{ color: 'var(--text-primary)' }}>
+              {post.title}
+            </h3>
+          )}
+          {post.content && post.content.trim() !== '' && post.content !== post.title && (
+            <p className="text-sm mt-0.5 line-clamp-3" style={{ color: 'var(--text-secondary)' }}>
+              {post.content}
+            </p>
+          )}
+          {post.tags?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {post.tags.slice(0, 3).map(tag => (
+                <span key={tag} className="text-xs font-bold px-2.5 py-0.5 rounded-full"
+                      style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2.5 flex-shrink-0">
+          <motion.button onClick={e => handleLike(e, post._id)} whileTap={{ scale: 0.9 }}
+            className="flex items-center gap-1.5 h-10 px-4 rounded-full hover:bg-[var(--bg-primary)] leading-none">
+            {isLiked
+              ? <FaHeart size={18} color="#ef4444" />
+              : <FiHeart size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
+            <span className="text-sm font-bold leading-none"
+                  style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
+              {post.likes?.length || 0}
+            </span>
+          </motion.button>
+          <div className="flex items-center gap-1.5 h-10 px-4 leading-none">
+            <FiMessageCircle size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
+            <span className="text-sm font-bold leading-none" style={{ color: 'var(--text-muted)' }}>
+              {commentCount}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <InlineComments
+        postId={post._id}
+        user={user}
+        onGoToProfile={(e, author) => goToProfile(e, author)}
+        onOpenAll={(id) => setActiveCommentPostId(id)}
+        onCountChange={(delta) =>
+          setCommentDeltas((s) => ({ ...s, [post._id]: (s[post._id] || 0) + delta }))
+        }
+      />
+    </motion.article>
+  )
+}
+
 export default function FeedPage() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -503,8 +633,6 @@ export default function FeedPage() {
   const monthGroups = groupPostsByMonth(visiblePosts)
 
   const renderGridTile = (post) => {
-    // Ordered list of every image AND video on this post — no more
-    // "only show the first video, drop everything else" behavior.
     const mediaItems = getMediaItems(post)
     const isLiked = post.likes?.includes(user?._id)
     const commentCount = gridCommentCounts[post._id] ?? (post.commentCount ?? 0)
@@ -563,136 +691,6 @@ export default function FeedPage() {
     )
   }
 
-  const renderListItem = (post) => {
-    const mediaItems = getMediaItems(post)
-    const isLiked = post.likes?.includes(user?._id)
-    const baseCount = post.commentCount ?? 0
-    const commentCount = baseCount + (commentDeltas[post._id] || 0)
-    const isDownloading = downloadingMap[post._id] || false
-    // Download button downloads whichever slide is first in the carousel —
-    // previously this assumed "video first, else first image" and could
-    // silently point at the wrong item once mixed media was involved.
-    const downloadTarget = mediaItems[0]?.url
-
-    return (
-      <motion.article key={post._id} layoutId={`post-${post._id}`} variants={gridItem}
-        className="rounded-2xl p-4 sm:p-5 transition-shadow hover:shadow-md"
-        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-
-        <header className="flex items-center gap-3 mb-2">
-          <div onClick={(e) => goToProfile(e, post.author)} className="cursor-pointer flex-shrink-0">
-            <Avatar src={post.author?.avatar} name={post.author?.name} size={38} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="font-bold text-sm hover:underline truncate"
-               style={{ color: 'var(--text-primary)' }}
-               onClick={(e) => goToProfile(e, post.author)}>
-              {post.author?.name || 'Unknown'}
-            </p>
-            <p className="text-[11px] leading-none" style={{ color: 'var(--text-muted)' }}>
-              {post.createdAt ? dayjs(post.createdAt).fromNow() : 'Just now'}
-            </p>
-          </div>
-        </header>
-
-        {mediaItems.length > 0 && (
-          <div className="relative w-full mb-3 rounded-xl overflow-hidden cursor-pointer aspect-square"
-               style={{ background: 'var(--bg-secondary)' }}>
-            <MediaSlider
-              items={mediaItems}
-              title={post.title}
-              postId={post._id}
-              onDoubleTap={(e) => handleDoubleTap(e, post._id, true)}
-              rounded=""
-              className="w-full h-full"
-              hideDots
-              tapToNavigate={false}
-              renderVideo={(item) => (
-                <BoomerangVideo src={item.url} poster={item.thumbnail} className="w-full h-full object-cover" />
-              )}
-            />
-            <MultiImageBadge count={mediaItems.length} />
-            <HeartAnimation postId={post._id} />
-
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!downloadTarget) return;
-                const ext = downloadTarget.split('.').pop() || 'jpg';
-                const filename = post.title ? `${post.title}.${ext}` : `download.${ext}`;
-                handleDownload(post._id, downloadTarget, filename);
-              }}
-              disabled={isDownloading}
-              className="absolute bottom-3 right-3 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-gray-800 hover:bg-white shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Download media"
-            >
-              {isDownloading ? (
-                <FiLoader size={18} className="animate-spin" strokeWidth={2.5} />
-              ) : (
-                <FiDownload size={18} strokeWidth={2.5} />
-              )}
-            </button>
-          </div>
-        )}
-
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
-            {post.title && (
-              <h3 className="font-extrabold font-display text-base leading-snug"
-                  style={{ color: 'var(--text-primary)' }}>
-                {post.title}
-              </h3>
-            )}
-            {post.content && post.content.trim() !== '' && post.content !== post.title && (
-              <p className="text-sm mt-0.5 line-clamp-3" style={{ color: 'var(--text-secondary)' }}>
-                {post.content}
-              </p>
-            )}
-            {post.tags?.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {post.tags.slice(0, 3).map(tag => (
-                  <span key={tag} className="text-xs font-bold px-2.5 py-0.5 rounded-full"
-                        style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2.5 flex-shrink-0">
-            <motion.button onClick={e => handleLike(e, post._id)} whileTap={{ scale: 0.9 }}
-              className="flex items-center gap-1.5 h-10 px-4 rounded-full hover:bg-[var(--bg-primary)] leading-none">
-              {isLiked
-                ? <FaHeart size={18} color="#ef4444" />
-                : <FiHeart size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />}
-              <span className="text-sm font-bold leading-none"
-                    style={{ color: isLiked ? '#ef4444' : 'var(--text-muted)' }}>
-                {post.likes?.length || 0}
-              </span>
-            </motion.button>
-            <div className="flex items-center gap-1.5 h-10 px-4 leading-none">
-              <FiMessageCircle size={18} strokeWidth={2.3} style={{ color: 'var(--text-muted)' }} />
-              <span className="text-sm font-bold leading-none" style={{ color: 'var(--text-muted)' }}>
-                {commentCount}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <InlineComments
-          postId={post._id}
-          user={user}
-          onGoToProfile={(e, author) => goToProfile(e, author)}
-          onOpenAll={(id) => setActiveCommentPostId(id)}
-          onCountChange={(delta) =>
-            setCommentDeltas((s) => ({ ...s, [post._id]: (s[post._id] || 0) + delta }))
-          }
-        />
-      </motion.article>
-    )
-  }
-
   return (
     <>
       <div className="min-h-screen pb-10" style={{ background: 'var(--bg-primary)' }}>
@@ -707,7 +705,6 @@ export default function FeedPage() {
           }}
         >
           <div className="max-w-7xl mx-auto flex items-center gap-2 sm:gap-3">
-            {/* View toggle */}
             <div
               className="relative grid grid-cols-2 rounded-full p-1 w-[84px] flex-shrink-0"
               style={{
@@ -731,7 +728,6 @@ export default function FeedPage() {
               </button>
             </div>
 
-            {/* Search */}
             <div className="relative flex-1 min-w-0 max-w-xl mx-auto">
               <FiSearch
                 size={16}
@@ -813,7 +809,24 @@ export default function FeedPage() {
                       className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-5"
                       variants={gridContainer} initial="initial" animate="animate"
                     >
-                      {group.posts.map((post) => renderListItem(post))}
+                      {group.posts.map((post) => (
+                        <PostListItem
+                          key={post._id}
+                          post={post}
+                          user={user}
+                          gridItem={gridItem}
+                          navigate={navigate}
+                          handleLike={handleLike}
+                          handleDoubleTap={handleDoubleTap}
+                          goToProfile={goToProfile}
+                          HeartAnimation={HeartAnimation}
+                          downloadingMap={downloadingMap}
+                          handleDownload={handleDownload}
+                          commentDeltas={commentDeltas}
+                          setCommentDeltas={setCommentDeltas}
+                          setActiveCommentPostId={setActiveCommentPostId}
+                        />
+                      ))}
                     </motion.div>
                   )}
                 </div>
