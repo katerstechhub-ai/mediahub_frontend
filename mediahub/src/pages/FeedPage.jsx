@@ -89,11 +89,17 @@ function WeddingHero() {
               </motion.p>
             </AnimatePresence>
 
-            <div className="mt-4 sm:mt-6 flex flex-wrap items-center gap-3 sm:gap-5 text-white/90 text-xs sm:text-sm">
-              <span className="flex items-center gap-2 px-3 py-1.5">
+            <div className="mt-4 sm:mt-6 flex flex-wrap items-center gap-3 sm:gap-5 text-white text-xs sm:text-sm">
+              <span
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-md"
+                style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)' }}
+              >
                 <FiCalendar size={14} /> November 14, 2026
               </span>
-              <span className="flex items-center gap-2 px-3 py-1.5">
+              <span
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-md"
+                style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)' }}
+              >
                 <FiMapPin size={14} /> Amalfi Coast, Abuja
               </span>
             </div>
