@@ -592,49 +592,47 @@ function PostListItem({
           </div>
         </div>
 
-        {/* Stat pills — NFT-card inspired */}
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <motion.button onClick={e => handleLike(e, post._id)} whileTap={{ scale: 0.96 }}
-            className="flex items-center justify-center gap-2 h-11 rounded-full transition"
-            style={{
-              background: isLiked ? 'rgba(239,68,68,0.08)' : 'var(--bg-primary)',
-              border: `1px solid ${isLiked ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
-              color: isLiked ? '#ef4444' : 'var(--text-primary)',
-            }}>
+        {/* Icon row — matches PostDetailPage exactly: flex row, no border/box, hover-only background */}
+        <div className="mt-4 flex items-center gap-2">
+          <motion.button
+            onClick={e => handleLike(e, post._id)}
+            whileTap={{ scale: 0.92 }}
+            className="flex items-center gap-2 px-4 h-10 rounded-full hover:bg-[var(--bg-secondary)] transition"
+            style={{ background: isLiked ? 'rgba(239,68,68,0.10)' : 'transparent' }}
+          >
             <AnimatePresence mode="wait" initial={false}>
               {isLiked ? (
                 <motion.span
                   key="liked"
                   initial={{ scale: 0.6 }} animate={{ scale: 1 }} exit={{ scale: 0.6, opacity: 0 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-                  className="flex items-center"
                 >
-                  <FaHeart size={16} color="#ef4444" />
+                  <FaHeart size={20} color="#ef4444" />
                 </motion.span>
               ) : (
                 <motion.span
                   key="unliked"
                   initial={{ scale: 0.6 }} animate={{ scale: 1 }} exit={{ scale: 0.6, opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="flex items-center"
                 >
-                  <FiHeart size={16} strokeWidth={2.4} />
+                  <FiHeart size={20} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
                 </motion.span>
               )}
             </AnimatePresence>
-            <span className="text-sm font-bold">{post.likes?.length || 0}</span>
+            <span className="text-sm font-bold" style={{ color: isLiked ? '#ef4444' : 'var(--text-primary)' }}>
+              {post.likes?.length || 0}
+            </span>
           </motion.button>
 
-          <motion.button onClick={(e) => { e.stopPropagation(); setActiveCommentPostId(post._id) }}
-            whileTap={{ scale: 0.96 }}
-            className="flex items-center justify-center gap-2 h-11 rounded-full transition"
-            style={{
-              background: 'var(--bg-primary)',
-              border: '1px solid var(--border)',
-              color: 'var(--text-primary)',
-            }}>
-            <FiMessageCircle size={16} strokeWidth={2.4} />
-            <span className="text-sm font-bold">{commentCount}</span>
+          <motion.button
+            onClick={(e) => { e.stopPropagation(); setActiveCommentPostId(post._id) }}
+            whileTap={{ scale: 0.92 }}
+            className="flex items-center gap-2 px-4 h-10 rounded-full hover:bg-[var(--bg-secondary)] transition"
+          >
+            <FiMessageCircle size={20} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
+            <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+              {commentCount}
+            </span>
           </motion.button>
         </div>
 
