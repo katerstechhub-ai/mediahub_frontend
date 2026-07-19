@@ -4,7 +4,8 @@ import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import {
   FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList,
   FiCopy, FiSend, FiSearch, FiX, FiDownload, FiLoader,
-  FiCalendar, FiMapPin, FiVolume2, FiVolumeX, FiPlay
+  FiCalendar, FiMapPin, FiVolume2, FiVolumeX, FiPlay,
+  FiChevronLeft, FiChevronRight, FiExternalLink
 } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
 import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'
@@ -145,6 +146,94 @@ function WeddingHero() {
   )
 }
 
+/* ─────────── Fullscreen photo lightbox ─────────── */
+
+function PhotoLightbox({ post, index, setIndex, onClose, navigate }) {
+  const items = post ? getMediaItems(post) : []
+  const item = items[index]
+
+  useEffect(() => {
+    if (!post) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowLeft') setIndex((i) => (i - 1 + items.length) % items.length)
+      if (e.key === 'ArrowRight') setIndex((i) => (i + 1) % items.length)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [post, items.length, onClose, setIndex])
+
+  return (
+    <AnimatePresence>
+      {post && (
+        <motion.div
+          className="fixed inset-0 z-[95] flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.92)' }}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          onClick={onClose}
+        >
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+          >
+            <FiX size={20} />
+          </button>
+
+          {items.length > 1 && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); setIndex((i) => (i - 1 + items.length) % items.length) }}
+                aria-label="Previous"
+                className="absolute left-3 sm:left-6 z-10 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+              >
+                <FiChevronLeft size={22} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setIndex((i) => (i + 1) % items.length) }}
+                aria-label="Next"
+                className="absolute right-3 sm:right-6 z-10 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+              >
+                <FiChevronRight size={22} />
+              </button>
+            </>
+          )}
+
+          <AnimatePresence mode="wait">
+            <motion.img
+              key={item?.url}
+              src={item?.url}
+              alt={post.title || 'Photo'}
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={{ duration: 0.18 }}
+              className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </AnimatePresence>
+
+          <div
+            className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {post.title && (
+              <span className="text-white/80 text-sm font-medium max-w-[50vw] truncate">{post.title}</span>
+            )}
+            <button
+              onClick={() => navigate(`/posts/${post._id}`)}
+              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-full"
+            >
+              <FiExternalLink size={12} /> View post
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
 /* ─────────── Helpers ─────────── */
 
 function normalizeAuthor(u) {
@@ -229,11 +318,7 @@ function BoomerangVideo({ src, poster, className, style, onClick }) {
   )
 }
 
-/* ─────────── List video (SOUND enabled, one-at-a-time) ───────────
-   NOTE: clicking the video itself now navigates to the post (handled by
-   the parent MediaSlider's tap logic) — sound is toggled ONLY via the
-   dedicated mute/unmute button, so the click doesn't get swallowed by
-   stopPropagation() before it can bubble up to the navigation handler. */
+/* ─────────── List video (SOUND enabled, one-at-a-time) ─────────── */
 
 function FeedVideo({ src, poster, postId, className, style }) {
   const videoRef = useRef(null)
@@ -312,7 +397,6 @@ function FeedVideo({ src, poster, postId, className, style }) {
         autoPlay
       />
 
-      {/* Sound toggle — bottom-right. This is the ONLY element that toggles sound. */}
       <button
         onClick={toggleSound}
         aria-label={muted ? 'Unmute' : 'Mute'}
@@ -321,7 +405,6 @@ function FeedVideo({ src, poster, postId, className, style }) {
         {muted ? <FiVolumeX size={17} strokeWidth={2.4} /> : <FiVolume2 size={17} strokeWidth={2.4} />}
       </button>
 
-      {/* Tap-to-play overlay if browser blocked unmuted playback */}
       {needsTap && (
         <button
           onClick={toggleSound}
@@ -473,7 +556,7 @@ function groupPostsByMonth(posts) {
   return Array.from(groups.values()).sort((a, b) => b.sortKey - a.sortKey)
 }
 
-/* ─────────── List-view post card (NFT-marketplace inspired) ─────────── */
+/* ─────────── List-view post card ─────────── */
 
 function PostListItem({
   post, user, gridItem, navigate,
@@ -500,7 +583,6 @@ function PostListItem({
         boxShadow: '0 4px 24px -12px rgba(0,0,0,0.15)'
       }}
     >
-      {/* Media block — full-bleed, filled edge-to-edge (no letterboxing) */}
       {mediaItems.length > 0 && (
         <div className="relative w-full cursor-pointer overflow-hidden"
              style={{ background: '#000', aspectRatio: mediaRatio, maxHeight: 560 }}>
@@ -526,7 +608,6 @@ function PostListItem({
           <MultiImageBadge count={mediaItems.length} />
           <HeartAnimation postId={post._id} />
 
-          {/* Author chip — top-left floating */}
           <div
             className="absolute top-3 left-3 z-10 flex items-center gap-2 pl-1 pr-3 py-1 rounded-full backdrop-blur-md cursor-pointer"
             style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.15)' }}
@@ -539,7 +620,6 @@ function PostListItem({
             </div>
           </div>
 
-          {/* Download — top-right, doesn't clash with sound toggle */}
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -559,7 +639,6 @@ function PostListItem({
         </div>
       )}
 
-      {/* Meta strip */}
       <div className="p-4 sm:p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
@@ -592,7 +671,6 @@ function PostListItem({
           </div>
         </div>
 
-        {/* Icon row — matches PostDetailPage exactly: flex row, no border/box, hover-only background */}
         <div className="mt-4 flex items-center gap-2">
           <motion.button
             onClick={e => handleLike(e, post._id)}
@@ -663,6 +741,8 @@ export default function FeedPage() {
   const [showHeartAnimation, setShowHeartAnimation] = useState(null)
   const [downloadingMap, setDownloadingMap] = useState({})
   const [scrolled, setScrolled] = useState(false)
+  const [lightboxPost, setLightboxPost] = useState(null)
+  const [lightboxIndex, setLightboxIndex] = useState(0)
   const lastTapRef = useRef({})
   const navigate = useNavigate()
   const { user } = useAuthStore()
@@ -698,7 +778,12 @@ export default function FeedPage() {
     catch (err) { console.error('Like failed:', err) }
   }
 
-  const handleDoubleTap = (e, postId, navigateOnSingle = false) => {
+  const openLightbox = (post) => {
+    setLightboxIndex(0)
+    setLightboxPost(post)
+  }
+
+  const handleDoubleTap = (e, postId, onSingleTap) => {
     e.stopPropagation()
     const now = Date.now()
     const lastTap = lastTapRef.current[postId] || 0
@@ -709,9 +794,9 @@ export default function FeedPage() {
       lastTapRef.current[postId] = 0
     } else {
       lastTapRef.current[postId] = now
-      if (navigateOnSingle) {
+      if (onSingleTap) {
         setTimeout(() => {
-          if (lastTapRef.current[postId] === now) navigate(`/posts/${postId}`)
+          if (lastTapRef.current[postId] === now) onSingleTap()
         }, 300)
       }
     }
@@ -824,7 +909,7 @@ export default function FeedPage() {
             items={mediaItems}
             title={post.title}
             postId={post._id}
-            onDoubleTap={(e) => handleDoubleTap(e, post._id, true)}
+            onDoubleTap={(e) => handleDoubleTap(e, post._id, () => openLightbox(post))}
             rounded=""
             className="w-full h-full"
             hideDots
@@ -834,7 +919,7 @@ export default function FeedPage() {
             )}
           />
         ) : (
-          <div onClick={(e) => handleDoubleTap(e, post._id, true)} className="w-full h-full flex items-center justify-center">
+          <div onClick={(e) => handleDoubleTap(e, post._id, () => openLightbox(post))} className="w-full h-full flex items-center justify-center">
             <FiImage size={22} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
           </div>
         )}
@@ -1022,6 +1107,14 @@ export default function FeedPage() {
         onCountChange={(count) =>
           setGridCommentCounts((s) => ({ ...s, [activeCommentPostId]: count }))
         }
+      />
+
+      <PhotoLightbox
+        post={lightboxPost}
+        index={lightboxIndex}
+        setIndex={setLightboxIndex}
+        onClose={() => setLightboxPost(null)}
+        navigate={navigate}
       />
     </>
   )
