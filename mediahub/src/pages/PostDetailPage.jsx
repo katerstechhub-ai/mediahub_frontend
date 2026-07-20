@@ -288,12 +288,12 @@ export default function PostDetailPage() {
                     onDoubleTap={handleImageDoubleTap}
                     rounded=""
                     className="w-full h-full"
-                    fit="contain"
+                    fit="cover"
                     renderVideo={(item) => (
                       <InstagramVideo
                         src={item.url}
                         poster={item.thumbnail}
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-cover"
                         style={{ maxHeight: '80vh' }}
                       />
                     )}

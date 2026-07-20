@@ -609,12 +609,25 @@ export default function CreatePostPage() {
                 className="absolute inset-0"
               >
                 {activeItem.preview ? (
-                  activeItem.isVideo ? (
-                    <video src={activeItem.preview} muted loop autoPlay playsInline
-                      className="w-full h-full object-cover" />
-                  ) : (
+                  // NOTE: `preview` is always a still JPEG frame — even for
+                  // videos (see generateVideoThumbnail). It's never a
+                  // playable video source, so it must always render as an
+                  // <img>. Rendering it inside a <video> tag (as this used
+                  // to do for video items) makes the browser try to decode
+                  // an image as a video container, which just hangs/fails —
+                  // that was the actual cause of videos "never loading"
+                  // here, not a speed issue.
+                  <div className="relative w-full h-full">
                     <img src={activeItem.preview} alt="" className="w-full h-full object-cover" />
-                  )
+                    {activeItem.isVideo && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <span className="h-14 w-14 rounded-full flex items-center justify-center"
+                          style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}>
+                          <FiPlay size={22} color="#fff" style={{ marginLeft: 2 }} />
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center"
                     style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' }}>
@@ -852,11 +865,17 @@ export default function CreatePostPage() {
                   <div className="w-[76px] h-[76px] rounded-xl overflow-hidden flex-shrink-0 relative"
                     style={{ background: '#000', boxShadow: '0 0 0 1px rgba(255,255,255,0.06)' }}>
                     {activeItem?.preview ? (
-                      activeItem.isVideo ? (
-                        <video src={activeItem.preview} muted className="w-full h-full object-cover" />
-                      ) : (
+                      <>
                         <img src={activeItem.preview} alt="" className="w-full h-full object-cover" />
-                      )
+                        {activeItem.isVideo && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <span className="h-6 w-6 rounded-full flex items-center justify-center"
+                              style={{ background: 'rgba(0,0,0,0.5)' }}>
+                              <FiPlay size={10} color="#fff" style={{ marginLeft: 1 }} />
+                            </span>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center"
                         style={{ color: 'rgba(255,255,255,0.3)' }}>
