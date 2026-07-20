@@ -811,7 +811,6 @@
 
 
 
-
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -962,6 +961,14 @@ export default function CreatePostPage() {
     }
   }, [facing])
 
+  useEffect(() => {
+    // Lock body scroll when this page mounts
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [])
+
   useEffect(() => () => abortControllerRef.current?.abort(), [])
 
   const handleFiles = useCallback((fileListLike) => {
@@ -1096,8 +1103,14 @@ export default function CreatePostPage() {
   /* ─────────────────────────── UI ─────────────────────────── */
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden select-none text-white"
-      style={{ background: '#000', fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",sans-serif' }}>
+    <div 
+      className="fixed inset-0 overflow-hidden select-none text-white"
+      style={{ 
+        background: '#000', 
+        fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",sans-serif',
+        zIndex: 100, // 👈 HIGH z-index to overlay bottom nav
+      }}
+    >
       <canvas ref={canvasRef} className="hidden" />
 
       {/* ─── Capture layer ─── */}
@@ -1217,8 +1230,8 @@ export default function CreatePostPage() {
             style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }} />
         </div>
 
-        {/* Bottom control deck - FIXED BOTTOM PADDING */}
-        <div className="relative z-10" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 60px)' }}>
+        {/* Bottom control deck - reverted to original padding (no extra offset) */}
+        <div className="relative z-10" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 18px)' }}>
           {/* Gallery strip */}
           <div className="px-3 pb-3">
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
