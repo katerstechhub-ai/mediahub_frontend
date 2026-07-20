@@ -130,3 +130,7 @@ body {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+body.composer-open [data-bottom-nav],
+body.composer-open .bottom-nav {
+  display: none !important;
+}

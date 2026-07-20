@@ -810,14 +810,12 @@
 
 
 
-
-
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  FiX, FiZap, FiImage, FiCheck, FiArrowLeft, FiMapPin,
-  FiUsers, FiMusic, FiPlay, FiChevronRight, FiRotateCw, FiCamera,
+  FiX, FiZap, FiImage, FiCheck, FiArrowLeft, FiUsers,
+  FiPlay, FiChevronRight, FiRotateCw, FiCamera, FiAtSign,
 } from 'react-icons/fi'
 import { postsAPI, uploadAPI, uploadMediaDirect } from '../api'
 import toast from 'react-hot-toast'
@@ -828,6 +826,9 @@ const JPEG_QUALITY = 0.82
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024
 const SIGNATURE_TTL = 8 * 60 * 1000
+const LONG_PRESS_MS = 350
+const MAX_RECORD_MS = 60000
+const MAX_TAGS = 20
 
 let idSeq = 0
 const nextId = () => `media_${Date.now()}_${idSeq++}`
@@ -892,6 +893,12 @@ function generateVideoThumbnail(file) {
   })
 }
 
+// Loose username sanitizer for the tag chip input — strips leading '@',
+// disallows whitespace, keeps it to common username characters.
+function sanitizeUsername(raw) {
+  return raw.trim().replace(/^@+/, '').replace(/[^a-zA-Z0-9._-]/g, '')
+}
+
 /* ─────────────────────────── component ─────────────────────────── */
 
 export default function CreatePostPage() {
@@ -902,6 +909,12 @@ export default function CreatePostPage() {
   const streamRef = useRef(null)
   const abortControllerRef = useRef(null)
   const signatureRef = useRef(null)
+
+  const mediaRecorderRef = useRef(null)
+  const recordedChunksRef = useRef([])
+  const longPressTimerRef = useRef(null)
+  const recordDurationTimerRef = useRef(null)
+  const isHoldingRef = useRef(false)
 
   const [screen, setScreen] = useState('capture')
   const [mediaItems, setMediaItems] = useState([])
@@ -917,12 +930,30 @@ export default function CreatePostPage() {
   const [uploadStage, setUploadStage] = useState('uploading')
   const [errors, setErrors] = useState({})
 
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordSeconds, setRecordSeconds] = useState(0)
+
+  const [tagSheetOpen, setTagSheetOpen] = useState(false)
+  const [taggedUsers, setTaggedUsers] = useState([])
+  const [tagDraft, setTagDraft] = useState('')
+
   const remainingSlots = MAX_MEDIA - mediaItems.length
   const anyCompressing = mediaItems.some((i) => i.compressing)
   const activeItem = useMemo(
     () => mediaItems.find((i) => i.id === activeId) || mediaItems[0] || null,
     [mediaItems, activeId]
   )
+
+  // Hide the app's persistent bottom nav while this full-screen composer is
+  // mounted. This page renders as a `fixed inset-0` overlay, but the bottom
+  // nav is a separate fixed-position component elsewhere in the tree, so
+  // z-index alone on this page isn't guaranteed to sit above it — this class
+  // hook lets global CSS actually remove it from layout. See index.css for
+  // the matching `body.composer-open` rule.
+  useEffect(() => {
+    document.body.classList.add('composer-open')
+    return () => document.body.classList.remove('composer-open')
+  }, [])
 
   const getCachedSignature = useCallback(() => {
     const now = Date.now()
@@ -941,9 +972,19 @@ export default function CreatePostPage() {
     async function start() {
       try {
         streamRef.current?.getTracks().forEach((t) => t.stop())
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: facing }, audio: false,
-        })
+        // Ask for audio too, since a held shutter now records video —
+        // silently fall back to video-only if the browser/device denies
+        // mic access (recording still works, just without sound).
+        let stream
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: facing }, audio: true,
+          })
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: facing }, audio: false,
+          })
+        }
         if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return }
         streamRef.current = stream
         if (videoRef.current) {
@@ -962,7 +1003,14 @@ export default function CreatePostPage() {
     }
   }, [facing])
 
-  useEffect(() => () => abortControllerRef.current?.abort(), [])
+  useEffect(() => () => {
+    abortControllerRef.current?.abort()
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
+    if (recordDurationTimerRef.current) clearInterval(recordDurationTimerRef.current)
+    if (mediaRecorderRef.current?.state && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+  }, [])
 
   const handleFiles = useCallback((fileListLike) => {
     const incoming = Array.from(fileListLike || [])
@@ -1028,6 +1076,68 @@ export default function CreatePostPage() {
     }, 'image/jpeg', 0.9)
   }
 
+  /* video recording — hold the shutter to record, release to stop */
+  const startRecording = () => {
+    const stream = streamRef.current
+    if (!stream || !cameraReady) return
+    recordedChunksRef.current = []
+    const candidates = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+    const mimeType = candidates.find((t) => window.MediaRecorder?.isTypeSupported?.(t)) || ''
+    try {
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      mediaRecorderRef.current = recorder
+      recorder.ondataavailable = (e) => { if (e.data?.size > 0) recordedChunksRef.current.push(e.data) }
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || 'video/webm' })
+        recordedChunksRef.current = []
+        if (blob.size > 0) {
+          const ext = recorder.mimeType?.includes('mp4') ? 'mp4' : 'webm'
+          handleFiles([new File([blob], `video_${Date.now()}.${ext}`, { type: recorder.mimeType || 'video/webm' })])
+        }
+      }
+      recorder.start()
+      setIsRecording(true)
+      setRecordSeconds(0)
+      recordDurationTimerRef.current = setInterval(() => {
+        setRecordSeconds((s) => {
+          if (s + 1 >= MAX_RECORD_MS / 1000) { stopRecording(); return s }
+          return s + 1
+        })
+      }, 1000)
+    } catch (err) {
+      console.error('Recording failed', err)
+      toast.error('Video recording not supported on this device')
+    }
+  }
+
+  const stopRecording = () => {
+    clearInterval(recordDurationTimerRef.current)
+    recordDurationTimerRef.current = null
+    setIsRecording(false)
+    if (mediaRecorderRef.current?.state !== 'inactive') mediaRecorderRef.current?.stop()
+    mediaRecorderRef.current = null
+  }
+
+  const handleShutterDown = () => {
+    isHoldingRef.current = true
+    longPressTimerRef.current = setTimeout(() => {
+      if (isHoldingRef.current) startRecording()
+    }, LONG_PRESS_MS)
+  }
+
+  const handleShutterUp = () => {
+    isHoldingRef.current = false
+    if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null }
+    if (isRecording) stopRecording()
+    else capturePhoto()
+  }
+
+  const handleShutterCancel = () => {
+    isHoldingRef.current = false
+    if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null }
+    if (isRecording) stopRecording()
+  }
+
   const removeMedia = (id, e) => {
     e?.stopPropagation()
     setMediaItems((prev) => {
@@ -1041,6 +1151,29 @@ export default function CreatePostPage() {
       return next[0]?.id || null
     })
     if (fileRef.current) fileRef.current.value = ''
+  }
+
+  /* tagging — plain username chips; there's no user-search endpoint to
+     autocomplete against, so this collects usernames as typed and sends
+     them as strings in the `tags` field on postsAPI.create. */
+  const addTag = (raw) => {
+    const uname = sanitizeUsername(raw)
+    if (!uname) return
+    if (taggedUsers.includes(uname)) { setTagDraft(''); return }
+    if (taggedUsers.length >= MAX_TAGS) { toast.error(`Up to ${MAX_TAGS} tags`); return }
+    setTaggedUsers((prev) => [...prev, uname])
+    setTagDraft('')
+  }
+
+  const removeTag = (uname) => setTaggedUsers((prev) => prev.filter((u) => u !== uname))
+
+  const handleTagDraftKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+      e.preventDefault()
+      addTag(tagDraft)
+    } else if (e.key === 'Backspace' && !tagDraft && taggedUsers.length) {
+      setTaggedUsers((prev) => prev.slice(0, -1))
+    }
   }
 
   const validate = () => {
@@ -1081,6 +1214,7 @@ export default function CreatePostPage() {
       const payload = { images, videos }
       if (content.trim()) payload.content = content.trim()
       else if (mediaItems.length) payload.content = ' '
+      if (taggedUsers.length) payload.tags = taggedUsers
       await postsAPI.create(payload, { signal: controller.signal })
       toast.success('Posted 🎉')
       navigate('/')
@@ -1096,7 +1230,7 @@ export default function CreatePostPage() {
   /* ─────────────────────────── UI ─────────────────────────── */
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden select-none text-white"
+    <div className="fixed inset-0 z-[999] overflow-hidden select-none text-white"
       style={{ background: '#000', fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",sans-serif' }}>
       <canvas ref={canvasRef} className="hidden" />
 
@@ -1286,18 +1420,37 @@ export default function CreatePostPage() {
 
             <motion.button
               whileTap={{ scale: 0.88 }}
-              onClick={capturePhoto}
+              onPointerDown={handleShutterDown}
+              onPointerUp={handleShutterUp}
+              onPointerLeave={handleShutterCancel}
+              onPointerCancel={handleShutterCancel}
               disabled={!cameraReady}
-              aria-label="Take photo"
+              aria-label="Take photo, hold for video"
               className="relative rounded-full flex items-center justify-center disabled:opacity-40"
               style={{
                 width: 76, height: 76,
                 background: 'transparent',
-                boxShadow: '0 0 0 3px #fff, 0 0 0 6px rgba(0,0,0,0.4)',
+                boxShadow: isRecording
+                  ? '0 0 0 3px #ef4444, 0 0 0 6px rgba(239,68,68,0.3)'
+                  : '0 0 0 3px #fff, 0 0 0 6px rgba(0,0,0,0.4)',
               }}
             >
-              <span className="rounded-full transition-transform"
-                style={{ width: 60, height: 60, background: '#fff' }} />
+              <motion.span
+                animate={{
+                  borderRadius: isRecording ? '30%' : '50%',
+                  scale: isRecording ? 0.55 : 1,
+                  backgroundColor: isRecording ? '#ef4444' : '#ffffff',
+                }}
+                transition={{ duration: 0.2 }}
+                style={{ width: 60, height: 60 }}
+              />
+              {isRecording && (
+                <span className="absolute -top-7 text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
+                  style={{ background: 'rgba(239,68,68,0.9)' }}>
+                  {String(Math.floor(recordSeconds / 60)).padStart(2, '0')}:
+                  {String(recordSeconds % 60).padStart(2, '0')}
+                </span>
+              )}
             </motion.button>
 
             <motion.button
@@ -1316,6 +1469,11 @@ export default function CreatePostPage() {
               Next
             </motion.button>
           </div>
+          {!isRecording && (
+            <p className="text-center text-[11px] pb-1" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              Tap for photo · hold for video
+            </p>
+          )}
         </div>
       </div>
 
@@ -1443,37 +1601,151 @@ export default function CreatePostPage() {
                   </div>
                 )}
 
-                {/* Options */}
+                {/* Options — only Tag people; Location/Music removed */}
                 <div className="rounded-2xl overflow-hidden"
                   style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  {[
-                    { icon: FiUsers, label: 'Tag people' },
-                    { icon: FiMapPin, label: 'Add location' },
-                    { icon: FiMusic, label: 'Add music' },
-                  ].map(({ icon: Icon, label }, i, arr) => (
-                    <button
-                      key={label}
-                      onClick={() => toast('Coming soon')}
-                      className="w-full flex items-center justify-between px-4 py-3.5 active:bg-white/5 transition"
-                      style={{ borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}
-                    >
-                      <span className="flex items-center gap-3 text-[14px] font-medium">
-                        <span className="w-8 h-8 rounded-lg flex items-center justify-center"
-                          style={{ background: 'rgba(255,255,255,0.05)' }}>
-                          <Icon size={15} color="rgba(255,255,255,0.75)" />
-                        </span>
-                        {label}
+                  <button
+                    onClick={() => setTagSheetOpen(true)}
+                    className="w-full flex items-center justify-between px-4 py-3.5 active:bg-white/5 transition"
+                  >
+                    <span className="flex items-center gap-3 text-[14px] font-medium">
+                      <span className="w-8 h-8 rounded-lg flex items-center justify-center"
+                        style={{ background: 'rgba(255,255,255,0.05)' }}>
+                        <FiUsers size={15} color="rgba(255,255,255,0.75)" />
                       </span>
+                      Tag people
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      {taggedUsers.length > 0 && (
+                        <span className="text-[13px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                          {taggedUsers.length}
+                        </span>
+                      )}
                       <FiChevronRight size={16} color="rgba(255,255,255,0.3)" />
-                    </button>
-                  ))}
+                    </span>
+                  </button>
                 </div>
+
+                {taggedUsers.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {taggedUsers.map((u) => (
+                      <span key={u}
+                        className="flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-[12px]"
+                        style={{ background: 'rgba(59,130,246,0.14)', color: '#93c5fd' }}>
+                        @{u}
+                        <button onClick={() => removeTag(u)} className="w-4 h-4 rounded-full flex items-center justify-center">
+                          <FiX size={10} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 {/* Advanced hint */}
                 <p className="text-[11px] text-center mt-6"
                   style={{ color: 'rgba(255,255,255,0.3)' }}>
                   Your post will be visible to your followers
                 </p>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Tag people sheet ─── */}
+      <AnimatePresence>
+        {tagSheetOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setTagSheetOpen(false)}
+              className="absolute inset-0 z-30"
+              style={{ background: 'rgba(0,0,0,0.6)' }}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 34, stiffness: 320 }}
+              className="absolute bottom-0 inset-x-0 z-40 flex flex-col overflow-hidden"
+              style={{
+                height: '70%',
+                background: 'linear-gradient(to bottom, #1c1c1e, #141416)',
+                borderTopLeftRadius: 28, borderTopRightRadius: 28,
+                boxShadow: '0 -24px 60px rgba(0,0,0,0.55)',
+              }}
+            >
+              <div className="flex justify-center pt-2.5 pb-1">
+                <span className="w-9 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
+              </div>
+
+              <div className="flex items-center justify-between px-4 py-3">
+                <button
+                  onClick={() => setTagSheetOpen(false)}
+                  className="w-9 h-9 rounded-full flex items-center justify-center"
+                  style={{ background: 'rgba(255,255,255,0.06)' }}
+                >
+                  <FiArrowLeft size={18} />
+                </button>
+                <h2 className="text-[15px] font-semibold tracking-tight">Tag people</h2>
+                <button
+                  onClick={() => setTagSheetOpen(false)}
+                  className="px-4 h-9 rounded-full text-[13px] font-bold"
+                  style={{ background: 'rgba(59,130,246,0.9)', color: '#fff' }}
+                >
+                  Done
+                </button>
+              </div>
+
+              <div className="px-4 py-3 flex-1 overflow-y-auto">
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl mb-3"
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <FiAtSign size={16} color="rgba(255,255,255,0.4)" />
+                  <input
+                    autoFocus
+                    value={tagDraft}
+                    onChange={(e) => setTagDraft(e.target.value)}
+                    onKeyDown={handleTagDraftKeyDown}
+                    onBlur={() => tagDraft && addTag(tagDraft)}
+                    placeholder="Type a username, press enter"
+                    className="flex-1 bg-transparent outline-none text-[14px] placeholder:text-white/30"
+                  />
+                </div>
+
+                <p className="text-[11px] mb-4" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                  We can't look up accounts yet — type the exact username and press enter to add it.
+                </p>
+
+                {taggedUsers.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {taggedUsers.map((u) => (
+                      <div key={u}
+                        className="flex items-center justify-between px-3 py-2.5 rounded-xl"
+                        style={{ background: 'rgba(255,255,255,0.04)' }}>
+                        <span className="flex items-center gap-2 text-[14px] font-medium">
+                          <span className="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold"
+                            style={{ background: 'rgba(59,130,246,0.2)', color: '#93c5fd' }}>
+                            {u[0]?.toUpperCase()}
+                          </span>
+                          @{u}
+                        </span>
+                        <button
+                          onClick={() => removeTag(u)}
+                          className="w-7 h-7 rounded-full flex items-center justify-center"
+                          style={{ background: 'rgba(255,255,255,0.06)' }}
+                        >
+                          <FiX size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-center"
+                    style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    <FiUsers size={24} />
+                    <p className="text-[13px]">No one tagged yet</p>
+                  </div>
+                )}
               </div>
             </motion.div>
           </>
