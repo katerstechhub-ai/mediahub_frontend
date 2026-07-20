@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiX, FiZap, FiImage, FiCheck, FiArrowLeft,
-  FiPlay, FiRotateCw, FiCamera,
+  FiPlay, FiRotateCw, FiCamera, FiVideo,
 } from 'react-icons/fi'
 import { postsAPI, uploadAPI, uploadMediaDirect } from '../api'
 import toast from 'react-hot-toast'
@@ -14,8 +14,6 @@ const JPEG_QUALITY = 0.82
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024
 const SIGNATURE_TTL = 8 * 60 * 1000
-const LONG_PRESS_MS = 350
-const MAX_RECORD_MS = 60000
 
 let idSeq = 0
 const nextId = () => `media_${Date.now()}_${idSeq++}`
@@ -52,32 +50,24 @@ function compressImage(file) {
   })
 }
 
-// NOTE: we deliberately don't generate client-side video thumbnails/previews
-// anymore. Frames grabbed from a freshly-recorded MediaRecorder blob are
-// unreliable (unindexed duration, slow-to-decode VP9 on mobile), so trying
-// to preview a long recording just meant a spinner that might never resolve.
-// Videos now go straight from capture/selection to postable, with a plain
-// "video" placeholder in the UI instead of a thumbnail — no attempt to
-// preview them client-side at all. Real playback happens after upload, once
-// the actual hosted file exists.
+// NOTE: we deliberately don't generate client-side video thumbnails/previews.
+// Videos never touch our in-page camera anymore — they're captured (or
+// picked) via the OS's own camera/video app through a hidden file input, so
+// there's nothing to preview until the file lands here. The UI shows a
+// plain "video" placeholder instead of a thumbnail. Real playback happens
+// after upload, once the actual hosted file exists.
 
 /* ─────────────────────────── component ─────────────────────────── */
 
 export default function CreatePostPage() {
   const navigate = useNavigate()
   const fileRef = useRef(null)
+  const videoFileRef = useRef(null)
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
   const abortControllerRef = useRef(null)
   const signatureRef = useRef(null)
-
-  const mediaRecorderRef = useRef(null)
-  const recordedChunksRef = useRef([])
-  const longPressTimerRef = useRef(null)
-  const recordDurationTimerRef = useRef(null)
-  const isHoldingRef = useRef(false)
-  const videoFlashWarnedRef = useRef(false)
 
   const [screen, setScreen] = useState('capture')
   const [mediaItems, setMediaItems] = useState([])
@@ -94,9 +84,6 @@ export default function CreatePostPage() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadStage, setUploadStage] = useState('uploading')
   const [errors, setErrors] = useState({})
-
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordSeconds, setRecordSeconds] = useState(0)
 
   const remainingSlots = MAX_MEDIA - mediaItems.length
   const anyCompressing = mediaItems.some((i) => i.compressing)
@@ -145,63 +132,60 @@ export default function CreatePostPage() {
     return promise
   }, [])
 
-  /* camera */
-  useEffect(() => {
-    let cancelled = false
-    async function start() {
-      try {
-        streamRef.current?.getTracks().forEach((t) => t.stop())
-        let stream
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: facing }, audio: true,
-          })
-        } catch {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: facing }, audio: false,
-          })
-        }
-        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return }
-        streamRef.current = stream
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-          await videoRef.current.play().catch(() => {})
-        }
-        setCameraReady(true); setCameraError(false)
-
-        // Torch (hardware flashlight) support check. This is a real hardware
-        // capability, not a bug we can work around: iOS (Safari, and every
-        // other iOS browser, since they all run on WKWebView) never exposes
-        // `torch` in getCapabilities() at all. Only Chromium-based browsers
-        // on Android generally support it. That's why flash falls back to a
-        // screen flash below whenever this comes back false.
-        const track = stream.getVideoTracks()[0]
-        const supportsTorch = !!track?.getCapabilities?.().torch
-        setTorchSupported(supportsTorch)
-        if (supportsTorch && flashOn) {
-          track.applyConstraints({ advanced: [{ torch: true }] }).catch((err) => {
-            console.error('Torch re-apply failed after camera restart', err)
-          })
-        }
-      } catch {
-        setCameraError(true)
-      }
-    }
-    start()
-    return () => {
-      cancelled = true
+  /* camera — photos only. Video is handed off to the OS camera app so this
+     page never holds the hardware for longer than a live photo preview. */
+  const startCamera = useCallback(async () => {
+    try {
       streamRef.current?.getTracks().forEach((t) => t.stop())
+      let stream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facing }, audio: false,
+        })
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facing },
+        })
+      }
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        await videoRef.current.play().catch(() => {})
+      }
+      setCameraReady(true); setCameraError(false)
+
+      // Torch (hardware flashlight) support check. This is a real hardware
+      // capability, not a bug we can work around: iOS (Safari, and every
+      // other iOS browser, since they all run on WKWebView) never exposes
+      // `torch` in getCapabilities() at all. Only Chromium-based browsers
+      // on Android generally support it. That's why flash falls back to a
+      // screen flash below whenever this comes back false.
+      const track = stream.getVideoTracks()[0]
+      const supportsTorch = !!track?.getCapabilities?.().torch
+      setTorchSupported(supportsTorch)
+      if (supportsTorch && flashOn) {
+        track.applyConstraints({ advanced: [{ torch: true }] }).catch((err) => {
+          console.error('Torch re-apply failed after camera restart', err)
+        })
+      }
+    } catch {
+      setCameraError(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facing])
+
+  useEffect(() => {
+    startCamera()
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+      streamRef.current = null
+      if (videoRef.current) videoRef.current.srcObject = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facing])
 
   useEffect(() => () => {
     abortControllerRef.current?.abort()
-    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
-    if (recordDurationTimerRef.current) clearInterval(recordDurationTimerRef.current)
-    if (mediaRecorderRef.current?.state && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop()
-    }
   }, [])
 
   const toggleFlash = async () => {
@@ -254,9 +238,9 @@ export default function CreatePostPage() {
       if (idx === 0) firstNewId = id
       const isVideo = f.type.startsWith('video/')
       if (isVideo) {
-        // Videos are never previewed client-side — see note above
-        // generateVideoThumbnail. Mark it ready immediately; the UI shows a
-        // generic "video" placeholder instead of a thumbnail for these.
+        // Videos are never previewed client-side — see note above.
+        // Mark it ready immediately; the UI shows a generic "video"
+        // placeholder instead of a thumbnail for these.
         setMediaItems((prev) => [...prev, { id, file: f, preview: null, compressing: false, isVideo: true }])
       } else {
         setMediaItems((prev) => [...prev, { id, file: f, preview: null, compressing: true, isVideo: false }])
@@ -306,82 +290,45 @@ export default function CreatePostPage() {
     }
   }
 
-  /* video recording — hold the shutter to record, release to stop */
-  const startRecording = () => {
-    const stream = streamRef.current
-    if (!stream || !cameraReady) return
+  /* Video capture — handed off entirely to the OS camera/video app via a
+     hidden file input. This in-page camera is photo-only; video always goes
+     through the system camera app, triggered by its own button (not a
+     gesture on the photo shutter).
 
-    // Torch can stay on continuously for video (that's real light hitting
-    // the subject). A screen flash can't — it would just wash out every
-    // frame of the recording — so let people know once that flash won't
-    // help here if they don't have hardware torch.
-    if (flashOn && !torchSupported && !videoFlashWarnedRef.current) {
-      videoFlashWarnedRef.current = true
-      toast('Flash only works for photos on this device, not video', { icon: '💡' })
+     Stopping the tracks alone isn't always enough — on iOS Safari in
+     particular, the <video> element's srcObject can keep holding a
+     reference to the (now-stopped) stream, which keeps the session "open"
+     from the OS's point of view and is exactly why the system camera then
+     reports the camera as already in use on a call. So: stop every track,
+     then explicitly null out srcObject, then pause() the element, and give
+     it a beat before handing off — rather than firing the file input in the
+     same tick as stopping the stream. */
+  const releaseCamera = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+    if (videoRef.current) {
+      videoRef.current.pause()
+      videoRef.current.srcObject = null
     }
-    const track = stream.getVideoTracks()[0]
-    if (flashOn && torchSupported && track) {
-      track.applyConstraints({ advanced: [{ torch: true }] }).catch((err) => {
-        console.error('Torch failed to engage for recording', err)
-      })
+    setCameraReady(false)
+  }
+
+  const openVideoCapture = () => {
+    releaseCamera()
+    // Give the browser/OS a moment to actually free the hardware before
+    // asking the system camera app for it — doing this in the same tick as
+    // stop() is the most common cause of the "still on a call" error.
+    setTimeout(() => {
+      videoFileRef.current?.click()
+    }, 250)
+
+    const resume = () => {
+      window.removeEventListener('focus', resume)
+      // give the OS camera app a beat to fully release the hardware on its
+      // way back out, too, before we try to reclaim it
+      setTimeout(() => startCamera(), 400)
     }
-
-    recordedChunksRef.current = []
-    const candidates = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
-    const mimeType = candidates.find((t) => window.MediaRecorder?.isTypeSupported?.(t)) || ''
-    try {
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
-      mediaRecorderRef.current = recorder
-      recorder.ondataavailable = (e) => { if (e.data?.size > 0) recordedChunksRef.current.push(e.data) }
-      recorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || 'video/webm' })
-        recordedChunksRef.current = []
-        if (blob.size > 0) {
-          const ext = recorder.mimeType?.includes('mp4') ? 'mp4' : 'webm'
-          handleFiles([new File([blob], `video_${Date.now()}.${ext}`, { type: recorder.mimeType || 'video/webm' })])
-        }
-      }
-      recorder.start()
-      setIsRecording(true)
-      setRecordSeconds(0)
-      recordDurationTimerRef.current = setInterval(() => {
-        setRecordSeconds((s) => {
-          if (s + 1 >= MAX_RECORD_MS / 1000) { stopRecording(); return s }
-          return s + 1
-        })
-      }, 1000)
-    } catch (err) {
-      console.error('Recording failed', err)
-      toast.error('Video recording not supported on this device')
-    }
-  }
-
-  const stopRecording = () => {
-    clearInterval(recordDurationTimerRef.current)
-    recordDurationTimerRef.current = null
-    setIsRecording(false)
-    if (mediaRecorderRef.current?.state !== 'inactive') mediaRecorderRef.current?.stop()
-    mediaRecorderRef.current = null
-  }
-
-  const handleShutterDown = () => {
-    isHoldingRef.current = true
-    longPressTimerRef.current = setTimeout(() => {
-      if (isHoldingRef.current) startRecording()
-    }, LONG_PRESS_MS)
-  }
-
-  const handleShutterUp = () => {
-    isHoldingRef.current = false
-    if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null }
-    if (isRecording) stopRecording()
-    else capturePhoto()
-  }
-
-  const handleShutterCancel = () => {
-    isHoldingRef.current = false
-    if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null }
-    if (isRecording) stopRecording()
+    window.addEventListener('focus', resume)
   }
 
   const removeMedia = (id, e) => {
@@ -585,6 +532,9 @@ export default function CreatePostPage() {
               >
                 <FiRotateCw size={16} />
               </IconButton>
+              <IconButton onClick={openVideoCapture} label="Record video">
+                <FiVideo size={17} />
+              </IconButton>
               <IconButton onClick={() => fileRef.current?.click()} label="Gallery">
                 <FiImage size={17} />
               </IconButton>
@@ -661,7 +611,10 @@ export default function CreatePostPage() {
           {/* Shutter row — the shutter is centered via a flex wrapper (not a
               translate() transform) so Framer Motion's own transform
               (whileTap scale) never overwrites a manual centering offset.
-              That was the cause of the button "jumping" on every tap. */}
+              That was the cause of the button "jumping" on every tap.
+              This shutter is photo-only — video is a separate button (top
+              bar) that hands off entirely to the OS camera app, so this
+              page's live preview never competes with it for the camera. */}
           <div className="relative flex items-center justify-between px-8 pb-2 min-h-[76px]">
             <button
               onClick={() => fileRef.current?.click()}
@@ -674,37 +627,17 @@ export default function CreatePostPage() {
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <motion.button
                 whileTap={{ scale: 0.88 }}
-                onPointerDown={handleShutterDown}
-                onPointerUp={handleShutterUp}
-                onPointerLeave={handleShutterCancel}
-                onPointerCancel={handleShutterCancel}
+                onClick={capturePhoto}
                 disabled={!cameraReady}
-                aria-label="Take photo, hold for video"
+                aria-label="Take photo"
                 className="pointer-events-auto rounded-full flex items-center justify-center disabled:opacity-40"
                 style={{
                   width: 76, height: 76,
                   background: 'transparent',
-                  boxShadow: isRecording
-                    ? '0 0 0 3px #ef4444, 0 0 0 6px rgba(239,68,68,0.3)'
-                    : '0 0 0 3px #fff, 0 0 0 6px rgba(0,0,0,0.4)',
+                  boxShadow: '0 0 0 3px #fff, 0 0 0 6px rgba(0,0,0,0.4)',
                 }}
               >
-                <motion.span
-                  animate={{
-                    borderRadius: isRecording ? '30%' : '50%',
-                    scale: isRecording ? 0.55 : 1,
-                    backgroundColor: isRecording ? '#ef4444' : '#ffffff',
-                  }}
-                  transition={{ duration: 0.2 }}
-                  style={{ width: 60, height: 60 }}
-                />
-                {isRecording && (
-                  <span className="absolute -top-8 text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap"
-                    style={{ background: 'rgba(239,68,68,0.9)' }}>
-                    {String(Math.floor(recordSeconds / 60)).padStart(2, '0')}:
-                    {String(recordSeconds % 60).padStart(2, '0')}
-                  </span>
-                )}
+                <span style={{ width: 60, height: 60, borderRadius: '50%', background: '#fff', display: 'block' }} />
               </motion.button>
             </div>
 
@@ -724,11 +657,6 @@ export default function CreatePostPage() {
               Next
             </motion.button>
           </div>
-          {!isRecording && (
-            <p className="text-center text-[11px] pb-1" style={{ color: 'rgba(255,255,255,0.35)' }}>
-              Tap for photo · hold for video
-            </p>
-          )}
         </div>
       </div>
 
@@ -872,12 +800,24 @@ export default function CreatePostPage() {
         )}
       </AnimatePresence>
 
-      {/* hidden file input */}
+      {/* hidden gallery file input — images and videos, picked from library */}
       <input
         ref={fileRef}
         type="file"
         accept="image/*,video/*"
         multiple
+        className="hidden"
+        onChange={(e) => { handleFiles(e.target.files); e.target.value = '' }}
+      />
+
+      {/* hidden video-capture input — opens the OS's own video recorder app.
+          Kept separate from the gallery input above so it can be triggered
+          on its own (long-press shutter) without also opening the picker. */}
+      <input
+        ref={videoFileRef}
+        type="file"
+        accept="video/*"
+        capture="environment"
         className="hidden"
         onChange={(e) => { handleFiles(e.target.files); e.target.value = '' }}
       />
