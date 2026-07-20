@@ -65,6 +65,14 @@ function compressImage(file) {
 // Fix: don't seek at all. Just play the video briefly and grab whatever
 // frame is on screen, then stop. This works regardless of whether duration
 // or seeking is reliable.
+//
+// Second fix (this pass): don't gate on a single readiness event. Longer
+// recordings — especially VP9, which is the first codec candidate we try in
+// startRecording() — can take noticeably longer to produce a first
+// decodable frame on mobile, so waiting only on `loadeddata` with an 8s
+// timeout was cutting things off before the frame was ever ready. We now
+// race loadeddata/canplay/canplaythrough (whichever fires first) and give
+// it more headroom before giving up.
 function generateVideoThumbnail(file) {
   return new Promise((resolve) => {
     const video = document.createElement('video')
@@ -86,7 +94,7 @@ function generateVideoThumbnail(file) {
       resolve(result)
     }
 
-    const timeout = setTimeout(() => finish(null), 8000)
+    const timeout = setTimeout(() => finish(null), 15000)
 
     const grabFrame = () => {
       try {
@@ -106,11 +114,19 @@ function generateVideoThumbnail(file) {
       }
     }
 
-    video.addEventListener('loadeddata', () => {
+    let attempted = false
+    const attempt = () => {
+      if (attempted || settled) return
+      attempted = true
       video.play()
         .then(() => { setTimeout(() => { video.pause(); grabFrame() }, 150) })
         .catch(() => grabFrame()) // autoplay blocked — the loaded frame is still paintable
-    }, { once: true })
+    }
+
+    // Race whichever readiness signal fires first instead of betting on one.
+    video.addEventListener('loadeddata', attempt, { once: true })
+    video.addEventListener('canplay', attempt, { once: true })
+    video.addEventListener('canplaythrough', attempt, { once: true })
 
     video.onerror = () => finish(null)
   })
@@ -701,9 +717,10 @@ export default function CreatePostPage() {
             </div>
           </div>
 
-          {/* Shutter row — the shutter is absolutely centered in this row so
-              it stays dead-center regardless of the (differently-sized)
-              gallery and Next buttons on either side. */}
+          {/* Shutter row — the shutter is centered via a flex wrapper (not a
+              translate() transform) so Framer Motion's own transform
+              (whileTap scale) never overwrites a manual centering offset.
+              That was the cause of the button "jumping" on every tap. */}
           <div className="relative flex items-center justify-between px-8 pb-2 min-h-[76px]">
             <button
               onClick={() => fileRef.current?.click()}
@@ -713,41 +730,42 @@ export default function CreatePostPage() {
               <FiImage size={18} />
             </button>
 
-            <motion.button
-              whileTap={{ scale: 0.88 }}
-              onPointerDown={handleShutterDown}
-              onPointerUp={handleShutterUp}
-              onPointerLeave={handleShutterCancel}
-              onPointerCancel={handleShutterCancel}
-              disabled={!cameraReady}
-              aria-label="Take photo, hold for video"
-              className="absolute left-1/2 top-1/2 rounded-full flex items-center justify-center disabled:opacity-40"
-              style={{
-                width: 76, height: 76,
-                transform: 'translate(-50%, -50%)',
-                background: 'transparent',
-                boxShadow: isRecording
-                  ? '0 0 0 3px #ef4444, 0 0 0 6px rgba(239,68,68,0.3)'
-                  : '0 0 0 3px #fff, 0 0 0 6px rgba(0,0,0,0.4)',
-              }}
-            >
-              <motion.span
-                animate={{
-                  borderRadius: isRecording ? '30%' : '50%',
-                  scale: isRecording ? 0.55 : 1,
-                  backgroundColor: isRecording ? '#ef4444' : '#ffffff',
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <motion.button
+                whileTap={{ scale: 0.88 }}
+                onPointerDown={handleShutterDown}
+                onPointerUp={handleShutterUp}
+                onPointerLeave={handleShutterCancel}
+                onPointerCancel={handleShutterCancel}
+                disabled={!cameraReady}
+                aria-label="Take photo, hold for video"
+                className="pointer-events-auto rounded-full flex items-center justify-center disabled:opacity-40"
+                style={{
+                  width: 76, height: 76,
+                  background: 'transparent',
+                  boxShadow: isRecording
+                    ? '0 0 0 3px #ef4444, 0 0 0 6px rgba(239,68,68,0.3)'
+                    : '0 0 0 3px #fff, 0 0 0 6px rgba(0,0,0,0.4)',
                 }}
-                transition={{ duration: 0.2 }}
-                style={{ width: 60, height: 60 }}
-              />
-              {isRecording && (
-                <span className="absolute -top-8 text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap"
-                  style={{ background: 'rgba(239,68,68,0.9)' }}>
-                  {String(Math.floor(recordSeconds / 60)).padStart(2, '0')}:
-                  {String(recordSeconds % 60).padStart(2, '0')}
-                </span>
-              )}
-            </motion.button>
+              >
+                <motion.span
+                  animate={{
+                    borderRadius: isRecording ? '30%' : '50%',
+                    scale: isRecording ? 0.55 : 1,
+                    backgroundColor: isRecording ? '#ef4444' : '#ffffff',
+                  }}
+                  transition={{ duration: 0.2 }}
+                  style={{ width: 60, height: 60 }}
+                />
+                {isRecording && (
+                  <span className="absolute -top-8 text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap"
+                    style={{ background: 'rgba(239,68,68,0.9)' }}>
+                    {String(Math.floor(recordSeconds / 60)).padStart(2, '0')}:
+                    {String(recordSeconds % 60).padStart(2, '0')}
+                  </span>
+                )}
+              </motion.button>
+            </div>
 
             <motion.button
               whileTap={{ scale: 0.94 }}
@@ -899,12 +917,6 @@ export default function CreatePostPage() {
                     })}
                   </div>
                 )}
-
-                {/* Advanced hint */}
-                <p className="text-[11px] text-center mt-6"
-                  style={{ color: 'rgba(255,255,255,0.3)' }}>
-                  Your post will be visible to your followers
-                </p>
               </div>
             </motion.div>
           </>
