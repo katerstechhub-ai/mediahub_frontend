@@ -808,14 +808,12 @@
 //   )
 // }
 
-
-
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  FiX, FiZap, FiImage, FiCheck, FiArrowLeft, FiUsers,
-  FiPlay, FiChevronRight, FiRotateCw, FiCamera, FiAtSign,
+  FiX, FiZap, FiImage, FiCheck, FiArrowLeft,
+  FiPlay, FiRotateCw, FiCamera,
 } from 'react-icons/fi'
 import { postsAPI, uploadAPI, uploadMediaDirect } from '../api'
 import toast from 'react-hot-toast'
@@ -828,7 +826,6 @@ const MAX_VIDEO_SIZE = 100 * 1024 * 1024
 const SIGNATURE_TTL = 8 * 60 * 1000
 const LONG_PRESS_MS = 350
 const MAX_RECORD_MS = 60000
-const MAX_TAGS = 20
 
 let idSeq = 0
 const nextId = () => `media_${Date.now()}_${idSeq++}`
@@ -893,12 +890,6 @@ function generateVideoThumbnail(file) {
   })
 }
 
-// Loose username sanitizer for the tag chip input — strips leading '@',
-// disallows whitespace, keeps it to common username characters.
-function sanitizeUsername(raw) {
-  return raw.trim().replace(/^@+/, '').replace(/[^a-zA-Z0-9._-]/g, '')
-}
-
 /* ─────────────────────────── component ─────────────────────────── */
 
 export default function CreatePostPage() {
@@ -923,6 +914,7 @@ export default function CreatePostPage() {
   const [cameraError, setCameraError] = useState(false)
   const [facing, setFacing] = useState('environment')
   const [flashOn, setFlashOn] = useState(false)
+  const [torchSupported, setTorchSupported] = useState(false)
   const [flashPulse, setFlashPulse] = useState(false)
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(false)
@@ -933,10 +925,6 @@ export default function CreatePostPage() {
   const [isRecording, setIsRecording] = useState(false)
   const [recordSeconds, setRecordSeconds] = useState(0)
 
-  const [tagSheetOpen, setTagSheetOpen] = useState(false)
-  const [taggedUsers, setTaggedUsers] = useState([])
-  const [tagDraft, setTagDraft] = useState('')
-
   const remainingSlots = MAX_MEDIA - mediaItems.length
   const anyCompressing = mediaItems.some((i) => i.compressing)
   const activeItem = useMemo(
@@ -946,13 +934,32 @@ export default function CreatePostPage() {
 
   // Hide the app's persistent bottom nav while this full-screen composer is
   // mounted. This page renders as a `fixed inset-0` overlay, but the bottom
-  // nav is a separate fixed-position component elsewhere in the tree, so
-  // z-index alone on this page isn't guaranteed to sit above it — this class
-  // hook lets global CSS actually remove it from layout. See index.css for
-  // the matching `body.composer-open` rule.
+  // nav lives elsewhere in the tree as its own fixed-position component, so
+  // z-index on this page alone doesn't guarantee it's covered. Instead of
+  // relying on a CSS class you'd have to define separately, inject the rule
+  // directly here — it targets the common ways a bottom nav tends to be
+  // marked up so this works without editing another file. If your nav still
+  // shows through, add its real class/id to the selector list below.
   useEffect(() => {
+    const style = document.createElement('style')
+    style.setAttribute('data-composer-nav-hide', 'true')
+    style.textContent = `
+      body.composer-open nav,
+      body.composer-open [class*="bottom-nav" i],
+      body.composer-open [class*="bottomnav" i],
+      body.composer-open [class*="tab-bar" i],
+      body.composer-open [class*="tabbar" i],
+      body.composer-open [id*="bottom-nav" i],
+      body.composer-open [data-bottom-nav] {
+        display: none !important;
+      }
+    `
+    document.head.appendChild(style)
     document.body.classList.add('composer-open')
-    return () => document.body.classList.remove('composer-open')
+    return () => {
+      document.body.classList.remove('composer-open')
+      style.remove()
+    }
   }, [])
 
   const getCachedSignature = useCallback(() => {
@@ -972,9 +979,6 @@ export default function CreatePostPage() {
     async function start() {
       try {
         streamRef.current?.getTracks().forEach((t) => t.stop())
-        // Ask for audio too, since a held shutter now records video —
-        // silently fall back to video-only if the browser/device denies
-        // mic access (recording still works, just without sound).
         let stream
         try {
           stream = await navigator.mediaDevices.getUserMedia({
@@ -992,6 +996,17 @@ export default function CreatePostPage() {
           await videoRef.current.play().catch(() => {})
         }
         setCameraReady(true); setCameraError(false)
+
+        // Torch (hardware flashlight) support check. Only rear cameras on
+        // Chromium-based Android browsers generally expose this — iOS Safari
+        // and front cameras basically never do, which is why flash falls
+        // back to a screen-flash below when this is false.
+        const track = stream.getVideoTracks()[0]
+        const supportsTorch = !!track?.getCapabilities?.().torch
+        setTorchSupported(supportsTorch)
+        if (supportsTorch && flashOn) {
+          track.applyConstraints({ advanced: [{ torch: true }] }).catch(() => {})
+        }
       } catch {
         setCameraError(true)
       }
@@ -1001,6 +1016,7 @@ export default function CreatePostPage() {
       cancelled = true
       streamRef.current?.getTracks().forEach((t) => t.stop())
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facing])
 
   useEffect(() => () => {
@@ -1011,6 +1027,26 @@ export default function CreatePostPage() {
       mediaRecorderRef.current.stop()
     }
   }, [])
+
+  const toggleFlash = async () => {
+    const track = streamRef.current?.getVideoTracks()?.[0]
+    const next = !flashOn
+    if (torchSupported && track) {
+      try {
+        await track.applyConstraints({ advanced: [{ torch: next }] })
+        setFlashOn(next)
+      } catch (err) {
+        console.error('Torch toggle failed', err)
+        toast.error('Flash failed on this device')
+      }
+    } else {
+      // No hardware torch available on this device/browser (common on iOS
+      // Safari, which blocks torch access entirely). Falling back to a
+      // bright screen flash fired right before capture instead.
+      setFlashOn(next)
+      if (next) toast('No hardware flash here — using a screen flash instead', { icon: '💡' })
+    }
+  }
 
   const handleFiles = useCallback((fileListLike) => {
     const incoming = Array.from(fileListLike || [])
@@ -1066,14 +1102,31 @@ export default function CreatePostPage() {
   const capturePhoto = () => {
     const video = videoRef.current
     if (!video || !cameraReady || !video.videoWidth) return
-    setFlashPulse(true); setTimeout(() => setFlashPulse(false), 180)
-    const canvas = canvasRef.current
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight
-    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
-    canvas.toBlob((blob) => {
-      if (!blob) return
-      handleFiles([new File([blob], `capture_${Date.now()}.jpg`, { type: 'image/jpeg' })])
-    }, 'image/jpeg', 0.9)
+
+    const doCapture = () => {
+      const canvas = canvasRef.current
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob((blob) => {
+        if (!blob) return
+        handleFiles([new File([blob], `capture_${Date.now()}.jpg`, { type: 'image/jpeg' })])
+      }, 'image/jpeg', 0.9)
+    }
+
+    if (flashOn && !torchSupported) {
+      // No hardware torch — fire a bright screen flash and give it a beat
+      // to actually light the subject before grabbing the frame.
+      setFlashPulse(true)
+      setTimeout(() => {
+        doCapture()
+        setTimeout(() => setFlashPulse(false), 120)
+      }, 90)
+    } else {
+      // Torch already lighting the scene continuously (or flash is off) —
+      // just do a quick shutter-feedback pulse and capture immediately.
+      setFlashPulse(true); setTimeout(() => setFlashPulse(false), 180)
+      doCapture()
+    }
   }
 
   /* video recording — hold the shutter to record, release to stop */
@@ -1153,29 +1206,6 @@ export default function CreatePostPage() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  /* tagging — plain username chips; there's no user-search endpoint to
-     autocomplete against, so this collects usernames as typed and sends
-     them as strings in the `tags` field on postsAPI.create. */
-  const addTag = (raw) => {
-    const uname = sanitizeUsername(raw)
-    if (!uname) return
-    if (taggedUsers.includes(uname)) { setTagDraft(''); return }
-    if (taggedUsers.length >= MAX_TAGS) { toast.error(`Up to ${MAX_TAGS} tags`); return }
-    setTaggedUsers((prev) => [...prev, uname])
-    setTagDraft('')
-  }
-
-  const removeTag = (uname) => setTaggedUsers((prev) => prev.filter((u) => u !== uname))
-
-  const handleTagDraftKeyDown = (e) => {
-    if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
-      e.preventDefault()
-      addTag(tagDraft)
-    } else if (e.key === 'Backspace' && !tagDraft && taggedUsers.length) {
-      setTaggedUsers((prev) => prev.slice(0, -1))
-    }
-  }
-
   const validate = () => {
     const e = {}
     if (mediaItems.length === 0 && !content.trim()) e.content = 'Add a photo/video or write something'
@@ -1214,7 +1244,6 @@ export default function CreatePostPage() {
       const payload = { images, videos }
       if (content.trim()) payload.content = content.trim()
       else if (mediaItems.length) payload.content = ' '
-      if (taggedUsers.length) payload.tags = taggedUsers
       await postsAPI.create(payload, { signal: controller.signal })
       toast.success('Posted 🎉')
       navigate('/')
@@ -1276,12 +1305,13 @@ export default function CreatePostPage() {
           <div className="absolute inset-0 pointer-events-none"
             style={{ background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)' }} />
 
-          {/* flash pulse */}
+          {/* flash pulse (also doubles as the actual "screen flash" light source
+              on devices with no hardware torch — see capturePhoto) */}
           <AnimatePresence>
             {flashPulse && (
               <motion.div
-                initial={{ opacity: 0 }} animate={{ opacity: 0.85 }} exit={{ opacity: 0 }}
-                transition={{ duration: 0.18 }}
+                initial={{ opacity: 0 }} animate={{ opacity: 0.95 }} exit={{ opacity: 0 }}
+                transition={{ duration: 0.09 }}
                 className="absolute inset-0 pointer-events-none"
                 style={{ background: '#fff' }}
               />
@@ -1328,7 +1358,7 @@ export default function CreatePostPage() {
             <h1 className="text-[15px] font-semibold tracking-tight">New post</h1>
             <div className="flex items-center gap-2">
               <IconButton
-                onClick={() => setFlashOn((f) => !f)}
+                onClick={toggleFlash}
                 label="Flash"
                 style={{ color: flashOn ? '#fbbf24' : '#fff' }}
               >
@@ -1412,7 +1442,7 @@ export default function CreatePostPage() {
           <div className="relative flex items-center justify-between px-8 pb-2">
             <button
               onClick={() => fileRef.current?.click()}
-              className="w-11 h-11 rounded-2xl flex items-center justify-center"
+              className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}
             >
               <FiImage size={18} />
@@ -1426,7 +1456,7 @@ export default function CreatePostPage() {
               onPointerCancel={handleShutterCancel}
               disabled={!cameraReady}
               aria-label="Take photo, hold for video"
-              className="relative rounded-full flex items-center justify-center disabled:opacity-40"
+              className="relative rounded-full flex items-center justify-center disabled:opacity-40 flex-shrink-0"
               style={{
                 width: 76, height: 76,
                 background: 'transparent',
@@ -1445,7 +1475,7 @@ export default function CreatePostPage() {
                 style={{ width: 60, height: 60 }}
               />
               {isRecording && (
-                <span className="absolute -top-7 text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
+                <span className="absolute -top-8 text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap"
                   style={{ background: 'rgba(239,68,68,0.9)' }}>
                   {String(Math.floor(recordSeconds / 60)).padStart(2, '0')}:
                   {String(recordSeconds % 60).padStart(2, '0')}
@@ -1457,7 +1487,7 @@ export default function CreatePostPage() {
               whileTap={{ scale: 0.94 }}
               onClick={() => setScreen('edit')}
               disabled={!canNext}
-              className="px-5 h-11 rounded-full text-sm font-semibold disabled:opacity-30"
+              className="inline-flex items-center justify-center px-6 h-11 min-w-[84px] rounded-full text-sm font-semibold whitespace-nowrap disabled:opacity-30 flex-shrink-0"
               style={{
                 background: canNext
                   ? 'linear-gradient(135deg, #3b82f6, #6366f1)'
@@ -1506,20 +1536,20 @@ export default function CreatePostPage() {
               </div>
 
               {/* header */}
-              <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center justify-between px-4 py-3 gap-3">
                 <button
                   onClick={() => setScreen('capture')}
-                  className="w-9 h-9 rounded-full flex items-center justify-center"
+                  className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
                   style={{ background: 'rgba(255,255,255,0.06)' }}
                 >
                   <FiArrowLeft size={18} />
                 </button>
-                <h2 className="text-[15px] font-semibold tracking-tight">New post</h2>
+                <h2 className="text-[15px] font-semibold tracking-tight flex-1 text-center">New post</h2>
                 <motion.button
                   whileTap={{ scale: 0.94 }}
                   onClick={handleSubmit}
                   disabled={!canShare}
-                  className="px-4 h-9 rounded-full text-[13px] font-bold disabled:opacity-30"
+                  className="inline-flex items-center justify-center px-5 h-9 min-w-[76px] rounded-full text-[13px] font-bold whitespace-nowrap disabled:opacity-30 flex-shrink-0"
                   style={{
                     background: canShare
                       ? 'linear-gradient(135deg, #3b82f6, #6366f1)'
@@ -1534,8 +1564,8 @@ export default function CreatePostPage() {
 
               <div className="flex-1 overflow-y-auto px-4 py-3">
                 {/* Caption */}
-                <div className="flex gap-3 mb-5">
-                  <div className="w-[70px] h-[70px] rounded-xl overflow-hidden flex-shrink-0 relative"
+                <div className="flex gap-3 mb-4">
+                  <div className="w-[76px] h-[76px] rounded-xl overflow-hidden flex-shrink-0 relative"
                     style={{ background: '#000', boxShadow: '0 0 0 1px rgba(255,255,255,0.06)' }}>
                     {activeItem?.preview ? (
                       activeItem.isVideo ? (
@@ -1556,17 +1586,20 @@ export default function CreatePostPage() {
                       </span>
                     )}
                   </div>
-                  <textarea
-                    value={content}
-                    onChange={(e) => {
-                      setContent(e.target.value)
-                      if (errors.content) setErrors((p) => ({ ...p, content: '' }))
-                    }}
-                    placeholder="Write a caption…"
-                    rows={3}
-                    maxLength={2200}
-                    className="flex-1 bg-transparent outline-none text-[15px] resize-none leading-relaxed placeholder:text-white/30"
-                  />
+                  <div className="flex-1 rounded-xl px-3.5 py-3"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <textarea
+                      value={content}
+                      onChange={(e) => {
+                        setContent(e.target.value)
+                        if (errors.content) setErrors((p) => ({ ...p, content: '' }))
+                      }}
+                      placeholder="Write a caption…"
+                      rows={3}
+                      maxLength={2200}
+                      className="w-full h-full bg-transparent outline-none text-[16px] resize-none leading-relaxed placeholder:text-white/30"
+                    />
+                  </div>
                 </div>
                 {errors.content && (
                   <p className="text-xs mb-4" style={{ color: '#ef4444' }}>{errors.content}</p>
@@ -1601,151 +1634,11 @@ export default function CreatePostPage() {
                   </div>
                 )}
 
-                {/* Options — only Tag people; Location/Music removed */}
-                <div className="rounded-2xl overflow-hidden"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <button
-                    onClick={() => setTagSheetOpen(true)}
-                    className="w-full flex items-center justify-between px-4 py-3.5 active:bg-white/5 transition"
-                  >
-                    <span className="flex items-center gap-3 text-[14px] font-medium">
-                      <span className="w-8 h-8 rounded-lg flex items-center justify-center"
-                        style={{ background: 'rgba(255,255,255,0.05)' }}>
-                        <FiUsers size={15} color="rgba(255,255,255,0.75)" />
-                      </span>
-                      Tag people
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      {taggedUsers.length > 0 && (
-                        <span className="text-[13px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                          {taggedUsers.length}
-                        </span>
-                      )}
-                      <FiChevronRight size={16} color="rgba(255,255,255,0.3)" />
-                    </span>
-                  </button>
-                </div>
-
-                {taggedUsers.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-3">
-                    {taggedUsers.map((u) => (
-                      <span key={u}
-                        className="flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-[12px]"
-                        style={{ background: 'rgba(59,130,246,0.14)', color: '#93c5fd' }}>
-                        @{u}
-                        <button onClick={() => removeTag(u)} className="w-4 h-4 rounded-full flex items-center justify-center">
-                          <FiX size={10} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-
                 {/* Advanced hint */}
                 <p className="text-[11px] text-center mt-6"
                   style={{ color: 'rgba(255,255,255,0.3)' }}>
                   Your post will be visible to your followers
                 </p>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* ─── Tag people sheet ─── */}
-      <AnimatePresence>
-        {tagSheetOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setTagSheetOpen(false)}
-              className="absolute inset-0 z-30"
-              style={{ background: 'rgba(0,0,0,0.6)' }}
-            />
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 34, stiffness: 320 }}
-              className="absolute bottom-0 inset-x-0 z-40 flex flex-col overflow-hidden"
-              style={{
-                height: '70%',
-                background: 'linear-gradient(to bottom, #1c1c1e, #141416)',
-                borderTopLeftRadius: 28, borderTopRightRadius: 28,
-                boxShadow: '0 -24px 60px rgba(0,0,0,0.55)',
-              }}
-            >
-              <div className="flex justify-center pt-2.5 pb-1">
-                <span className="w-9 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
-              </div>
-
-              <div className="flex items-center justify-between px-4 py-3">
-                <button
-                  onClick={() => setTagSheetOpen(false)}
-                  className="w-9 h-9 rounded-full flex items-center justify-center"
-                  style={{ background: 'rgba(255,255,255,0.06)' }}
-                >
-                  <FiArrowLeft size={18} />
-                </button>
-                <h2 className="text-[15px] font-semibold tracking-tight">Tag people</h2>
-                <button
-                  onClick={() => setTagSheetOpen(false)}
-                  className="px-4 h-9 rounded-full text-[13px] font-bold"
-                  style={{ background: 'rgba(59,130,246,0.9)', color: '#fff' }}
-                >
-                  Done
-                </button>
-              </div>
-
-              <div className="px-4 py-3 flex-1 overflow-y-auto">
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl mb-3"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <FiAtSign size={16} color="rgba(255,255,255,0.4)" />
-                  <input
-                    autoFocus
-                    value={tagDraft}
-                    onChange={(e) => setTagDraft(e.target.value)}
-                    onKeyDown={handleTagDraftKeyDown}
-                    onBlur={() => tagDraft && addTag(tagDraft)}
-                    placeholder="Type a username, press enter"
-                    className="flex-1 bg-transparent outline-none text-[14px] placeholder:text-white/30"
-                  />
-                </div>
-
-                <p className="text-[11px] mb-4" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                  We can't look up accounts yet — type the exact username and press enter to add it.
-                </p>
-
-                {taggedUsers.length > 0 ? (
-                  <div className="flex flex-col gap-2">
-                    {taggedUsers.map((u) => (
-                      <div key={u}
-                        className="flex items-center justify-between px-3 py-2.5 rounded-xl"
-                        style={{ background: 'rgba(255,255,255,0.04)' }}>
-                        <span className="flex items-center gap-2 text-[14px] font-medium">
-                          <span className="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold"
-                            style={{ background: 'rgba(59,130,246,0.2)', color: '#93c5fd' }}>
-                            {u[0]?.toUpperCase()}
-                          </span>
-                          @{u}
-                        </span>
-                        <button
-                          onClick={() => removeTag(u)}
-                          className="w-7 h-7 rounded-full flex items-center justify-center"
-                          style={{ background: 'rgba(255,255,255,0.06)' }}
-                        >
-                          <FiX size={13} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-center"
-                    style={{ color: 'rgba(255,255,255,0.3)' }}>
-                    <FiUsers size={24} />
-                    <p className="text-[13px]">No one tagged yet</p>
-                  </div>
-                )}
               </div>
             </motion.div>
           </>
@@ -1823,7 +1716,7 @@ export default function CreatePostPage() {
                 whileTap={{ scale: 0.96 }}
                 onClick={handleCancel}
                 disabled={uploadStage === 'cancelling'}
-                className="px-5 py-2 rounded-full text-xs font-semibold disabled:opacity-40"
+                className="inline-flex items-center justify-center px-5 py-2 min-w-[92px] rounded-full text-xs font-semibold whitespace-nowrap disabled:opacity-40"
                 style={{
                   background: 'rgba(255,255,255,0.06)',
                   border: '1px solid rgba(255,255,255,0.08)',
@@ -1845,7 +1738,7 @@ function IconButton({ children, onClick, label, style }) {
     <button
       onClick={onClick}
       aria-label={label}
-      className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition"
+      className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition flex-shrink-0"
       style={{
         background: 'rgba(0,0,0,0.4)',
         backdropFilter: 'blur(12px)',
