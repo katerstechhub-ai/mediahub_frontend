@@ -146,11 +146,19 @@ function WeddingHero() {
   )
 }
 
-/* ─────────── Fullscreen photo lightbox ─────────── */
+/* ─────────── Fullscreen photo/video lightbox ─────────── */
+
+function isVideoItem(item) {
+  if (!item) return false
+  if (item.type === 'video') return true
+  if (item.resourceType === 'video') return true
+  return /\.(mp4|webm|mov|m4v|ogg)(\?|$)/i.test(item.url || '')
+}
 
 function PhotoLightbox({ post, index, setIndex, onClose, navigate }) {
   const items = post ? getMediaItems(post) : []
   const item = items[index]
+  const videoMode = isVideoItem(item)
 
   useEffect(() => {
     if (!post) return
@@ -201,17 +209,34 @@ function PhotoLightbox({ post, index, setIndex, onClose, navigate }) {
           )}
 
           <AnimatePresence mode="wait">
-            <motion.img
-              key={item?.url}
-              src={item?.url}
-              alt={post.title || 'Photo'}
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              transition={{ duration: 0.18 }}
-              className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg"
-              onClick={(e) => e.stopPropagation()}
-            />
+            {videoMode ? (
+              <motion.video
+                key={item?.url}
+                src={item?.url}
+                poster={item?.thumbnail}
+                controls
+                autoPlay
+                playsInline
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.18 }}
+                className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <motion.img
+                key={item?.url}
+                src={item?.url}
+                alt={post.title || 'Photo'}
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.18 }}
+                className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg"
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
           </AnimatePresence>
 
           <div
@@ -590,7 +615,7 @@ function PostListItem({
             items={mediaItems}
             title={post.title}
             postId={post._id}
-            onDoubleTap={(e) => handleDoubleTap(e, post._id, true)}
+            onDoubleTap={(e) => handleDoubleTap(e, post._id)}
             rounded=""
             className="w-full h-full"
             hideDots
@@ -794,7 +819,7 @@ export default function FeedPage() {
       lastTapRef.current[postId] = 0
     } else {
       lastTapRef.current[postId] = now
-      if (onSingleTap) {
+      if (typeof onSingleTap === 'function') {
         setTimeout(() => {
           if (lastTapRef.current[postId] === now) onSingleTap()
         }, 300)
