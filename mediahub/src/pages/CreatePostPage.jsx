@@ -1,813 +1,3 @@
-// import { useState, useRef, useEffect, useCallback } from 'react'
-// import { useNavigate } from 'react-router-dom'
-// import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
-// import { FiImage, FiX, FiCamera, FiArrowLeft, FiClipboard, FiCheck, FiPlus, FiPlay } from 'react-icons/fi'
-// import { postsAPI, uploadAPI, uploadMediaDirect } from '../api'
-// import toast from 'react-hot-toast'
-
-// const MAX_MEDIA = 5
-// const MAX_DIMENSION = 1600
-// const JPEG_QUALITY = 0.82
-// const MAX_IMAGE_SIZE = 10 * 1024 * 1024
-// const MAX_VIDEO_SIZE = 100 * 1024 * 1024
-// // How long we trust a prefetched signature before treating it as stale and
-// // re-fetching. Keep this comfortably shorter than the backend's actual
-// // signature TTL — this is just about not reusing a signature after the user
-// // has been sitting on the compose screen for ages.
-// const SIGNATURE_TTL = 8 * 60 * 1000
-
-// let idSeq = 0
-// const nextId = () => `media_${Date.now()}_${idSeq++}`
-
-// function compressImage(file) {
-//   return new Promise((resolve) => {
-//     if (!file.type.startsWith('image/')) {
-//       resolve(file)
-//       return
-//     }
-//     const img = new window.Image()
-//     const url = URL.createObjectURL(file)
-//     img.onload = () => {
-//       URL.revokeObjectURL(url)
-//       let { width, height } = img
-//       if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
-//         if (width > height) {
-//           height = Math.round((height * MAX_DIMENSION) / width)
-//           width = MAX_DIMENSION
-//         } else {
-//           width = Math.round((width * MAX_DIMENSION) / height)
-//           height = MAX_DIMENSION
-//         }
-//       }
-//       const canvas = document.createElement('canvas')
-//       canvas.width = width
-//       canvas.height = height
-//       const ctx = canvas.getContext('2d')
-//       ctx.drawImage(img, 0, 0, width, height)
-//       canvas.toBlob((blob) => {
-//         if (!blob) { resolve(file); return }
-//         if (blob.size >= file.size) { resolve(file); return }
-//         resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }))
-//       }, 'image/jpeg', JPEG_QUALITY)
-//     }
-//     img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
-//     img.src = url
-//   })
-// }
-
-// function generateVideoThumbnail(file) {
-//   return new Promise((resolve) => {
-//     const video = document.createElement('video')
-//     video.preload = 'metadata'
-//     video.muted = true
-//     video.playsInline = true
-//     const url = URL.createObjectURL(file)
-//     video.src = url
-
-//     const cleanup = () => URL.revokeObjectURL(url)
-//     const timeout = setTimeout(() => { cleanup(); resolve(null) }, 8000)
-
-//     video.onloadedmetadata = () => {
-//       video.currentTime = Math.min(0.3, (video.duration || 1) / 4)
-//     }
-//     video.onseeked = () => {
-//       clearTimeout(timeout)
-//       const canvas = document.createElement('canvas')
-//       canvas.width = video.videoWidth || MAX_DIMENSION
-//       canvas.height = video.videoHeight || MAX_DIMENSION
-//       const ctx = canvas.getContext('2d')
-//       ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-//       canvas.toBlob((blob) => {
-//         cleanup()
-//         if (!blob) { resolve(null); return }
-//         const reader = new FileReader()
-//         reader.onloadend = () => resolve(reader.result)
-//         reader.onerror = () => resolve(null)
-//         reader.readAsDataURL(blob)
-//       }, 'image/jpeg', 0.8)
-//     }
-//     video.onerror = () => { clearTimeout(timeout); cleanup(); resolve(null) }
-//   })
-// }
-
-// export default function CreatePostPage() {
-//   const navigate = useNavigate()
-//   const fileRef = useRef(null)
-//   const titleRef = useRef(null)
-//   const [title, setTitle] = useState('')
-//   const [content, setContent] = useState('')
-//   const [mediaItems, setMediaItems] = useState([])
-//   const [loading, setLoading] = useState(false)
-//   const [uploadProgress, setUploadProgress] = useState(0)
-//   const [uploadStage, setUploadStage] = useState('uploading')
-//   const [dragOver, setDragOver] = useState(false)
-//   const [errors, setErrors] = useState({})
-//   const [justPasted, setJustPasted] = useState(false)
-//   const abortControllerRef = useRef(null)
-//   // ── NEW: caches the in-flight/most-recent signature fetch so we don't wait
-//   // on a fresh round-trip at submit time if we already warmed it up earlier.
-//   const signatureRef = useRef(null) // { promise, timestamp }
-//   const mx = useMotionValue(0)
-//   const my = useMotionValue(0)
-//   const rotateX = useTransform(my, [-40, 40], [4, -4])
-//   const rotateY = useTransform(mx, [-40, 40], [-4, 4])
-//   const remainingSlots = MAX_MEDIA - mediaItems.length
-//   const anyCompressing = mediaItems.some(item => item.compressing)
-
-//   const getCachedSignature = useCallback(() => {
-//     const now = Date.now()
-//     if (signatureRef.current && now - signatureRef.current.timestamp < SIGNATURE_TTL) {
-//       return signatureRef.current.promise
-//     }
-//     const promise = uploadAPI.getSignature().then(res => res.data.data)
-//     signatureRef.current = { promise, timestamp: now }
-//     // If this particular fetch fails, don't leave a broken promise cached —
-//     // let the next call (e.g. at actual submit time) try again fresh.
-//     promise.catch(() => { if (signatureRef.current?.promise === promise) signatureRef.current = null })
-//     return promise
-//   }, [])
-
-//   const validate = () => {
-//     const e = {}
-//     const t = title.trim()
-//     if (t && t.length < 3) e.title = 'Title must be at least 3 characters'
-//     else if (t.length > 100) e.title = 'Title must be under 100 characters'
-//     if (!content.trim() && mediaItems.length === 0) e.content = 'Add a photo/video or a few words'
-//     setErrors(e)
-//     return Object.keys(e).length === 0
-//   }
-
-//   const handleFiles = useCallback((fileListLike) => {
-//     const incoming = Array.from(fileListLike || [])
-//     if (!incoming.length) return
-//     if (remainingSlots <= 0) {
-//       toast.error(`You can add up to ${MAX_MEDIA} media items`)
-//       return
-//     }
-//     const accepted = []
-//     for (const f of incoming) {
-//       if (accepted.length >= remainingSlots) {
-//         toast.error(`Only ${remainingSlots} more media item${remainingSlots === 1 ? '' : 's'} allowed`)
-//         break
-//       }
-//       const isVideoFile = f.type.startsWith('video/')
-//       const isImageFile = f.type.startsWith('image/')
-//       if (!isImageFile && !isVideoFile) {
-//         toast.error(`${f.name || 'File'} isn't an image or video`)
-//         continue
-//       }
-//       const maxSize = isVideoFile ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE
-//       if (f.size > maxSize) {
-//         const maxLabel = isVideoFile ? `${MAX_VIDEO_SIZE / (1024 * 1024)}MB` : `${MAX_IMAGE_SIZE / (1024 * 1024)}MB`
-//         toast.error(`${f.name || 'File'} is too large. Max ${maxLabel}`)
-//         continue
-//       }
-//       accepted.push(f)
-//     }
-//     if (!accepted.length) return
-
-//     // Warm the Cloudinary signature the moment the first file lands, so by
-//     // the time the user finishes writing their caption and hits Post, that
-//     // network round-trip is already done instead of adding to the wait.
-//     if (mediaItems.length === 0) getCachedSignature()
-
-//     setErrors(prev => ({ ...prev, content: '' }))
-//     accepted.forEach((f) => {
-//       const id = nextId()
-//       const isVideo = f.type.startsWith('video/')
-//       setMediaItems(prev => [...prev, { id, file: f, preview: null, compressing: true, isVideo }])
-//       if (isVideo) {
-//         ;(async () => {
-//           const thumb = await generateVideoThumbnail(f)
-//           setMediaItems(prev => prev.map(item => item.id === id
-//             ? { ...item, preview: thumb, compressing: false }
-//             : item))
-//         })()
-//       } else {
-//         ;(async () => {
-//           const compressed = await compressImage(f)
-//           const reader = new FileReader()
-//           reader.onloadend = () => {
-//             setMediaItems(prev => prev.map(item => item.id === id
-//               ? { ...item, file: compressed, preview: reader.result, compressing: false }
-//               : item))
-//           }
-//           reader.readAsDataURL(compressed)
-//         })()
-//       }
-//     })
-//   }, [remainingSlots, mediaItems.length, getCachedSignature])
-
-//   const handleDrop = (e) => {
-//     e.preventDefault()
-//     setDragOver(false)
-//     handleFiles(e.dataTransfer.files)
-//   }
-
-//   const removeMedia = (id, e) => {
-//     e?.stopPropagation()
-//     setMediaItems(prev => {
-//       const next = prev.filter(item => item.id !== id)
-//       if (next.length === 0) signatureRef.current = null // nothing left to upload — drop the prefetch
-//       return next
-//     })
-//     if (fileRef.current) fileRef.current.value = ''
-//   }
-
-//   useEffect(() => {
-//     const onPaste = (e) => {
-//       const items = [...(e.clipboardData?.items || [])].filter(i => i.type.startsWith('image/'))
-//       if (!items.length) return
-//       const fs = items.map(i => i.getAsFile()).filter(Boolean)
-//       if (fs.length) {
-//         handleFiles(fs)
-//         setJustPasted(true)
-//         setTimeout(() => setJustPasted(false), 1600)
-//       }
-//     }
-//     window.addEventListener('paste', onPaste)
-//     return () => window.removeEventListener('paste', onPaste)
-//   }, [handleFiles])
-
-//   useEffect(() => {
-//     const onKey = (e) => {
-//       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleSubmit()
-//     }
-//     window.addEventListener('keydown', onKey)
-//     return () => window.removeEventListener('keydown', onKey)
-//     // eslint-disable-next-line react-hooks/exhaustive-deps
-//   }, [title, content, mediaItems, loading])
-
-//   useEffect(() => () => abortControllerRef.current?.abort(), [])
-
-//   const canPost = Boolean((title.trim() || content.trim() || mediaItems.length > 0) && !loading && !anyCompressing)
-
-//   const handleCancel = () => {
-//     setUploadStage('cancelling')
-//     abortControllerRef.current?.abort()
-//   }
-
-//   const handleSubmit = async () => {
-//     if (!canPost || !validate()) return
-//     setLoading(true)
-//     setUploadProgress(0)
-//     setUploadStage('uploading')
-//     const controller = new AbortController()
-//     abortControllerRef.current = controller
-//     try {
-//       let images = []
-//       let videos = []
-
-//       if (mediaItems.length > 0) {
-//         // Reuses the prefetched signature warmed in handleFiles when possible.
-//         const signatureData = await getCachedSignature()
-
-//         const fileProgress = new Array(mediaItems.length).fill(0)
-//         const updateOverall = () => {
-//           const total = fileProgress.reduce((a, b) => a + b, 0)
-//           setUploadProgress(Math.round(total / mediaItems.length))
-//         }
-
-//         const results = await Promise.all(
-//           mediaItems.map(({ file }, i) =>
-//             uploadMediaDirect({
-//               file,
-//               signatureData,
-//               signal: controller.signal,
-//               onProgress: (pct) => { fileProgress[i] = pct; updateOverall() },
-//             })
-//           )
-//         )
-
-//         mediaItems.forEach((item, i) => {
-//           if (item.isVideo) videos.push(results[i])
-//           else images.push(results[i])
-//         })
-//       }
-
-//       setUploadStage('saving')
-//       const payload = { images, videos }
-//       if (title.trim()) payload.title = title.trim()
-//       if (content.trim()) payload.content = content.trim()
-//       else if (mediaItems.length) payload.content = ' '
-
-//       await postsAPI.create(payload, { signal: controller.signal })
-
-//       toast.success('Posted 🎉')
-//       navigate('/')
-//     } catch (err) {
-//       if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
-//         toast('Upload cancelled')
-//       } else {
-//         console.error(err)
-//         toast.error(err.response?.data?.message || 'Failed to create post')
-//       }
-//     } finally {
-//       setLoading(false)
-//       setUploadProgress(0)
-//       setUploadStage('uploading')
-//       abortControllerRef.current = null
-//       signatureRef.current = null // signature is single-use in most Cloudinary setups — don't reuse across posts
-//     }
-//   }
-
-//   return (
-//     <div className="min-h-screen relative overflow-hidden" style={{ background: 'var(--bg-primary)' }}>
-//       <motion.div
-//         aria-hidden
-//         className="pointer-events-none absolute -top-40 -right-40 w-[520px] h-[520px] rounded-full blur-3xl opacity-40"
-//         style={{ background: 'radial-gradient(circle, #f59e0b 0%, transparent 60%)' }}
-//         animate={{ x: [0, 30, -20, 0], y: [0, -20, 20, 0] }}
-//         transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
-//       />
-//       <motion.div
-//         aria-hidden
-//         className="pointer-events-none absolute -bottom-40 -left-40 w-[420px] h-[420px] rounded-full blur-3xl opacity-30"
-//         style={{ background: 'radial-gradient(circle, #6366f1 0%, transparent 60%)' }}
-//         animate={{ x: [0, -20, 30, 0], y: [0, 20, -10, 0] }}
-//         transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
-//       />
-//       <motion.header
-//         initial={{ y: -20, opacity: 0 }}
-//         animate={{ y: 0, opacity: 1 }}
-//         transition={{ type: 'spring', stiffness: 260, damping: 26 }}
-//         className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 border-b backdrop-blur-xl"
-//         style={{
-//           background: 'color-mix(in oklab, var(--bg-primary) 72%, transparent)',
-//           borderColor: 'var(--border)',
-//         }}
-//       >
-//         <motion.button
-//           whileHover={{ scale: 1.06, x: -2 }}
-//           whileTap={{ scale: 0.92 }}
-//           onClick={() => navigate(-1)}
-//           aria-label="Back"
-//           className="w-10 h-10 flex items-center justify-center rounded-full"
-//           style={{ color: 'var(--text-primary)' }}
-//         >
-//           <FiArrowLeft size={20} strokeWidth={2.4} />
-//         </motion.button>
-//         <div className="flex flex-col items-center leading-tight">
-//           <h1 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>New post</h1>
-//           <span className="text-[10px] uppercase tracking-[0.15em]" style={{ color: 'var(--text-muted)' }}>
-//             Draft
-//           </span>
-//         </div>
-//         <PostButton canPost={canPost} loading={loading} uploadProgress={uploadProgress} onClick={handleSubmit} />
-//       </motion.header>
-//       <AnimatePresence>
-//         {loading && (
-//           <motion.div
-//             initial={{ opacity: 0 }}
-//             animate={{ opacity: 1 }}
-//             exit={{ opacity: 0 }}
-//             className="fixed inset-0 z-40 flex items-center justify-center backdrop-blur-sm"
-//             style={{ background: 'rgba(0,0,0,0.45)' }}
-//           >
-//             <motion.div
-//               initial={{ scale: 0.92, opacity: 0 }}
-//               animate={{ scale: 1, opacity: 1 }}
-//               exit={{ scale: 0.92, opacity: 0 }}
-//               className="w-64 rounded-3xl px-6 py-6 flex flex-col items-center gap-4"
-//               style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}
-//             >
-//               <div className="relative w-16 h-16">
-//                 <svg width="64" height="64" viewBox="0 0 64 64" className="-rotate-90">
-//                   <circle cx="32" cy="32" r="27" fill="none" stroke="var(--border)" strokeWidth="5" />
-//                   <motion.circle
-//                     cx="32" cy="32" r="27" fill="none" stroke="#f59e0b" strokeWidth="5" strokeLinecap="round"
-//                     strokeDasharray={2 * Math.PI * 27}
-//                     initial={false}
-//                     animate={{ strokeDashoffset: 2 * Math.PI * 27 * (1 - uploadProgress / 100) }}
-//                     transition={{ ease: 'linear', duration: 0.15 }}
-//                   />
-//                 </svg>
-//                 <div className="absolute inset-0 flex items-center justify-center text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-//                   {uploadProgress}%
-//                 </div>
-//               </div>
-//               <div className="text-center">
-//                 <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-//                   {uploadStage === 'cancelling'
-//                     ? 'Cancelling…'
-//                     : uploadStage === 'saving'
-//                     ? 'Saving post…'
-//                     : uploadProgress < 100
-//                     ? 'Uploading…'
-//                     : 'Almost done…'}
-//                 </p>
-//                 {mediaItems.length > 0 && (
-//                   <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-//                     {mediaItems.length} media item{mediaItems.length > 1 ? 's' : ''}
-//                   </p>
-//                 )}
-//               </div>
-//               <motion.button
-//                 whileHover={{ scale: 1.04 }}
-//                 whileTap={{ scale: 0.96 }}
-//                 onClick={handleCancel}
-//                 disabled={uploadStage === 'cancelling'}
-//                 className="px-4 py-2 rounded-full text-xs font-bold disabled:opacity-50"
-//                 style={{
-//                   background: 'var(--bg-secondary)',
-//                   color: 'var(--text-primary)',
-//                   border: '1px solid var(--border)',
-//                 }}
-//               >
-//                 {uploadStage === 'cancelling' ? 'Cancelling…' : 'Cancel'}
-//               </motion.button>
-//             </motion.div>
-//           </motion.div>
-//         )}
-//       </AnimatePresence>
-//       <motion.main
-//         initial="hidden"
-//         animate="show"
-//         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } } }}
-//         className="relative z-10 max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-10"
-//       >
-//         <motion.section
-//           variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
-//           className="mb-8"
-//         >
-//           <AnimatePresence mode="wait">
-//             {mediaItems.length > 0 ? (
-//               <motion.div
-//                 key="grid"
-//                 initial={{ opacity: 0 }}
-//                 animate={{ opacity: 1 }}
-//                 exit={{ opacity: 0 }}
-//                 className="space-y-3"
-//               >
-//                 <div className="flex items-center justify-between">
-//                   <span className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
-//                     {mediaItems.length} / {MAX_MEDIA} media
-//                     {anyCompressing && <span style={{ color: '#f59e0b' }}> · optimizing…</span>}
-//                   </span>
-//                   {justPasted && (
-//                     <motion.div
-//                       initial={{ opacity: 0, y: -6, scale: 0.9 }}
-//                       animate={{ opacity: 1, y: 0, scale: 1 }}
-//                       exit={{ opacity: 0, y: -6, scale: 0.9 }}
-//                       className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold"
-//                       style={{ background: '#f59e0b', color: 'white' }}
-//                     >
-//                       <FiClipboard size={12} /> Pasted
-//                     </motion.div>
-//                   )}
-//                 </div>
-//                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-//                   <AnimatePresence>
-//                     {mediaItems.map(({ id, preview, file, compressing, isVideo }) => (
-//                       <motion.div
-//                         key={id}
-//                         layout
-//                         initial={{ opacity: 0, scale: 0.9 }}
-//                         animate={{ opacity: 1, scale: 1 }}
-//                         exit={{ opacity: 0, scale: 0.9 }}
-//                         transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-//                         className="relative aspect-square rounded-2xl overflow-hidden group"
-//                         style={{
-//                           background: 'var(--bg-secondary)',
-//                           boxShadow: '0 12px 30px -14px rgba(0,0,0,0.35)',
-//                         }}
-//                       >
-//                         {preview ? (
-//                           <motion.img
-//                             src={preview}
-//                             alt={file?.name || 'Preview'}
-//                             initial={{ scale: 1.08, opacity: 0 }}
-//                             animate={{ scale: 1, opacity: 1 }}
-//                             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-//                             className="w-full h-full object-cover"
-//                           />
-//                         ) : (
-//                           <div className="w-full h-full flex items-center justify-center">
-//                             <motion.span
-//                               animate={{ rotate: 360 }}
-//                               transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-//                               className="rounded-full h-5 w-5 border-2 block"
-//                               style={{ borderColor: 'var(--border)', borderTopColor: '#f59e0b' }}
-//                             />
-//                           </div>
-//                         )}
-//                         {compressing && preview && (
-//                           <div className="absolute inset-0 flex items-center justify-center backdrop-blur-[1px]" style={{ background: 'rgba(0,0,0,0.25)' }}>
-//                             <motion.span
-//                               animate={{ rotate: 360 }}
-//                               transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-//                               className="rounded-full h-6 w-6 border-2 block"
-//                               style={{ borderColor: 'rgba(255,255,255,0.4)', borderTopColor: '#fff' }}
-//                             />
-//                           </div>
-//                         )}
-//                         {isVideo && preview && !compressing && (
-//                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-//                             <div className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md" style={{ background: 'rgba(0,0,0,0.5)' }}>
-//                               <FiPlay size={16} color="white" fill="white" style={{ marginLeft: 2 }} />
-//                             </div>
-//                           </div>
-//                         )}
-//                         <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent pointer-events-none" />
-//                         <motion.button
-//                           whileHover={{ scale: 1.1 }}
-//                           whileTap={{ scale: 0.9 }}
-//                           onClick={(e) => removeMedia(id, e)}
-//                           aria-label="Remove media"
-//                           className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-md"
-//                           style={{ background: 'rgba(0,0,0,0.55)' }}
-//                         >
-//                           <FiX size={14} color="white" />
-//                         </motion.button>
-//                         {file && !compressing && (
-//                           <div
-//                             className="absolute bottom-2 left-2 px-2 py-1 rounded-full text-[10px] font-semibold backdrop-blur-md"
-//                             style={{ background: 'rgba(0,0,0,0.55)', color: 'white' }}
-//                           >
-//                             {(file.size / 1024 / 1024).toFixed(1)} MB
-//                           </div>
-//                         )}
-//                       </motion.div>
-//                     ))}
-//                     {remainingSlots > 0 && (
-//                       <motion.button
-//                         key="add-more"
-//                         layout
-//                         initial={{ opacity: 0, scale: 0.9 }}
-//                         animate={{ opacity: 1, scale: 1 }}
-//                         exit={{ opacity: 0, scale: 0.9 }}
-//                         whileHover={{ scale: 1.03 }}
-//                         whileTap={{ scale: 0.97 }}
-//                         onClick={() => fileRef.current?.click()}
-//                         className="aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-1.5"
-//                         style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}
-//                       >
-//                         <FiPlus size={20} color="#f59e0b" />
-//                         <span className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
-//                           Add media
-//                         </span>
-//                       </motion.button>
-//                     )}
-//                   </AnimatePresence>
-//                 </div>
-//               </motion.div>
-//             ) : (
-//               <motion.div
-//                 key="dropzone"
-//                 initial={{ opacity: 0, scale: 0.98 }}
-//                 animate={{ opacity: 1, scale: 1 }}
-//                 exit={{ opacity: 0, scale: 0.98 }}
-//                 transition={{ duration: 0.25 }}
-//                 onClick={() => fileRef.current?.click()}
-//                 onDrop={handleDrop}
-//                 onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-//                 onDragLeave={() => setDragOver(false)}
-//                 onMouseMove={(e) => {
-//                   const r = e.currentTarget.getBoundingClientRect()
-//                   mx.set(e.clientX - r.left - r.width / 2)
-//                   my.set(e.clientY - r.top - r.height / 2)
-//                 }}
-//                 onMouseLeave={() => { mx.set(0); my.set(0) }}
-//                 style={{
-//                   borderColor: dragOver ? '#f59e0b' : 'var(--border)',
-//                   background: dragOver
-//                     ? 'linear-gradient(135deg, rgba(245,158,11,0.10), rgba(245,158,11,0.04))'
-//                     : 'var(--bg-secondary)',
-//                   rotateX,
-//                   rotateY,
-//                   transformPerspective: 1000,
-//                 }}
-//                 className="relative rounded-[28px] border-2 border-dashed flex flex-col items-center justify-center gap-3 cursor-pointer py-16 sm:py-20 px-6 text-center"
-//               >
-//                 <motion.div
-//                   animate={{
-//                     scale: dragOver ? 1.15 : 1,
-//                     rotate: dragOver ? [0, -6, 6, 0] : 0,
-//                   }}
-//                   transition={{ type: 'spring', stiffness: 300, damping: 18 }}
-//                   className="w-16 h-16 rounded-2xl flex items-center justify-center"
-//                   style={{
-//                     background: 'linear-gradient(135deg, rgba(245,158,11,0.18), rgba(245,158,11,0.06))',
-//                     boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
-//                   }}
-//                 >
-//                   <FiImage size={28} color="#f59e0b" strokeWidth={2} />
-//                 </motion.div>
-//                 <div className="space-y-1">
-//                   <p className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
-//                     {dragOver ? 'Drop it here' : 'Add photos & videos'}
-//                   </p>
-//                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-//                     Drag & drop, click to browse, or <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono"
-//                       style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>⌘V</kbd> to paste — up to {MAX_MEDIA}, mix photos and videos freely
-//                   </p>
-//                 </div>
-//                 <div className="flex items-center gap-2 mt-1 text-[10px] uppercase tracking-wider"
-//                   style={{ color: 'var(--text-muted)' }}>
-//                   <span>PNG</span><span>·</span><span>JPG</span><span>·</span><span>WEBP</span><span>·</span><span>MP4</span><span>·</span><span>10MB photos / 100MB video</span>
-//                 </div>
-//                 <AnimatePresence>
-//                   {justPasted && (
-//                     <motion.div
-//                       initial={{ opacity: 0, y: 10, scale: 0.9 }}
-//                       animate={{ opacity: 1, y: 0, scale: 1 }}
-//                       exit={{ opacity: 0, y: -10, scale: 0.9 }}
-//                       className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold"
-//                       style={{ background: '#f59e0b', color: 'white' }}
-//                     >
-//                       <FiClipboard size={12} /> Pasted
-//                     </motion.div>
-//                   )}
-//                 </AnimatePresence>
-//               </motion.div>
-//             )}
-//           </AnimatePresence>
-//           <input
-//             ref={fileRef}
-//             type="file"
-//             accept="image/*,video/*"
-//             multiple
-//             className="hidden"
-//             onChange={(e) => { handleFiles(e.target.files); e.target.value = '' }}
-//           />
-//         </motion.section>
-//         <motion.section variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}>
-//           <div className="flex items-baseline gap-3 mb-2">
-//             <span className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: '#f59e0b' }}>
-//               Title
-//             </span>
-//             <span className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-//           </div>
-//           <input
-//             ref={titleRef}
-//             type="text"
-//             placeholder="Give it a name…"
-//             value={title}
-//             onChange={(e) => {
-//               setTitle(e.target.value)
-//               if (errors.title) setErrors(p => ({ ...p, title: '' }))
-//             }}
-//             maxLength={100}
-//             className="w-full bg-transparent outline-none text-2xl sm:text-3xl font-extrabold tracking-tight"
-//             style={{ color: 'var(--text-primary)' }}
-//           />
-//           <div className="flex justify-between items-center mt-1.5 min-h-[18px]">
-//             <AnimatePresence mode="wait">
-//               {errors.title ? (
-//                 <motion.p
-//                   key="err"
-//                   initial={{ opacity: 0, x: -6 }}
-//                   animate={{ opacity: 1, x: 0 }}
-//                   exit={{ opacity: 0 }}
-//                   className="text-xs text-red-500 font-medium"
-//                 >
-//                   {errors.title}
-//                 </motion.p>
-//               ) : <span key="ph" />}
-//             </AnimatePresence>
-//             <CharCounter value={title.length} max={100} />
-//           </div>
-//         </motion.section>
-//         <motion.section
-//           variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-//           className="mt-6"
-//         >
-//           <div className="flex items-baseline gap-3 mb-2">
-//             <span className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: '#f59e0b' }}>
-//               Story
-//             </span>
-//             <span className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-//           </div>
-//           <textarea
-//             placeholder="What's on your mind?"
-//             value={content}
-//             onChange={(e) => {
-//               setContent(e.target.value)
-//               if (errors.content) setErrors(p => ({ ...p, content: '' }))
-//             }}
-//             rows={6}
-//             className="w-full bg-transparent outline-none text-[16px] resize-none leading-[1.7]"
-//             style={{ color: 'var(--text-secondary)' }}
-//           />
-//           <AnimatePresence>
-//             {errors.content && (
-//               <motion.p
-//                 initial={{ opacity: 0, y: -4 }}
-//                 animate={{ opacity: 1, y: 0 }}
-//                 exit={{ opacity: 0, y: -4 }}
-//                 className="text-xs text-red-500 font-medium"
-//               >
-//                 {errors.content}
-//               </motion.p>
-//             )}
-//           </AnimatePresence>
-//         </motion.section>
-//         <motion.div
-//           variants={{ hidden: { opacity: 0 }, show: { opacity: 1 } }}
-//           className="mt-10 flex items-center justify-center gap-2 text-xs"
-//           style={{ color: 'var(--text-muted)' }}
-//         >
-//           <span>Press</span>
-//           <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono"
-//             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>⌘</kbd>
-//           <span>+</span>
-//           <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono"
-//             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>Enter</kbd>
-//           <span>to post</span>
-//         </motion.div>
-//       </motion.main>
-//     </div>
-//   )
-// }
-
-// function PostButton({ canPost, loading, uploadProgress, onClick }) {
-//   return (
-//     <motion.button
-//       whileHover={canPost ? { scale: 1.05 } : {}}
-//       whileTap={canPost ? { scale: 0.94 } : {}}
-//       onClick={onClick}
-//       disabled={!canPost}
-//       className="relative px-5 py-2 rounded-full font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed overflow-hidden"
-//       style={{
-//         background: canPost
-//           ? 'linear-gradient(135deg, #f59e0b, #f97316)'
-//           : 'var(--bg-secondary)',
-//         color: 'white',
-//         boxShadow: canPost ? '0 8px 20px -8px rgba(245,158,11,0.6)' : 'none',
-//       }}
-//     >
-//       {canPost && (
-//         <motion.span
-//           aria-hidden
-//           className="absolute inset-0 opacity-0"
-//           style={{ background: 'linear-gradient(120deg, transparent, rgba(255,255,255,0.4), transparent)' }}
-//           animate={{ x: ['-120%', '120%'], opacity: [0, 1, 0] }}
-//           transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-//         />
-//       )}
-//       <AnimatePresence mode="wait" initial={false}>
-//         {loading ? (
-//           <motion.span
-//             key="loading"
-//             initial={{ opacity: 0, y: 6 }}
-//             animate={{ opacity: 1, y: 0 }}
-//             exit={{ opacity: 0, y: -6 }}
-//             className="relative flex items-center gap-1.5"
-//           >
-//             <motion.span
-//               animate={{ rotate: 360 }}
-//               transition={{ repeat: Infinity, duration: 0.7, ease: 'linear' }}
-//               className="rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent block"
-//             />
-//             {uploadProgress > 0 ? `${uploadProgress}%` : 'Posting'}
-//           </motion.span>
-//         ) : (
-//           <motion.span
-//             key="post"
-//             initial={{ opacity: 0, y: 6 }}
-//             animate={{ opacity: 1, y: 0 }}
-//             exit={{ opacity: 0, y: -6 }}
-//             className="relative flex items-center gap-1"
-//           >
-//             <FiCheck size={14} strokeWidth={3} /> Post
-//           </motion.span>
-//         )}
-//       </AnimatePresence>
-//     </motion.button>
-//   )
-// }
-
-// function CharCounter({ value, max }) {
-//   const pct = Math.min(1, value / max)
-//   const color = pct > 0.9 ? '#ef4444' : pct > 0.7 ? '#f59e0b' : 'var(--text-muted)'
-//   const circumference = 2 * Math.PI * 7
-//   return (
-//     <div className="flex items-center gap-1.5">
-//       <svg width="18" height="18" viewBox="0 0 18 18">
-//         <circle cx="9" cy="9" r="7" fill="none" stroke="var(--border)" strokeWidth="1.5" />
-//         <motion.circle
-//           cx="9" cy="9" r="7" fill="none"
-//           stroke={color} strokeWidth="1.5" strokeLinecap="round"
-//           strokeDasharray={circumference}
-//           initial={false}
-//           animate={{ strokeDashoffset: circumference * (1 - pct) }}
-//           transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-//           transform="rotate(-90 9 9)"
-//         />
-//       </svg>
-//       <motion.span
-//         key={value}
-//         initial={{ opacity: 0, y: -3 }}
-//         animate={{ opacity: 1, y: 0 }}
-//         className="text-[11px] font-mono tabular-nums"
-//         style={{ color }}
-//       >
-//         {value}/{max}
-//       </motion.span>
-//     </div>
-//   )
-// }
-
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -862,31 +52,67 @@ function compressImage(file) {
   })
 }
 
+// Grabs a thumbnail frame from a video file/blob.
+//
+// IMPORTANT: this used to seek to a duration-derived timestamp and wait for
+// `seeked`. That works fine for a normal uploaded video file, but blobs
+// coming straight out of MediaRecorder often report an unreliable or
+// Infinity duration until the browser has fully indexed the file — seeking
+// against that can just hang and never fire `seeked`. The longer the
+// recording, the more likely this was to time out, which is exactly why
+// short clips got a preview and long ones silently didn't.
+//
+// Fix: don't seek at all. Just play the video briefly and grab whatever
+// frame is on screen, then stop. This works regardless of whether duration
+// or seeking is reliable.
 function generateVideoThumbnail(file) {
   return new Promise((resolve) => {
     const video = document.createElement('video')
-    video.preload = 'metadata'; video.muted = true; video.playsInline = true
+    video.preload = 'auto'
+    video.muted = true
+    video.playsInline = true
     const url = URL.createObjectURL(file)
     video.src = url
-    const cleanup = () => URL.revokeObjectURL(url)
-    const timeout = setTimeout(() => { cleanup(); resolve(null) }, 8000)
-    video.onloadedmetadata = () => { video.currentTime = Math.min(0.3, (video.duration || 1) / 4) }
-    video.onseeked = () => {
+
+    let settled = false
+    const finish = (result) => {
+      if (settled) return
+      settled = true
       clearTimeout(timeout)
-      const canvas = document.createElement('canvas')
-      canvas.width = video.videoWidth || MAX_DIMENSION
-      canvas.height = video.videoHeight || MAX_DIMENSION
-      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
-      canvas.toBlob((blob) => {
-        cleanup()
-        if (!blob) return resolve(null)
-        const reader = new FileReader()
-        reader.onloadend = () => resolve(reader.result)
-        reader.onerror = () => resolve(null)
-        reader.readAsDataURL(blob)
-      }, 'image/jpeg', 0.8)
+      URL.revokeObjectURL(url)
+      video.pause()
+      video.removeAttribute('src')
+      video.load()
+      resolve(result)
     }
-    video.onerror = () => { clearTimeout(timeout); cleanup(); resolve(null) }
+
+    const timeout = setTimeout(() => finish(null), 8000)
+
+    const grabFrame = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = video.videoWidth || MAX_DIMENSION
+        canvas.height = video.videoHeight || MAX_DIMENSION
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+        canvas.toBlob((blob) => {
+          if (!blob) return finish(null)
+          const reader = new FileReader()
+          reader.onloadend = () => finish(reader.result)
+          reader.onerror = () => finish(null)
+          reader.readAsDataURL(blob)
+        }, 'image/jpeg', 0.8)
+      } catch {
+        finish(null)
+      }
+    }
+
+    video.addEventListener('loadeddata', () => {
+      video.play()
+        .then(() => { setTimeout(() => { video.pause(); grabFrame() }, 150) })
+        .catch(() => grabFrame()) // autoplay blocked — the loaded frame is still paintable
+    }, { once: true })
+
+    video.onerror = () => finish(null)
   })
 }
 
@@ -906,6 +132,7 @@ export default function CreatePostPage() {
   const longPressTimerRef = useRef(null)
   const recordDurationTimerRef = useRef(null)
   const isHoldingRef = useRef(false)
+  const videoFlashWarnedRef = useRef(false)
 
   const [screen, setScreen] = useState('capture')
   const [mediaItems, setMediaItems] = useState([])
@@ -916,6 +143,7 @@ export default function CreatePostPage() {
   const [flashOn, setFlashOn] = useState(false)
   const [torchSupported, setTorchSupported] = useState(false)
   const [flashPulse, setFlashPulse] = useState(false)
+  const [shutterClick, setShutterClick] = useState(false)
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -935,11 +163,10 @@ export default function CreatePostPage() {
   // Hide the app's persistent bottom nav while this full-screen composer is
   // mounted. This page renders as a `fixed inset-0` overlay, but the bottom
   // nav lives elsewhere in the tree as its own fixed-position component, so
-  // z-index on this page alone doesn't guarantee it's covered. Instead of
-  // relying on a CSS class you'd have to define separately, inject the rule
-  // directly here — it targets the common ways a bottom nav tends to be
-  // marked up so this works without editing another file. If your nav still
-  // shows through, add its real class/id to the selector list below.
+  // z-index on this page alone doesn't guarantee it's covered. Injecting the
+  // rule directly here targets common bottom-nav markup conventions so this
+  // works without editing another file. If your nav still shows through,
+  // add its real class/id to the selector list below.
   useEffect(() => {
     const style = document.createElement('style')
     style.setAttribute('data-composer-nav-hide', 'true')
@@ -997,15 +224,19 @@ export default function CreatePostPage() {
         }
         setCameraReady(true); setCameraError(false)
 
-        // Torch (hardware flashlight) support check. Only rear cameras on
-        // Chromium-based Android browsers generally expose this — iOS Safari
-        // and front cameras basically never do, which is why flash falls
-        // back to a screen-flash below when this is false.
+        // Torch (hardware flashlight) support check. This is a real hardware
+        // capability, not a bug we can work around: iOS (Safari, and every
+        // other iOS browser, since they all run on WKWebView) never exposes
+        // `torch` in getCapabilities() at all. Only Chromium-based browsers
+        // on Android generally support it. That's why flash falls back to a
+        // screen flash below whenever this comes back false.
         const track = stream.getVideoTracks()[0]
         const supportsTorch = !!track?.getCapabilities?.().torch
         setTorchSupported(supportsTorch)
         if (supportsTorch && flashOn) {
-          track.applyConstraints({ advanced: [{ torch: true }] }).catch(() => {})
+          track.applyConstraints({ advanced: [{ torch: true }] }).catch((err) => {
+            console.error('Torch re-apply failed after camera restart', err)
+          })
         }
       } catch {
         setCameraError(true)
@@ -1040,11 +271,11 @@ export default function CreatePostPage() {
         toast.error('Flash failed on this device')
       }
     } else {
-      // No hardware torch available on this device/browser (common on iOS
-      // Safari, which blocks torch access entirely). Falling back to a
-      // bright screen flash fired right before capture instead.
+      // No hardware torch on this device/browser (always true on iOS — see
+      // note above). Screen-flash fallback: capturePhoto() below fires a
+      // full-brightness pulse right before the shot instead.
       setFlashOn(next)
-      if (next) toast('No hardware flash here — using a screen flash instead', { icon: '💡' })
+      if (next) toast('No hardware flash here — using a bright screen flash for photos instead', { icon: '💡' })
     }
   }
 
@@ -1114,17 +345,19 @@ export default function CreatePostPage() {
     }
 
     if (flashOn && !torchSupported) {
-      // No hardware torch — fire a bright screen flash and give it a beat
-      // to actually light the subject before grabbing the frame.
+      // Real screen-flash: full white, held a beat longer so it actually
+      // lights the subject (and reads unmistakably as "flash fired", unlike
+      // the quick shutter-click below).
       setFlashPulse(true)
       setTimeout(() => {
         doCapture()
-        setTimeout(() => setFlashPulse(false), 120)
-      }, 90)
+        setTimeout(() => setFlashPulse(false), 180)
+      }, 120)
     } else {
-      // Torch already lighting the scene continuously (or flash is off) —
-      // just do a quick shutter-feedback pulse and capture immediately.
-      setFlashPulse(true); setTimeout(() => setFlashPulse(false), 180)
+      // Either flash is off, or torch is already lighting the scene
+      // continuously — just a quick, subtle click for shutter feedback.
+      setShutterClick(true)
+      setTimeout(() => setShutterClick(false), 90)
       doCapture()
     }
   }
@@ -1133,6 +366,22 @@ export default function CreatePostPage() {
   const startRecording = () => {
     const stream = streamRef.current
     if (!stream || !cameraReady) return
+
+    // Torch can stay on continuously for video (that's real light hitting
+    // the subject). A screen flash can't — it would just wash out every
+    // frame of the recording — so let people know once that flash won't
+    // help here if they don't have hardware torch.
+    if (flashOn && !torchSupported && !videoFlashWarnedRef.current) {
+      videoFlashWarnedRef.current = true
+      toast('Flash only works for photos on this device, not video', { icon: '💡' })
+    }
+    const track = stream.getVideoTracks()[0]
+    if (flashOn && torchSupported && track) {
+      track.applyConstraints({ advanced: [{ torch: true }] }).catch((err) => {
+        console.error('Torch failed to engage for recording', err)
+      })
+    }
+
     recordedChunksRef.current = []
     const candidates = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
     const mimeType = candidates.find((t) => window.MediaRecorder?.isTypeSupported?.(t)) || ''
@@ -1305,13 +554,27 @@ export default function CreatePostPage() {
           <div className="absolute inset-0 pointer-events-none"
             style={{ background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)' }} />
 
-          {/* flash pulse (also doubles as the actual "screen flash" light source
-              on devices with no hardware torch — see capturePhoto) */}
+          {/* Real flash: full-white, held a beat — this is the actual light
+              source on devices with no hardware torch (see capturePhoto). */}
           <AnimatePresence>
             {flashPulse && (
               <motion.div
-                initial={{ opacity: 0 }} animate={{ opacity: 0.95 }} exit={{ opacity: 0 }}
-                transition={{ duration: 0.09 }}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                transition={{ duration: 0.08 }}
+                className="absolute inset-0 pointer-events-none"
+                style={{ background: '#fff' }}
+              />
+            )}
+          </AnimatePresence>
+
+          {/* Shutter click: quick, low-opacity — just feedback that a photo
+              was taken, deliberately much weaker than the real flash above
+              so the two are never confused for each other. */}
+          <AnimatePresence>
+            {shutterClick && (
+              <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 0.22 }} exit={{ opacity: 0 }}
+                transition={{ duration: 0.06 }}
                 className="absolute inset-0 pointer-events-none"
                 style={{ background: '#fff' }}
               />
@@ -1438,8 +701,10 @@ export default function CreatePostPage() {
             </div>
           </div>
 
-          {/* Shutter row */}
-          <div className="relative flex items-center justify-between px-8 pb-2">
+          {/* Shutter row — the shutter is absolutely centered in this row so
+              it stays dead-center regardless of the (differently-sized)
+              gallery and Next buttons on either side. */}
+          <div className="relative flex items-center justify-between px-8 pb-2 min-h-[76px]">
             <button
               onClick={() => fileRef.current?.click()}
               className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
@@ -1456,9 +721,10 @@ export default function CreatePostPage() {
               onPointerCancel={handleShutterCancel}
               disabled={!cameraReady}
               aria-label="Take photo, hold for video"
-              className="relative rounded-full flex items-center justify-center disabled:opacity-40 flex-shrink-0"
+              className="absolute left-1/2 top-1/2 rounded-full flex items-center justify-center disabled:opacity-40"
               style={{
                 width: 76, height: 76,
+                transform: 'translate(-50%, -50%)',
                 background: 'transparent',
                 boxShadow: isRecording
                   ? '0 0 0 3px #ef4444, 0 0 0 6px rgba(239,68,68,0.3)'
@@ -1750,4 +1016,3 @@ function IconButton({ children, onClick, label, style }) {
     </button>
   )
 }
-
