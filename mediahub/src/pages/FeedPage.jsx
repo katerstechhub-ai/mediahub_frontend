@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import {
@@ -171,12 +172,21 @@ function PhotoLightbox({ post, index, setIndex, onClose, navigate }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [post, items.length, onClose, setIndex])
 
-  return (
+  useEffect(() => {
+    if (!post) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prevOverflow }
+  }, [post])
+
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <AnimatePresence>
       {post && (
         <motion.div
-          className="fixed inset-0 z-[95] flex items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.92)' }}
+          className="fixed inset-0 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.92)', zIndex: 99999 }}
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           onClick={onClose}
@@ -240,22 +250,23 @@ function PhotoLightbox({ post, index, setIndex, onClose, navigate }) {
           </AnimatePresence>
 
           <div
-            className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-3"
+            className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2.5"
             onClick={(e) => e.stopPropagation()}
           >
             {post.title && (
-              <span className="text-white/80 text-sm font-medium max-w-[50vw] truncate">{post.title}</span>
+              <span className="text-white/70 text-xs font-medium max-w-[45vw] truncate">{post.title}</span>
             )}
             <button
               onClick={() => navigate(`/posts/${post._id}`)}
-              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-full"
+              className="flex items-center gap-1 bg-white/10 hover:bg-white/20 text-white text-[11px] font-medium px-2.5 py-1 rounded-full border border-white/10 backdrop-blur-sm transition-colors"
             >
-              <FiExternalLink size={12} /> View post
+              <FiExternalLink size={10} /> View post
             </button>
           </div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   )
 }
 
@@ -610,12 +621,12 @@ function PostListItem({
     >
       {mediaItems.length > 0 && (
         <div className="relative w-full cursor-pointer overflow-hidden"
-             style={{ background: '#000', aspectRatio: mediaRatio, maxHeight: 560 }}>
+          style={{ background: '#000', aspectRatio: mediaRatio, maxHeight: 560 }}>
           <MediaSlider
             items={mediaItems}
             title={post.title}
             postId={post._id}
-            onDoubleTap={(e) => handleDoubleTap(e, post._id)}
+            onDoubleTap={(e) => handleDoubleTap(e, post._id, () => navigate(`/posts/${post._id}`))}
             rounded=""
             className="w-full h-full"
             hideDots
@@ -669,7 +680,7 @@ function PostListItem({
           <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
             {post.title && (
               <h3 className="font-extrabold font-display text-lg leading-tight tracking-tight"
-                  style={{ color: 'var(--text-primary)' }}>
+                style={{ color: 'var(--text-primary)' }}>
                 {post.title}
               </h3>
             )}
