@@ -125,3 +125,8 @@ body {
 }
 :root  { --bg-input: #f4f5f7; }
 .dark  { --bg-input: rgba(255,255,255,0.06); }
+
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
