@@ -50,12 +50,70 @@ function compressImage(file) {
   })
 }
 
-// NOTE: we deliberately don't generate client-side video thumbnails/previews.
-// Videos never touch our in-page camera anymore — they're captured (or
-// picked) via the OS's own camera/video app through a hidden file input, so
-// there's nothing to preview until the file lands here. The UI shows a
-// plain "video" placeholder instead of a thumbnail. Real playback happens
-// after upload, once the actual hosted file exists.
+// Video previews: unlike the old in-page MediaRecorder flow, videos now
+// always arrive as a finished file handed back from the OS camera/gallery —
+// never an in-progress recording — so it's safe to preview them client-side
+// via a plain object URL. We render them the same boomerang (forward, then
+// reverse) way the main feed grid does, so the composer and feed look and
+// feel consistent.
+function BoomerangVideo({ src, className, style }) {
+  const videoRef = useRef(null)
+  const rafRef = useRef(null)
+  const lastTimeRef = useRef(null)
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !src) return
+    let cancelled = false
+
+    const stepReverse = (timestamp) => {
+      if (cancelled || !videoRef.current) return
+      const v = videoRef.current
+      if (lastTimeRef.current == null) lastTimeRef.current = timestamp
+      const delta = (timestamp - lastTimeRef.current) / 1000
+      lastTimeRef.current = timestamp
+
+      const next = v.currentTime - delta
+      if (next <= 0) {
+        v.currentTime = 0
+        lastTimeRef.current = null
+        v.play().catch(() => {})
+      } else {
+        v.currentTime = next
+        rafRef.current = requestAnimationFrame(stepReverse)
+      }
+    }
+
+    const handleEnded = () => {
+      if (cancelled) return
+      lastTimeRef.current = null
+      rafRef.current = requestAnimationFrame(stepReverse)
+    }
+
+    video.addEventListener('ended', handleEnded)
+    video.play().catch(() => {})
+
+    return () => {
+      cancelled = true
+      video.removeEventListener('ended', handleEnded)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
+  }, [src])
+
+  return (
+    <video
+      ref={videoRef}
+      src={src}
+      className={className}
+      style={style}
+      muted
+      playsInline
+      autoPlay
+      loop={false}
+      onError={(e) => { e.target.style.display = 'none' }}
+    />
+  )
+}
 
 /* ─────────────────────────── component ─────────────────────────── */
 
@@ -68,6 +126,7 @@ export default function CreatePostPage() {
   const streamRef = useRef(null)
   const abortControllerRef = useRef(null)
   const signatureRef = useRef(null)
+  const videoUrlsRef = useRef(new Set())
 
   const [screen, setScreen] = useState('capture')
   const [mediaItems, setMediaItems] = useState([])
@@ -186,6 +245,7 @@ export default function CreatePostPage() {
 
   useEffect(() => () => {
     abortControllerRef.current?.abort()
+    videoUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
   }, [])
 
   const toggleFlash = async () => {
@@ -238,10 +298,12 @@ export default function CreatePostPage() {
       if (idx === 0) firstNewId = id
       const isVideo = f.type.startsWith('video/')
       if (isVideo) {
-        // Videos are never previewed client-side — see note above.
-        // Mark it ready immediately; the UI shows a generic "video"
-        // placeholder instead of a thumbnail for these.
-        setMediaItems((prev) => [...prev, { id, file: f, preview: null, compressing: false, isVideo: true }])
+        // The file here is a finished recording (system camera or gallery
+        // pick), so a plain object URL is safe and instant — no need to
+        // wait on anything async the way the image compression path does.
+        const url = URL.createObjectURL(f)
+        videoUrlsRef.current.add(url)
+        setMediaItems((prev) => [...prev, { id, file: f, preview: url, compressing: false, isVideo: true }])
       } else {
         setMediaItems((prev) => [...prev, { id, file: f, preview: null, compressing: true, isVideo: false }])
         ;(async () => {
@@ -334,6 +396,11 @@ export default function CreatePostPage() {
   const removeMedia = (id, e) => {
     e?.stopPropagation()
     setMediaItems((prev) => {
+      const removed = prev.find((i) => i.id === id)
+      if (removed?.isVideo && removed.preview) {
+        URL.revokeObjectURL(removed.preview)
+        videoUrlsRef.current.delete(removed.preview)
+      }
       const next = prev.filter((i) => i.id !== id)
       if (!next.length) signatureRef.current = null
       return next
@@ -483,19 +550,8 @@ export default function CreatePostPage() {
                 transition={{ duration: 0.25, ease: [0.2, 0.8, 0.2, 1] }}
                 className="absolute inset-0"
               >
-                {activeItem.isVideo ? (
-                  // Videos aren't previewed client-side — see note above.
-                  // Just confirm it's captured and ready to post.
-                  <div className="w-full h-full flex flex-col items-center justify-center gap-2"
-                    style={{ background: '#111' }}>
-                    <span className="h-16 w-16 rounded-full flex items-center justify-center"
-                      style={{ background: 'rgba(255,255,255,0.1)' }}>
-                      <FiPlay size={26} color="#fff" style={{ marginLeft: 3 }} />
-                    </span>
-                    <p className="text-xs font-semibold" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                      Video ready to post
-                    </p>
-                  </div>
+                {activeItem.isVideo && activeItem.preview ? (
+                  <BoomerangVideo src={activeItem.preview} className="w-full h-full object-cover" />
                 ) : activeItem.preview ? (
                   <img src={activeItem.preview} alt="" className="w-full h-full object-cover" />
                 ) : (
@@ -565,11 +621,8 @@ export default function CreatePostPage() {
                       transition: 'box-shadow .2s ease',
                     }}
                   >
-                    {item.isVideo ? (
-                      <div className="w-full h-full flex items-center justify-center"
-                        style={{ background: '#1a1a1a' }}>
-                        <FiPlay size={20} color="rgba(255,255,255,0.6)" style={{ marginLeft: 2 }} />
-                      </div>
+                    {item.isVideo && item.preview ? (
+                      <BoomerangVideo src={item.preview} className="w-full h-full object-cover" />
                     ) : item.preview ? (
                       <img src={item.preview} alt="" className="w-full h-full object-cover" />
                     ) : (
@@ -720,11 +773,8 @@ export default function CreatePostPage() {
                 <div className="flex gap-3 mb-4">
                   <div className="w-[76px] h-[76px] rounded-xl overflow-hidden flex-shrink-0 relative"
                     style={{ background: '#000', boxShadow: '0 0 0 1px rgba(255,255,255,0.06)' }}>
-                    {activeItem?.isVideo ? (
-                      <div className="w-full h-full flex items-center justify-center"
-                        style={{ background: '#1a1a1a', color: 'rgba(255,255,255,0.5)' }}>
-                        <FiPlay size={18} style={{ marginLeft: 2 }} />
-                      </div>
+                    {activeItem?.isVideo && activeItem.preview ? (
+                      <BoomerangVideo src={activeItem.preview} className="w-full h-full object-cover" />
                     ) : activeItem?.preview ? (
                       <img src={activeItem.preview} alt="" className="w-full h-full object-cover" />
                     ) : (
@@ -775,11 +825,8 @@ export default function CreatePostPage() {
                               : '0 0 0 1px rgba(255,255,255,0.08)',
                           }}
                         >
-                          {item.isVideo ? (
-                            <div className="w-full h-full flex items-center justify-center"
-                              style={{ background: '#1a1a1a', color: 'rgba(255,255,255,0.5)' }}>
-                              <FiPlay size={14} style={{ marginLeft: 1 }} />
-                            </div>
+                          {item.isVideo && item.preview ? (
+                            <BoomerangVideo src={item.preview} className="w-full h-full object-cover" />
                           ) : item.preview && (
                             <img src={item.preview} alt="" className="w-full h-full object-cover" />
                           )}
