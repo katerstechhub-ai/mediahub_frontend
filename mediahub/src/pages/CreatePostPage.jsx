@@ -52,85 +52,14 @@ function compressImage(file) {
   })
 }
 
-// Grabs a thumbnail frame from a video file/blob.
-//
-// IMPORTANT: this used to seek to a duration-derived timestamp and wait for
-// `seeked`. That works fine for a normal uploaded video file, but blobs
-// coming straight out of MediaRecorder often report an unreliable or
-// Infinity duration until the browser has fully indexed the file — seeking
-// against that can just hang and never fire `seeked`. The longer the
-// recording, the more likely this was to time out, which is exactly why
-// short clips got a preview and long ones silently didn't.
-//
-// Fix: don't seek at all. Just play the video briefly and grab whatever
-// frame is on screen, then stop. This works regardless of whether duration
-// or seeking is reliable.
-//
-// Second fix (this pass): don't gate on a single readiness event. Longer
-// recordings — especially VP9, which is the first codec candidate we try in
-// startRecording() — can take noticeably longer to produce a first
-// decodable frame on mobile, so waiting only on `loadeddata` with an 8s
-// timeout was cutting things off before the frame was ever ready. We now
-// race loadeddata/canplay/canplaythrough (whichever fires first) and give
-// it more headroom before giving up.
-function generateVideoThumbnail(file) {
-  return new Promise((resolve) => {
-    const video = document.createElement('video')
-    video.preload = 'auto'
-    video.muted = true
-    video.playsInline = true
-    const url = URL.createObjectURL(file)
-    video.src = url
-
-    let settled = false
-    const finish = (result) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timeout)
-      URL.revokeObjectURL(url)
-      video.pause()
-      video.removeAttribute('src')
-      video.load()
-      resolve(result)
-    }
-
-    const timeout = setTimeout(() => finish(null), 15000)
-
-    const grabFrame = () => {
-      try {
-        const canvas = document.createElement('canvas')
-        canvas.width = video.videoWidth || MAX_DIMENSION
-        canvas.height = video.videoHeight || MAX_DIMENSION
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
-        canvas.toBlob((blob) => {
-          if (!blob) return finish(null)
-          const reader = new FileReader()
-          reader.onloadend = () => finish(reader.result)
-          reader.onerror = () => finish(null)
-          reader.readAsDataURL(blob)
-        }, 'image/jpeg', 0.8)
-      } catch {
-        finish(null)
-      }
-    }
-
-    let attempted = false
-    const attempt = () => {
-      if (attempted || settled) return
-      attempted = true
-      video.play()
-        .then(() => { setTimeout(() => { video.pause(); grabFrame() }, 150) })
-        .catch(() => grabFrame()) // autoplay blocked — the loaded frame is still paintable
-    }
-
-    // Race whichever readiness signal fires first instead of betting on one.
-    video.addEventListener('loadeddata', attempt, { once: true })
-    video.addEventListener('canplay', attempt, { once: true })
-    video.addEventListener('canplaythrough', attempt, { once: true })
-
-    video.onerror = () => finish(null)
-  })
-}
+// NOTE: we deliberately don't generate client-side video thumbnails/previews
+// anymore. Frames grabbed from a freshly-recorded MediaRecorder blob are
+// unreliable (unindexed duration, slow-to-decode VP9 on mobile), so trying
+// to preview a long recording just meant a spinner that might never resolve.
+// Videos now go straight from capture/selection to postable, with a plain
+// "video" placeholder in the UI instead of a thumbnail — no attempt to
+// preview them client-side at all. Real playback happens after upload, once
+// the actual hosted file exists.
 
 /* ─────────────────────────── component ─────────────────────────── */
 
@@ -324,14 +253,13 @@ export default function CreatePostPage() {
       const id = nextId()
       if (idx === 0) firstNewId = id
       const isVideo = f.type.startsWith('video/')
-      setMediaItems((prev) => [...prev, { id, file: f, preview: null, compressing: true, isVideo }])
       if (isVideo) {
-        ;(async () => {
-          const thumb = await generateVideoThumbnail(f)
-          setMediaItems((prev) => prev.map((i) =>
-            i.id === id ? { ...i, preview: thumb, compressing: false } : i))
-        })()
+        // Videos are never previewed client-side — see note above
+        // generateVideoThumbnail. Mark it ready immediately; the UI shows a
+        // generic "video" placeholder instead of a thumbnail for these.
+        setMediaItems((prev) => [...prev, { id, file: f, preview: null, compressing: false, isVideo: true }])
       } else {
+        setMediaItems((prev) => [...prev, { id, file: f, preview: null, compressing: true, isVideo: false }])
         ;(async () => {
           const compressed = await compressImage(f)
           const reader = new FileReader()
@@ -608,26 +536,21 @@ export default function CreatePostPage() {
                 transition={{ duration: 0.25, ease: [0.2, 0.8, 0.2, 1] }}
                 className="absolute inset-0"
               >
-                {activeItem.preview ? (
-                  // NOTE: `preview` is always a still JPEG frame — even for
-                  // videos (see generateVideoThumbnail). It's never a
-                  // playable video source, so it must always render as an
-                  // <img>. Rendering it inside a <video> tag (as this used
-                  // to do for video items) makes the browser try to decode
-                  // an image as a video container, which just hangs/fails —
-                  // that was the actual cause of videos "never loading"
-                  // here, not a speed issue.
-                  <div className="relative w-full h-full">
-                    <img src={activeItem.preview} alt="" className="w-full h-full object-cover" />
-                    {activeItem.isVideo && (
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <span className="h-14 w-14 rounded-full flex items-center justify-center"
-                          style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}>
-                          <FiPlay size={22} color="#fff" style={{ marginLeft: 2 }} />
-                        </span>
-                      </div>
-                    )}
+                {activeItem.isVideo ? (
+                  // Videos aren't previewed client-side — see note above.
+                  // Just confirm it's captured and ready to post.
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2"
+                    style={{ background: '#111' }}>
+                    <span className="h-16 w-16 rounded-full flex items-center justify-center"
+                      style={{ background: 'rgba(255,255,255,0.1)' }}>
+                      <FiPlay size={26} color="#fff" style={{ marginLeft: 3 }} />
+                    </span>
+                    <p className="text-xs font-semibold" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                      Video ready to post
+                    </p>
                   </div>
+                ) : activeItem.preview ? (
+                  <img src={activeItem.preview} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center"
                     style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' }}>
@@ -692,7 +615,12 @@ export default function CreatePostPage() {
                       transition: 'box-shadow .2s ease',
                     }}
                   >
-                    {item.preview ? (
+                    {item.isVideo ? (
+                      <div className="w-full h-full flex items-center justify-center"
+                        style={{ background: '#1a1a1a' }}>
+                        <FiPlay size={20} color="rgba(255,255,255,0.6)" style={{ marginLeft: 2 }} />
+                      </div>
+                    ) : item.preview ? (
                       <img src={item.preview} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full animate-pulse"
@@ -864,18 +792,13 @@ export default function CreatePostPage() {
                 <div className="flex gap-3 mb-4">
                   <div className="w-[76px] h-[76px] rounded-xl overflow-hidden flex-shrink-0 relative"
                     style={{ background: '#000', boxShadow: '0 0 0 1px rgba(255,255,255,0.06)' }}>
-                    {activeItem?.preview ? (
-                      <>
-                        <img src={activeItem.preview} alt="" className="w-full h-full object-cover" />
-                        {activeItem.isVideo && (
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <span className="h-6 w-6 rounded-full flex items-center justify-center"
-                              style={{ background: 'rgba(0,0,0,0.5)' }}>
-                              <FiPlay size={10} color="#fff" style={{ marginLeft: 1 }} />
-                            </span>
-                          </div>
-                        )}
-                      </>
+                    {activeItem?.isVideo ? (
+                      <div className="w-full h-full flex items-center justify-center"
+                        style={{ background: '#1a1a1a', color: 'rgba(255,255,255,0.5)' }}>
+                        <FiPlay size={18} style={{ marginLeft: 2 }} />
+                      </div>
+                    ) : activeItem?.preview ? (
+                      <img src={activeItem.preview} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center"
                         style={{ color: 'rgba(255,255,255,0.3)' }}>
@@ -924,7 +847,14 @@ export default function CreatePostPage() {
                               : '0 0 0 1px rgba(255,255,255,0.08)',
                           }}
                         >
-                          {item.preview && <img src={item.preview} alt="" className="w-full h-full object-cover" />}
+                          {item.isVideo ? (
+                            <div className="w-full h-full flex items-center justify-center"
+                              style={{ background: '#1a1a1a', color: 'rgba(255,255,255,0.5)' }}>
+                              <FiPlay size={14} style={{ marginLeft: 1 }} />
+                            </div>
+                          ) : item.preview && (
+                            <img src={item.preview} alt="" className="w-full h-full object-cover" />
+                          )}
                           {isActive && (
                             <span className="absolute inset-0 flex items-center justify-center"
                               style={{ background: 'rgba(59,130,246,0.25)' }}>
