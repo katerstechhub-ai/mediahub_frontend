@@ -249,6 +249,7 @@ function PhotoLightbox({ post, index, setIndex, onClose, navigate }) {
             )}
           </AnimatePresence>
 
+          {/* ─── Bottom bar – now just a plain orange text link ─── */}
           <div
             className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 max-w-[90vw]"
             onClick={(e) => e.stopPropagation()}
@@ -258,9 +259,9 @@ function PhotoLightbox({ post, index, setIndex, onClose, navigate }) {
             )}
             <motion.button
               onClick={() => navigate(`/posts/${post._id}`)}
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.96 }}
-              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg shadow-amber-500/30 transition-colors flex-shrink-0"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="flex items-center gap-1.5 text-amber-400 font-bold text-sm hover:underline transition"
             >
               <FiExternalLink size={13} strokeWidth={2.5} /> View post
             </motion.button>
@@ -316,7 +317,7 @@ function BoomerangVideo({ src, poster, className, style, onClick }) {
       if (next <= 0) {
         v.currentTime = 0
         lastTimeRef.current = null
-        v.play().catch(() => {})
+        v.play().catch(() => { })
       } else {
         v.currentTime = next
         rafRef.current = requestAnimationFrame(stepReverse)
@@ -330,7 +331,7 @@ function BoomerangVideo({ src, poster, className, style, onClick }) {
     }
 
     video.addEventListener('ended', handleEnded)
-    video.play().catch(() => {})
+    video.play().catch(() => { })
 
     return () => {
       cancelled = true
@@ -393,7 +394,7 @@ function FeedVideo({ src, poster, postId, className, style }) {
     const v = videoRef.current
     if (!v) return
     if (inView) {
-      v.play().catch(() => {})
+      v.play().catch(() => { })
     } else {
       v.pause()
       if (SoundBus.getActive() === postId) SoundBus.setActive(null)
@@ -474,18 +475,18 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange, onOpenAll 
 
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
-      try {
-        const res = await commentsAPI.getByPost(postId)
-        const data = res.data
-        const arr = data?.data?.comments || data?.comments || data?.data || data || []
-        if (!cancelled) setComments(Array.isArray(arr) ? arr : [])
-      } catch (err) {
-        console.error('Load comments failed:', err)
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
+      ; (async () => {
+        try {
+          const res = await commentsAPI.getByPost(postId)
+          const data = res.data
+          const arr = data?.data?.comments || data?.comments || data?.data || data || []
+          if (!cancelled) setComments(Array.isArray(arr) ? arr : [])
+        } catch (err) {
+          console.error('Load comments failed:', err)
+        } finally {
+          if (!cancelled) setLoading(false)
+        }
+      })()
     return () => { cancelled = true }
   }, [postId])
 
@@ -539,12 +540,12 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange, onOpenAll 
             {visible.map((c) => (
               <li key={c._id || c.id} className="flex items-start gap-2">
                 <div className="cursor-pointer flex-shrink-0 mt-0.5"
-                     onClick={(e) => onGoToProfile?.(e, c.author)}>
+                  onClick={(e) => onGoToProfile?.(e, c.author)}>
                   <Avatar src={c.author?.avatar} name={c.author?.name} size={22} />
                 </div>
                 <p className="text-sm leading-snug" style={{ color: 'var(--text-primary)' }}>
                   <span className="font-bold mr-1.5 cursor-pointer hover:underline"
-                      onClick={(e) => onGoToProfile?.(e, c.author)}>
+                    onClick={(e) => onGoToProfile?.(e, c.author)}>
                     {c.author?.name || 'Unknown'}
                   </span>
                   <span style={{ color: 'var(--text-secondary)' }}>{c.content}</span>
@@ -556,7 +557,7 @@ function InlineComments({ postId, user, onGoToProfile, onCountChange, onOpenAll 
       )}
 
       <form onSubmit={submit} className="flex items-center gap-2 mt-2.5 pt-2.5 border-t"
-            style={{ borderColor: 'var(--border)' }}>
+        style={{ borderColor: 'var(--border)' }}>
         <Avatar src={user?.avatar} name={user?.name} size={24} />
         <input
           value={text}
@@ -916,12 +917,12 @@ export default function FeedPage() {
   const q = query.trim().toLowerCase()
   const visiblePosts = q
     ? posts.filter(p =>
-        p.title?.toLowerCase().includes(q) ||
-        p.content?.toLowerCase().includes(q) ||
-        p.caption?.toLowerCase().includes(q) ||
-        p.tags?.some(t => t.toLowerCase().includes(q)) ||
-        p.author?.name?.toLowerCase().includes(q)
-      )
+      p.title?.toLowerCase().includes(q) ||
+      p.content?.toLowerCase().includes(q) ||
+      p.caption?.toLowerCase().includes(q) ||
+      p.tags?.some(t => t.toLowerCase().includes(q)) ||
+      p.author?.name?.toLowerCase().includes(q)
+    )
     : posts
 
   const gridContainer = { animate: { transition: { staggerChildren: 0.03 } } }
@@ -1091,7 +1092,7 @@ export default function FeedPage() {
                 <div key={group.key} className="mb-10">
                   <div className="flex items-center gap-3 mb-4 px-1">
                     <h2 className="text-lg font-extrabold font-display tracking-tight"
-                        style={{ color: 'var(--text-primary)' }}>
+                      style={{ color: 'var(--text-primary)' }}>
                       {group.label}
                     </h2>
                     <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
