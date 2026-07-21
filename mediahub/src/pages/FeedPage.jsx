@@ -250,18 +250,20 @@ function PhotoLightbox({ post, index, setIndex, onClose, navigate }) {
           </AnimatePresence>
 
           <div
-            className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2.5"
+            className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 max-w-[90vw]"
             onClick={(e) => e.stopPropagation()}
           >
             {post.title && (
-              <span className="text-white/70 text-xs font-medium max-w-[45vw] truncate">{post.title}</span>
+              <span className="text-white/70 text-xs font-medium truncate max-w-[40vw]">{post.title}</span>
             )}
-            <button
+            <motion.button
               onClick={() => navigate(`/posts/${post._id}`)}
-              className="flex items-center gap-1 bg-white/10 hover:bg-white/20 text-white text-[11px] font-medium px-2.5 py-1 rounded-full border border-white/10 backdrop-blur-sm transition-colors"
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg shadow-amber-500/30 transition-colors flex-shrink-0"
             >
-              <FiExternalLink size={10} /> View post
-            </button>
+              <FiExternalLink size={13} strokeWidth={2.5} /> View post
+            </motion.button>
           </div>
         </motion.div>
       )}
