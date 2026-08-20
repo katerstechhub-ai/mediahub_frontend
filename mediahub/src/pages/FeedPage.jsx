@@ -18,6 +18,14 @@ import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
 
+import gallery1 from '../assets/gallery-1.jpeg'
+import gallery2 from '../assets/gallery-2.jpeg'
+import gallery3 from '../assets/gallery-3.jpeg'
+import gallery4 from '../assets/gallery-4.jpeg'
+import gallery5 from '../assets/gallery-5.jpeg'
+import pamsSolo from '../assets/pams-solo.jpeg'
+import bizzerSolo from '../assets/bizzer-solo.jpeg'
+
 import CommentsSheet from './_CommentsSheet'
 
 /* ─────────── Global sound state (only one video audible at a time) ─────────── */
@@ -38,13 +46,22 @@ const SoundBus = (() => {
   }
 })()
 
-/* ─────────── Wedding Hero ─────────── */
-
+/* ─────────── Wedding Hero ───────────
+   `position` is a CSS object-position value. Portrait photos in a wide
+   16:9 / 21:9 banner get cropped top & bottom by default object-cover
+   centering — that's what was slicing off faces. Each slide can now say
+   where its focal point (the face) actually is, so cropping happens
+   around it instead of through it. Tune these percentages per photo if a
+   face still isn't framed the way you want — lower % = crop favors the
+   top of the image, higher % = crop favors the bottom. */
 const WEDDING_SLIDES = [
-  { url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=1600&q=80', caption: 'Two hearts, one journey' },
-  { url: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=1600&q=80', caption: 'Where forever begins' },
-  { url: 'https://i.pinimg.com/1200x/05/45/04/054504e4faceeb61c885dcb08e15e317.jpg', caption: 'Golden hour, golden vows' },
-  { url: 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=1600&q=80', caption: 'Dancing into forever' },
+  { url: gallery2, caption: 'Two hearts, one journey', position: 'center 15%' },
+  { url: gallery1, caption: 'Where forever begins', position: 'center 12%' },
+  { url: gallery3, caption: 'Golden hour, golden vows', position: 'center 20%' },
+  { url: gallery4, caption: 'Dancing into forever', position: 'center 18%' },
+  { url: gallery5, caption: 'Love', position: 'center 15%' },
+  { url: pamsSolo, caption: 'The bride', position: 'center 10%' },
+  { url: bizzerSolo, caption: 'The groom', position: 'center 10%' },
 ]
 
 function WeddingHero() {
@@ -70,6 +87,7 @@ function WeddingHero() {
             exit={{ opacity: 0, scale: 1.02 }}
             transition={{ duration: 1.2, ease: 'easeOut' }}
             className="absolute inset-0 w-full h-full object-cover"
+            style={{ objectPosition: slide.position || 'center 20%' }}
           />
         </AnimatePresence>
 
@@ -111,13 +129,13 @@ function WeddingHero() {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-md"
                 style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)' }}
               >
-                <FiCalendar size={14} /> November 14, 2026
+                <FiCalendar size={14} /> November 21, 2026
               </span>
               <span
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-md"
                 style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)' }}
               >
-                <FiMapPin size={14} /> Amalfi Coast, Abuja
+                <FiMapPin size={14} /> Luxe Lush Park @Riverplate Park, 70 Kur Mohammed Avenue, Wuse 2, Abuja
               </span>
             </div>
           </motion.div>
