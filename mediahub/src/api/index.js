@@ -321,8 +321,13 @@ export const uploadAPI = {
 // Sending FormData or forcing a multipart Content-Type header here will make
 // express.json() skip parsing entirely and req.body will come back empty —
 // that's the "can't upload at all" failure mode. Keep this JSON, always.
+// Pagination shape everywhere below: GET returns
+// { success, data: Post[], nextCursor: ISOString|null, hasMore: boolean }.
+// Pass { limit, before } as params — `before` is the previous response's
+// nextCursor. Omit params entirely to get the first page (default limit 20,
+// enforced server-side, capped at 50).
 export const postsAPI = {
-  getAll: () => api.get('/api/posts'),
+  getAll: (params = {}) => api.get('/api/posts', { params }),
   getOne: (id) => api.get(`/api/posts/${id}`),
   // data = { title?, content?, tags?, images?: [{url,public_id,...}], videos?: [{url,public_id,...}] }
   // config lets callers pass extra axios options through, e.g. { signal } to cancel.
@@ -332,7 +337,11 @@ export const postsAPI = {
   like: (id) => api.post(`/api/posts/${id}/like`),
   dislike: (id) => api.post(`/api/posts/${id}/dislike`),
   comment: (id, content) => api.post(`/api/comments/${id}`, { content }),
-  getMyPosts: () => api.get('/api/posts/my-posts'),
+  getMyPosts: (params = {}) => api.get('/api/posts/my-posts', { params }),
+  // Per-author posts (someone else's profile) — paginated the same way as
+  // getMyPosts, but scoped by authorId instead of the logged-in user.
+  // Backend route: GET /api/posts/author/:authorId (see post.routes.js).
+  getByAuthor: (authorId, params = {}) => api.get(`/api/posts/author/${authorId}`, { params }),
   getLikers: (postId) => api.get(`/api/posts/${postId}/likes`),
 };
 

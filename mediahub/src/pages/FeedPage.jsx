@@ -931,6 +931,9 @@ function PostListItem({
 export default function FeedPage() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [nextCursor, setNextCursor] = useState(null)
+  const [hasMore, setHasMore] = useState(false)
   const [viewMode, setViewMode] = useState('grid')
   const [query, setQuery] = useState('')
   const [activeCommentPostId, setActiveCommentPostId] = useState(null)
@@ -941,10 +944,11 @@ export default function FeedPage() {
   const [scrolled, setScrolled] = useState(false)
   const [lightboxPost, setLightboxPost] = useState(null)
   const lastTapRef = useRef({})
+  const sentinelRef = useRef(null)
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
-  useEffect(() => { fetchPosts() }, [])
+  useEffect(() => { fetchPosts(true) }, [])
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60)
@@ -952,26 +956,63 @@ export default function FeedPage() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  const fetchPosts = async () => {
+  // Infinite scroll: load the next page once the sentinel div near the
+  // bottom of the grid comes into view. Skipped while a search query is
+  // active — search filters the already-loaded pages client-side rather
+  // than hitting the backend, so there's no "next page" to fetch for it.
+  useEffect(() => {
+    if (query.trim()) return
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) fetchPosts(false)
+    }, { rootMargin: '600px' })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [query, hasMore, loadingMore, nextCursor])
+
+  const extractPage = (data) => {
+    let arr = []
+    if (data?.data?.posts) arr = data.data.posts
+    else if (data?.posts) arr = data.posts
+    else if (Array.isArray(data?.data)) arr = data.data
+    else if (Array.isArray(data)) arr = data
+    return { arr, nextCursor: data?.nextCursor ?? null, hasMore: !!data?.hasMore }
+  }
+
+  // reset=true: initial load / refresh (replaces the list).
+  // reset=false: load the next page (appends, using nextCursor as `before`).
+  const fetchPosts = async (reset) => {
+    if (!reset && (!hasMore || loadingMore)) return
+    if (reset) setLoading(true)
+    else setLoadingMore(true)
     try {
-      const response = await postsAPI.getAll()
-      const data = response.data
-      let arr = []
-      if (data?.data?.posts) arr = data.data.posts
-      else if (data?.posts) arr = data.posts
-      else if (Array.isArray(data?.data)) arr = data.data
-      else if (Array.isArray(data)) arr = data
-      setPosts(arr)
+      const params = reset ? {} : (nextCursor ? { before: nextCursor } : {})
+      const response = await postsAPI.getAll(params)
+      const { arr, nextCursor: cursor, hasMore: more } = extractPage(response.data)
+      setPosts(prev => reset ? arr : [...prev, ...arr])
+      setNextCursor(cursor)
+      setHasMore(more)
     } catch (err) {
       console.error('Failed to fetch posts:', err)
-      setPosts([])
-    } finally { setLoading(false) }
+      if (reset) setPosts([])
+    } finally {
+      if (reset) setLoading(false)
+      setLoadingMore(false)
+    }
   }
 
   const handleLike = async (e, postId) => {
     e?.stopPropagation()
     if (!user) { toast.error('Log in to like posts'); navigate('/login'); return }
-    try { await postsAPI.like(postId); fetchPosts() }
+    try {
+      await postsAPI.like(postId)
+      // Optimistic-ish local patch instead of refetching the whole feed —
+      // refetching from the top would also reset pagination back to page 1.
+      const { data } = await postsAPI.getOne(postId)
+      const updated = data?.data || data
+      setPosts(prev => prev.map(p => (p._id === postId ? { ...p, likes: updated?.likes ?? p.likes } : p)))
+    }
     catch (err) { console.error('Like failed:', err) }
   }
 
@@ -1272,6 +1313,16 @@ export default function FeedPage() {
                 </div>
               ))}
             </LayoutGroup>
+          )}
+
+          {/* Infinite-scroll trigger + spinner. Hidden during search since
+              search only filters posts already loaded on this page. */}
+          {!query.trim() && hasMore && (
+            <div ref={sentinelRef} className="flex justify-center py-8">
+              {loadingMore && (
+                <div className="animate-spin rounded-full h-6 w-6 border-4 border-amber-500 border-t-transparent" />
+              )}
+            </div>
           )}
         </div>
       </div>

@@ -1,18 +1,38 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiArrowLeft, FiMessageCircle, FiUser, FiTrash2, FiMoreHorizontal, FiX } from 'react-icons/fi'
-import { useAuthStore, usePostStore } from '../store'
+import { useAuthStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
-import { commentsAPI } from '../api'
+import { commentsAPI, postsAPI } from '../api'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
 
+// Safety cap on how many pages of "my posts" we'll walk to build this list
+// (50/page x 20 = up to 1000 posts) — this page needs the complete set of
+// your own posts to check each one for comments, so it can't just take the
+// first page like a feed would.
+const MAX_PAGES = 20
+
+async function fetchAllMyPosts() {
+  const all = []
+  let before
+  for (let i = 0; i < MAX_PAGES; i++) {
+    const res = await postsAPI.getMyPosts(before ? { before } : {})
+    const page = Array.isArray(res.data?.data) ? res.data.data : []
+    all.push(...page)
+    if (!res.data?.hasMore) break
+    before = res.data?.nextCursor
+    if (!before) break
+  }
+  return all
+}
+
 export default function CommentsPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
-  const { posts, fetchPosts } = usePostStore()
+  const [posts, setPosts] = useState([])
   const [commentedPosts, setCommentedPosts] = useState([]) // [{ post, comments }]
   const [loading, setLoading] = useState(true)
   const [openMenuId, setOpenMenuId] = useState(null)
@@ -22,7 +42,13 @@ export default function CommentsPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      await fetchPosts()
+      try {
+        const all = await fetchAllMyPosts()
+        setPosts(all)
+      } catch (err) {
+        console.error('Failed to fetch my posts:', err)
+        setPosts([])
+      }
       setLoading(false)
     }
     load()
@@ -31,11 +57,7 @@ export default function CommentsPage() {
   useEffect(() => {
     if (!user || posts.length === 0) return
 
-    const userId = user._id || user.id
-    const myPosts = posts.filter(p => {
-      const authorId = p.author?._id || p.author?.id || p.author
-      return String(authorId) === String(userId)
-    })
+    const myPosts = posts
 
     const loadComments = async () => {
       const results = await Promise.all(

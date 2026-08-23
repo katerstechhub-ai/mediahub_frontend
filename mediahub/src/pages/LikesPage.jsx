@@ -1,21 +1,46 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiArrowLeft, FiHeart, FiUser } from 'react-icons/fi'
-import { useAuthStore, usePostStore } from '../store'
+import { useAuthStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
 import { postsAPI } from '../api'
+
+// Safety cap on how many pages of "my posts" we'll walk (50/page x 20 = up
+// to 1000 posts) — this page needs the complete set of your own posts to
+// find the ones with likes, so it can't stop at the first page like a feed.
+const MAX_PAGES = 20
+
+async function fetchAllMyPosts() {
+  const all = []
+  let before
+  for (let i = 0; i < MAX_PAGES; i++) {
+    const res = await postsAPI.getMyPosts(before ? { before } : {})
+    const page = Array.isArray(res.data?.data) ? res.data.data : []
+    all.push(...page)
+    if (!res.data?.hasMore) break
+    before = res.data?.nextCursor
+    if (!before) break
+  }
+  return all
+}
 
 export default function LikesPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
-  const { posts, fetchPosts } = usePostStore()
+  const [posts, setPosts] = useState([])
   const [likedPosts, setLikedPosts] = useState([]) // [{ post, likers }]
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      await fetchPosts()
+      try {
+        const all = await fetchAllMyPosts()
+        setPosts(all)
+      } catch (err) {
+        console.error('Failed to fetch my posts:', err)
+        setPosts([])
+      }
       setLoading(false)
     }
     load()
@@ -24,11 +49,7 @@ export default function LikesPage() {
   useEffect(() => {
     if (!user || posts.length === 0) return
 
-    const userId = user._id || user.id
-    const myPosts = posts.filter(p => {
-      const authorId = p.author?._id || p.author?.id || p.author
-      return String(authorId) === String(userId) && (p.likes?.length || 0) > 0
-    })
+    const myPosts = posts.filter(p => (p.likes?.length || 0) > 0)
 
     const loadLikers = async () => {
       const results = await Promise.all(

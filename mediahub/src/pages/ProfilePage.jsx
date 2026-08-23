@@ -15,8 +15,10 @@ import dayjs from 'dayjs'
 export default function ProfilePage() {
   const navigate = useNavigate()
   const { user, updateUser } = useAuthStore()
-  const { posts, isLoading, fetchPosts } = usePostStore()
-  const [userPosts, setUserPosts] = useState([])
+  // Own posts only — fetched directly from the paginated per-author endpoint,
+  // not filtered out of a global list (that silently loses older posts once
+  // you've posted more than one page's worth).
+  const { myPosts: userPosts, isLoading, myPostsHasMore, fetchMyPosts } = usePostStore()
   const [loading, setLoading] = useState(true)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [downloadingMap, setDownloadingMap] = useState({})
@@ -24,21 +26,11 @@ export default function ProfilePage() {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)
-      await fetchPosts()
+      await fetchMyPosts(true)
       setLoading(false)
     }
     loadData()
   }, [])
-
-  useEffect(() => {
-    if (!user) return
-    const userId = user._id || user.id
-    const filtered = posts.filter(p => {
-      const authorId = p.author?._id || p.author?.id || p.author
-      return authorId === userId
-    })
-    setUserPosts(filtered)
-  }, [posts, user])
 
   const handleAvatarChange = async (e) => {
     const file = e.target.files[0]
@@ -61,7 +53,7 @@ export default function ProfilePage() {
     try {
       await postsAPI.delete(postId)
       toast.success('Post deleted')
-      await fetchPosts()
+      await fetchMyPosts(true)
     } catch {
       toast.error('Failed to delete post')
     }
@@ -393,6 +385,21 @@ export default function ProfilePage() {
                 })}
               </AnimatePresence>
             </motion.div>
+          )}
+
+          {myPostsHasMore && userPosts.length > 0 && (
+            <div className="flex justify-center mt-6">
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => fetchMyPosts(false)}
+                disabled={isLoading}
+                className="px-5 py-2.5 rounded-full text-sm font-semibold disabled:opacity-50"
+                style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+              >
+                {isLoading ? 'Loading…' : 'Load more'}
+              </motion.button>
+            </div>
           )}
         </div>
       </div>

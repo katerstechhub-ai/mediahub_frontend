@@ -13,10 +13,17 @@ export default function UserProfilePage() {
   const { userId } = useParams()
   const navigate = useNavigate()
   const { user: currentUser } = useAuthStore()
-  const { posts, isLoading, fetchPosts } = usePostStore()
+  // Fetched directly from the paginated per-author endpoint (getByAuthor),
+  // not filtered out of a global feed slice — that silently lost this
+  // person's older posts once the feed was capped to 20 at a time.
+  const {
+    authorPosts: userPosts,
+    isAuthorLoading: isLoading,
+    authorPostsHasMore,
+    fetchAuthorPosts,
+  } = usePostStore()
 
   const [profileUser, setProfileUser] = useState(null)
-  const [userPosts, setUserPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [downloadingMap, setDownloadingMap] = useState({})
 
@@ -38,23 +45,20 @@ export default function UserProfilePage() {
         console.error('Failed to fetch user profile:', err)
         setProfileUser(null)
       }
-      await fetchPosts()
+      await fetchAuthorPosts(userId, true)
       setLoading(false)
     }
     loadData()
   }, [userId])
 
+  // Fallback: if the /users/:id lookup failed (or the account has no bio
+  // endpoint), we can still show a name/avatar from the first post's
+  // populated author.
   useEffect(() => {
-    const filtered = posts.filter(p => {
-      const authorId = p.author?._id || p.author?.id || p.author
-      return String(authorId) === String(userId)
-    })
-    setUserPosts(filtered)
-
-    if (!profileUser && filtered.length > 0) {
-      setProfileUser(filtered[0].author)
+    if (!profileUser && userPosts.length > 0) {
+      setProfileUser(userPosts[0].author)
     }
-  }, [posts, userId])
+  }, [userPosts, profileUser])
 
   // ── Download handler ──
   const handleDownload = async (postId, url, filename) => {
@@ -328,6 +332,21 @@ export default function UserProfilePage() {
                 })}
               </AnimatePresence>
             </motion.div>
+          )}
+
+          {authorPostsHasMore && userPosts.length > 0 && (
+            <div className="flex justify-center mt-6">
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => fetchAuthorPosts(userId, false)}
+                disabled={isLoading}
+                className="px-5 py-2.5 rounded-full text-sm font-semibold disabled:opacity-50"
+                style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+              >
+                {isLoading ? 'Loading…' : 'Load more'}
+              </motion.button>
+            </div>
           )}
         </div>
       </div>

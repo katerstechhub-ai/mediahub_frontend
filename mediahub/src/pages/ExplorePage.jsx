@@ -75,34 +75,57 @@ function BoomerangVideo({ src, poster, className, style, onClick }) {
 export default function ExplorePage() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [nextCursor, setNextCursor] = useState(null)
+  const [hasMore, setHasMore] = useState(false)
   const [filtered, setFiltered] = useState([])
   const [query, setQuery] = useState('')
   const [unreadCount, setUnreadCount] = useState(0)
   const navigate = useNavigate()
   const inputRef = useRef()
+  const sentinelRef = useRef()
   const { user } = useAuthStore()
 
-  const fetchPosts = async () => {
+  // reset=true: initial load. reset=false: append the next page.
+  const fetchPosts = async (reset) => {
+    if (!reset && (!hasMore || loadingMore)) return
+    if (reset) setLoading(true)
+    else setLoadingMore(true)
     try {
-      const response = await postsAPI.getAll()
+      const params = reset ? {} : (nextCursor ? { before: nextCursor } : {})
+      const response = await postsAPI.getAll(params)
       const data = response.data
       let arr = []
       if (data?.data?.posts) arr = data.data.posts
       else if (data?.posts) arr = data.posts
       else if (Array.isArray(data?.data)) arr = data.data
       else if (Array.isArray(data)) arr = data
-      setPosts(arr)
-      setFiltered(arr)
+      setPosts(prev => reset ? arr : [...prev, ...arr])
+      setNextCursor(data?.nextCursor ?? null)
+      setHasMore(!!data?.hasMore)
     } catch (err) {
       console.error('Failed to fetch posts:', err)
-      setPosts([])
-      setFiltered([])
+      if (reset) { setPosts([]); setFiltered([]) }
     } finally {
-      setLoading(false)
+      if (reset) setLoading(false)
+      setLoadingMore(false)
     }
   }
 
-  useEffect(() => { fetchPosts() }, [])
+  useEffect(() => { fetchPosts(true) }, [])
+
+  // Infinite scroll — skipped while searching, since search only filters the
+  // pages already loaded rather than querying the backend.
+  useEffect(() => {
+    if (query.trim()) return
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) fetchPosts(false)
+    }, { rootMargin: '600px' })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [query, hasMore, loadingMore, nextCursor])
 
   useEffect(() => {
     if (!user) return
@@ -391,6 +414,14 @@ export default function ExplorePage() {
               })}
             </AnimatePresence>
           </motion.div>
+        )}
+
+        {!query.trim() && hasMore && (
+          <div ref={sentinelRef} className="flex justify-center py-8">
+            {loadingMore && (
+              <div className="animate-spin rounded-full h-6 w-6 border-4 border-amber-500 border-t-transparent" />
+            )}
+          </div>
         )}
       </div>
     </div>

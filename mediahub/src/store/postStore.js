@@ -1,34 +1,94 @@
 import { create } from 'zustand';
 import { postsAPI } from '../api';
 
-// Normalizes whatever shape the API returns into a plain array of posts.
-// Mirrors the parsing FeedPage already does, so both pages agree on shape.
-function extractPosts(responseData) {
-  if (responseData?.data?.posts) return responseData.data.posts;
-  if (responseData?.posts) return responseData.posts;
-  if (Array.isArray(responseData?.data)) return responseData.data;
-  if (Array.isArray(responseData)) return responseData;
-  return [];
+// Normalizes whatever shape the API returns into { posts, nextCursor, hasMore }.
+function extractPage(responseData) {
+  const posts = Array.isArray(responseData?.data) ? responseData.data : [];
+  return {
+    posts,
+    nextCursor: responseData?.nextCursor ?? null,
+    hasMore: !!responseData?.hasMore,
+  };
 }
 
+// This store is for posts scoped to ONE author at a time — the logged-in
+// user's own posts (ProfilePage, CommentsPage, LikesPage) or another user's
+// posts (UserProfilePage). It is NOT the global feed — FeedPage/ExplorePage
+// page through postsAPI.getAll() themselves with their own local state,
+// since that list is unbounded and independent of any single author.
+//
+// myPosts and authorPosts are kept as separate slices (not shared) so that
+// visiting someone else's profile never clobbers your own cached post list,
+// and vice versa.
 export const usePostStore = create((set, get) => ({
-  posts: [],
+  myPosts: [],
+  myPostsCursor: null,
+  myPostsHasMore: true,
   isLoading: false,
   error: null,
 
-  fetchPosts: async () => {
-    set({ isLoading: true, error: null });
+  authorId: null,
+  authorPosts: [],
+  authorPostsCursor: null,
+  authorPostsHasMore: true,
+  isAuthorLoading: false,
+  authorError: null,
+
+  // reset=true (default) replaces the list — use for the initial load or a
+  // hard refresh (e.g. after deleting a post). reset=false appends the next
+  // page, for "load more" / infinite scroll.
+  fetchMyPosts: async (reset = true) => {
+    if (reset) {
+      set({ isLoading: true, error: null, myPosts: [], myPostsCursor: null, myPostsHasMore: true });
+    } else {
+      if (!get().myPostsHasMore || get().isLoading) return;
+      set({ isLoading: true, error: null });
+    }
     try {
-      // Uses the shared axios instance (postsAPI) so this respects the same
-      // baseURL, auth token injection, and error handling as the rest of the
-      // app — no separate fetch(), and NO mock-data fallback. If the request
-      // fails, we surface that instead of silently showing fake posts.
-      const response = await postsAPI.getAll();
-      const data = extractPosts(response.data);
-      set({ posts: data, isLoading: false, error: null });
+      const before = reset ? undefined : get().myPostsCursor;
+      const response = await postsAPI.getMyPosts(before ? { before } : {});
+      const { posts, nextCursor, hasMore } = extractPage(response.data);
+      set((state) => ({
+        myPosts: reset ? posts : [...state.myPosts, ...posts],
+        myPostsCursor: nextCursor,
+        myPostsHasMore: hasMore,
+        isLoading: false,
+      }));
     } catch (error) {
-      console.error('Fetch posts error:', error);
+      console.error('Fetch my posts error:', error);
       set({ error: error.message, isLoading: false });
+    }
+  },
+
+  fetchAuthorPosts: async (authorId, reset = true) => {
+    // Switching to a different author always starts a fresh list.
+    const switchingAuthor = get().authorId !== authorId;
+    if (reset || switchingAuthor) {
+      set({
+        isAuthorLoading: true,
+        authorError: null,
+        authorId,
+        authorPosts: [],
+        authorPostsCursor: null,
+        authorPostsHasMore: true,
+      });
+    } else {
+      if (!get().authorPostsHasMore || get().isAuthorLoading) return;
+      set({ isAuthorLoading: true, authorError: null });
+    }
+    try {
+      const before = (reset || switchingAuthor) ? undefined : get().authorPostsCursor;
+      const response = await postsAPI.getByAuthor(authorId, before ? { before } : {});
+      const { posts, nextCursor, hasMore } = extractPage(response.data);
+      set((state) => ({
+        authorPosts: (reset || switchingAuthor) ? posts : [...state.authorPosts, ...posts],
+        authorPostsCursor: nextCursor,
+        authorPostsHasMore: hasMore,
+        isAuthorLoading: false,
+      }));
+    } catch (error) {
+      console.error('Fetch author posts error:', error);
+      set({ authorError: error.message, isAuthorLoading: false });
     }
   },
 
@@ -46,7 +106,7 @@ export const usePostStore = create((set, get) => ({
 
       const response = await postsAPI.create(formData);
       const newPost = response.data?.data || response.data;
-      set((state) => ({ posts: [newPost, ...state.posts] }));
+      set((state) => ({ myPosts: [newPost, ...state.myPosts] }));
       return newPost;
     } catch (error) {
       console.error('Create post error:', error);
