@@ -57,7 +57,7 @@ const SoundBus = (() => {
 const WEDDING_SLIDES = [
   { url: gallery2, caption: 'Two hearts, one journey', position: 'center 15%' },
   { url: gallery1, caption: 'Where forever begins', position: 'center 12%' },
-  { url: gallery3, caption: 'Golden hour, golden vows', position: 'center 20%' },
+  // { url: gallery3, caption: 'Golden hour, golden vows', position: 'center 20%' },
   { url: gallery4, caption: 'Dancing into forever', position: 'center 18%' },
   { url: gallery5, caption: 'Love', position: 'center 15%' },
   { url: pamsSolo, caption: 'The bride', position: 'center 10%' },
