@@ -17,7 +17,7 @@ const applyResolvedTheme = (theme) => {
 export const useThemeStore = create(
   persist(
     (set, get) => ({
-      theme: 'system', // 'light' | 'dark' | 'system' — system is default
+      theme: 'dark', // 'light' | 'dark' | 'system' — dark is default
       // Cycles through all three modes: light -> dark -> system -> light
       toggleTheme: () =>
         set((state) => {
