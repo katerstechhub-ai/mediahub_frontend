@@ -1,23 +1,38 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { useThemeStore, useAuthStore } from './store'
 import Layout from "./components/layout/Layout";
+import ProtectedRoute from './components/layout/ProtectedRoute'
+
+// Login/Register are on the critical path (unauthenticated users land here
+// first), so they stay as normal eager imports. Everything else is
+// lazy-loaded — each page becomes its own chunk that only downloads when
+// the user actually navigates there, instead of all of them shipping in
+// the initial bundle.
 import Login from './pages/Login'
 import Register from './pages/Register'
-import FeedPage from './pages/FeedPage'
-import ExplorePage from './pages/ExplorePage'
-import CreatePostPage from './pages/CreatePostPage'
-import Notifications from './pages/Notifications'
-import ProfilePage from './pages/ProfilePage'
-import PostDetailPage from './pages/PostDetailPage'
-import SettingsPage from './pages/SettingsPage'
-import NotFoundPage from './pages/NotFoundPage'
-import UserProfilePage from './pages/Userprofilepage'
-import LikesPage from './pages/LikesPage';
-import CommentsPage from './pages/CommentsPage'
-import ProtectedRoute from './components/layout/ProtectedRoute'
-import ForgotPasswordPage from './pages/ForgotPasswordPage'
-import ResetPasswordPage from './pages/ResetPasswordPage'
+
+const FeedPage = lazy(() => import('./pages/FeedPage'))
+const ExplorePage = lazy(() => import('./pages/ExplorePage'))
+const CreatePostPage = lazy(() => import('./pages/CreatePostPage'))
+const Notifications = lazy(() => import('./pages/Notifications'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const PostDetailPage = lazy(() => import('./pages/PostDetailPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const UserProfilePage = lazy(() => import('./pages/Userprofilepage'))
+const LikesPage = lazy(() => import('./pages/LikesPage'))
+const CommentsPage = lazy(() => import('./pages/CommentsPage'))
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
+
+function PageFallback() {
+  return (
+    <div className="min-h-[50vh] flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-4 border-amber-500 border-t-transparent" />
+    </div>
+  )
+}
 
 function App() {
   const { theme } = useThemeStore()
@@ -47,31 +62,33 @@ function App() {
   return (
     <BrowserRouter>
       <div className="min-h-dvh" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
-        <Routes>
-          <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
-          <Route path="/register" element={!user ? <Register /> : <Navigate to="/" replace />} />
-          <Route path="/" element={<Layout />}>
-            {/* Public routes — viewable by guests */}
-            <Route index element={<FeedPage />} />
-            <Route path="explore" element={<ExplorePage />} />
-            <Route path="posts/:id" element={<PostDetailPage />} />
-            <Route path="users/:userId" element={<UserProfilePage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
+            <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
+            <Route path="/register" element={!user ? <Register /> : <Navigate to="/" replace />} />
+            <Route path="/" element={<Layout />}>
+              {/* Public routes — viewable by guests */}
+              <Route index element={<FeedPage />} />
+              <Route path="explore" element={<ExplorePage />} />
+              <Route path="posts/:id" element={<PostDetailPage />} />
+              <Route path="users/:userId" element={<UserProfilePage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-            {/* Protected routes — require auth */}
-            <Route element={<ProtectedRoute />}>
-              <Route path="create" element={<CreatePostPage />} />
-              <Route path="notifications" element={<Notifications />} />
-              <Route path="profile" element={<ProfilePage />} />
-              <Route path="settings" element={<SettingsPage />} />
-              <Route path="likes" element={<LikesPage />} />
-              <Route path="comments" element={<CommentsPage />} />
+              {/* Protected routes — require auth */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="create" element={<CreatePostPage />} />
+                <Route path="notifications" element={<Notifications />} />
+                <Route path="profile" element={<ProfilePage />} />
+                <Route path="settings" element={<SettingsPage />} />
+                <Route path="likes" element={<LikesPage />} />
+                <Route path="comments" element={<CommentsPage />} />
+              </Route>
+
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
-
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
-        </Routes>
+          </Routes>
+        </Suspense>
       </div>
     </BrowserRouter>
   )
