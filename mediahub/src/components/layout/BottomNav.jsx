@@ -23,7 +23,6 @@ export default function BottomNav() {
 
   const visibleTabs = allTabs.filter((t) => !t.authOnly || user)
 
-  // Measure height for layout offset
   useEffect(() => {
     const el = outerRef.current
     if (!el || typeof window === 'undefined') return
@@ -44,7 +43,6 @@ export default function BottomNav() {
     }
   }, [visibleTabs.length, setBottomNavHeight])
 
-  // Fetch unread notification count
   useEffect(() => {
     if (!user) return
     const fetchUnread = async () => {
@@ -68,15 +66,11 @@ export default function BottomNav() {
     }
   }
 
-  // ── Handle tab click with refresh logic ──
   const handleTabClick = (to, e) => {
-    // If already on this tab and it's NOT the create page, refresh
     if (isActiveTab(to) && to !== '/create') {
       e.preventDefault()
-      // Reload the current route – triggers a full page refresh
       navigate(0)
     }
-    // Otherwise, let the NavLink handle navigation normally
   }
 
   return createPortal(
@@ -95,14 +89,22 @@ export default function BottomNav() {
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-        className="flex items-center gap-1 p-1.5 rounded-full backdrop-blur-2xl"
+        className="relative flex items-center gap-1 rounded-full overflow-hidden"
         style={{
-          background: 'color-mix(in oklab, var(--background) 70%, transparent)',
-          border: '1px solid color-mix(in oklab, var(--border) 80%, transparent)',
-          boxShadow: '0 12px 40px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.08)',
+          padding: 'var(--space-1, 6px)',
+          background: 'var(--glass-surface-1, color-mix(in oklab, var(--background) 70%, transparent))',
+          backdropFilter: 'var(--glass-blur-lg, saturate(180%) blur(28px))',
+          WebkitBackdropFilter: 'var(--glass-blur-lg, saturate(180%) blur(28px))',
+          border: '1px solid var(--glass-border, color-mix(in oklab, var(--border) 80%, transparent))',
+          boxShadow: 'var(--glass-shadow, 0 12px 40px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.08))',
         }}
       >
-        {/* All tabs always visible */}
+        {/* Specular sheen — top-lit glass highlight, the thing that reads as "liquid" rather than flat frosted */}
+        <div
+          className="absolute inset-0 rounded-full pointer-events-none"
+          style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.10), transparent 45%)' }}
+        />
+
         {visibleTabs.map(({ to, icon: Icon, label }) => {
           const active = isActiveTab(to)
           return (
@@ -115,11 +117,13 @@ export default function BottomNav() {
               className="relative flex items-center justify-center w-11 h-11 rounded-full"
             >
               {active && (
-                <div
+                <motion.div
+                  layoutId="bottomNavActivePill"
+                  transition={{ type: 'spring', stiffness: 500, damping: 34 }}
                   className="absolute inset-0 rounded-full"
                   style={{
                     background: 'linear-gradient(135deg,#fbbf24,#f59e0b)',
-                    boxShadow: '0 6px 18px rgba(245,158,11,0.45)',
+                    boxShadow: '0 6px 18px rgba(245,158,11,0.45), inset 0 1px 0 rgba(255,255,255,0.35)',
                   }}
                 />
               )}
@@ -141,15 +145,12 @@ export default function BottomNav() {
           )
         })}
 
-        {/* Avatar / Profile tab – always visible, always goes to profile */}
         <motion.button
           onClick={handleAvatarClick}
           whileTap={{ scale: 0.9 }}
           aria-label={user ? 'Profile' : 'Sign in'}
           className="relative flex items-center justify-center w-12 h-12 rounded-full flex-shrink-0"
-          style={{
-            background: 'transparent',
-          }}
+          style={{ background: 'transparent' }}
         >
           {user ? (
             user.avatar ? (

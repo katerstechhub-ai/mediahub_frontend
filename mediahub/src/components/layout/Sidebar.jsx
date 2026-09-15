@@ -26,18 +26,17 @@ export default function Sidebar() {
   const visibleNavItems = navItems.filter((item) => !item.authOnly || user)
 
   useEffect(() => {
-    if (!user) return // guests have nothing to fetch notifications for
+    if (!user) return
 
     const fetchUnread = async () => {
       try {
         const res = await notificationsAPI.getAll(1, 1)
         setUnreadCount(res.data?.unreadCount || 0)
       } catch {
-        // silent — nav badge isn't worth surfacing an error toast for
       }
     }
     fetchUnread()
-    const interval = setInterval(fetchUnread, 30000) // refresh every 30s
+    const interval = setInterval(fetchUnread, 30000)
     return () => clearInterval(interval)
   }, [user])
 
@@ -54,21 +53,25 @@ export default function Sidebar() {
       style={{
         width: '84px',
         zIndex: 40,
-        background: 'var(--bg-primary)',
-        borderRight: '1px solid var(--border)',
+        background: 'var(--glass-surface-2, var(--bg-primary))',
+        backdropFilter: 'var(--glass-blur-lg, saturate(180%) blur(28px))',
+        WebkitBackdropFilter: 'var(--glass-blur-lg, saturate(180%) blur(28px))',
+        borderRight: '1px solid var(--glass-border, var(--border))',
+        boxShadow: 'var(--glass-shadow, 4px 0 30px rgba(0,0,0,0.1))',
       }}
     >
       {/* Logo */}
       <div
         className="h-20 flex items-center justify-center border-b"
-        style={{ borderColor: 'var(--border)' }}
+        style={{ borderColor: 'var(--glass-border, var(--border))' }}
       >
         <motion.div
           initial={{ scale: 0, rotate: -15 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: 'spring', stiffness: 260, damping: 20 }}
           whileHover={{ scale: 1.08, rotate: 4 }}
-          className="w-12 h-12 rounded-full shadow-lg overflow-hidden"
+          className="w-12 h-12 rounded-full overflow-hidden"
+          style={{ boxShadow: '0 6px 20px rgba(245,158,11,0.28), inset 0 1px 0 rgba(255,255,255,0.25)' }}
           title="EventPulse"
         >
           <svg viewBox="330 300 590 590" width="48" height="48" xmlns="http://www.w3.org/2000/svg">
@@ -168,7 +171,10 @@ export default function Sidebar() {
                     <motion.div
                       layoutId="sidebarActivePill"
                       className="absolute inset-0 rounded-full"
-                      style={{ background: '#f59e0b', boxShadow: '0 4px 14px rgba(245,158,11,0.35)' }}
+                      style={{
+                        background: '#f59e0b',
+                        boxShadow: '0 4px 14px rgba(245,158,11,0.35), inset 0 1px 0 rgba(255,255,255,0.3)',
+                      }}
                       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                     />
                   )}
@@ -203,9 +209,8 @@ export default function Sidebar() {
       {/* Bottom actions */}
       <div
         className="px-3 py-5 border-t space-y-3"
-        style={{ borderColor: 'var(--border)' }}
+        style={{ borderColor: 'var(--glass-border, var(--border))' }}
       >
-        {/* Theme toggle */}
         <motion.button
           onClick={toggleTheme}
           whileHover={{ scale: 1.05 }}
@@ -227,7 +232,6 @@ export default function Sidebar() {
           </AnimatePresence>
         </motion.button>
 
-        {/* User avatar */}
         {user && (
           <motion.button
             onClick={() => navigate('/profile')}
@@ -240,17 +244,20 @@ export default function Sidebar() {
               <img
                 src={user.avatar}
                 alt={user.name}
-                className="w-10 h-10 rounded-full object-cover shadow-md ring-2 ring-amber-500/40"
+                className="w-10 h-10 rounded-full object-cover"
+                style={{ boxShadow: '0 0 0 2px rgba(245,158,11,0.5), 0 4px 12px rgba(0,0,0,0.2)' }}
               />
             ) : (
-              <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-white text-base font-bold shadow-md">
+              <div
+                className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-white text-base font-bold"
+                style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}
+              >
                 {user.name?.[0]?.toUpperCase() || 'U'}
               </div>
             )}
           </motion.button>
         )}
 
-        {/* Logout / Login */}
         {user ? (
           <motion.button
             onClick={handleLogout}
