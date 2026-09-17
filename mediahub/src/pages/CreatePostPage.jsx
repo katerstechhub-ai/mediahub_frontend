@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
 import {
@@ -11,11 +12,10 @@ import toast from 'react-hot-toast'
 /**
  * CreatePostPage
  * -------------------------------------------------------------------
- * Compose-first: the page opens straight into the composer (heading,
- * media collage, title, story). The device camera is a single on-demand
- * overlay, opened from the "Add media" / "Take a photo" controls, and it
- * hands its result to the exact same compress/upload pipeline every other
- * photo or video on this page uses.
+ * Compose-first page. The camera opens first, full-screen, on entry —
+ * it is NOT a modal card with padding around it. Closing it (X) reveals
+ * the composer (collage + title + story). Tapping "Take a photo or
+ * video" re-opens the same full-screen camera.
  *
  * Capture overlay behavior (Instagram-style):
  *   • Tap the shutter  → takes a photo, freezes it into a Retake/Use review.
@@ -24,87 +24,42 @@ import toast from 'react-hot-toast'
  *     just with a video instead of a still.
  *   • "Use" hands the resulting File to the same handleFiles() path that
  *     gallery picks and pastes already go through — no separate code path.
- *   • The overlay's own height adapts to whatever vertical space is left
- *     above the app's bottom navigation (it never assumes a fixed aspect
- *     ratio), and it renders on a z-index high enough to sit above that
- *     nav rather than needing the nav hidden while the camera is open.
+ *   • Rendered via createPortal into <body> at OVERLAY_Z so it covers the
+ *     app's persistent bottom nav and any parent stacking contexts. Body
+ *     scroll is locked while it's open.
  *   • If the camera (or mic) is unavailable/denied, the overlay always
  *     offers a way out: pick from the gallery, or fall back to the OS
  *     camera app.
  *
  * Everything below capture — validation, compression, signed Cloudinary
  * upload, progress tracking, cancel-in-flight, post creation — is untouched.
- *
- * VISUAL LANGUAGE:
- *  • Matches the app's dark-charcoal / gold-yellow onboarding screens: flat
- *    matte cards (no blur/glass), a single accent yellow used for CTAs,
- *    labels and progress, dashed yellow borders on empty upload slots, and
- *    a big full-width CTA pinned above the bottom navigation.
- *  • The media picker is a five-slot collage (one large slot + two stacked
- *    slots beside it + two along the bottom) rather than a uniform grid —
- *    it mirrors the onboarding "Upload Your Photos" layout so the two
- *    screens feel like the same product.
- *
- * Upload path: files go straight from the browser to Cloudinary using a
- * signed upload (uploadAPI.getSignature() + uploadMediaDirect() in ../api.js).
- * Render only ever sees a small JSON payload with the resulting URLs — see
- * post.controller.js's createPost, which has no multer on it at all anymore
- * and reads req.body.images/videos as plain metadata. This is what makes
- * posting fast even for large videos, and it's also what makes a genuine
- * mid-upload Cancel possible: aborting stops the actual byte transfer to
- * Cloudinary, not just some request to our own backend.
  */
 const MAX_MEDIA = 5
-// Images are downscaled to this max dimension + re-encoded as JPEG before upload.
-// This is the main lever for upload speed — a 4000x3000 phone photo (6-8MB) usually
-// compresses down to a few hundred KB with no visible quality loss at feed size.
 const MAX_DIMENSION = 1600
 const JPEG_QUALITY = 0.82
-// Size caps are split by media type — video files are naturally much larger than
-// photos (a couple minutes of phone footage is routinely 50-150MB), so reusing the
-// image cap here silently rejected every real-world video.
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10MB — matches backend's IMAGE_SIZE_LIMIT
-const MAX_VIDEO_SIZE = 100 * 1024 * 1024 // 100MB — matches backend's VIDEO_SIZE_LIMIT
-// How long a fetched Cloudinary signature stays valid for reuse. Comfortably under
-// the backend's own expiry so we never hand uploadMediaDirect a stale signature.
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024 // 100MB
 const SIGNATURE_TTL = 8 * 60 * 1000
 
-// ---- capture overlay tuning -----------------------------------------
-// How long a shutter press has to be held before it turns into a video
-// recording instead of a photo tap — matches the feel of Instagram/Stories.
 const LONG_PRESS_MS = 280
-// Hard ceiling on a single in-app recording so nobody accidentally uploads
-// a multi-minute clip through the "hold the button" gesture.
 const MAX_RECORD_MS = 60 * 1000
-// Height reserved at the bottom of the viewport for the app's own bottom
-// navigation, plus whatever the device's home-indicator/safe-area needs.
-// Bump BOTTOM_NAV_HEIGHT if the real nav bar's height ever changes — every
-// fixed/overlay element on this page (capture overlay, lightbox, bottom
-// CTA bar) reads from this one constant so they all clear the nav the
-// same way instead of each guessing their own number.
 const BOTTOM_NAV_HEIGHT = 64
 const BOTTOM_CLEARANCE = `calc(${BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px) + 12px)`
 const TOP_CLEARANCE = 'calc(env(safe-area-inset-top, 0px) + 12px)'
-// Any overlay that needs to sit above the app's persistent bottom nav uses
-// this z-index. It's deliberately much higher than any in-page chrome so a
-// nav bar with its own stacking context can never render on top of it —
-// that's what actually fixes "the camera overlaps the nav", not hiding it.
-const OVERLAY_Z = 9999
+// Above everything — nav bars, toasts, other overlays. createPortal + max int
+// so no stacking context anywhere in the app can render above it.
+const OVERLAY_Z = 2147483000
 
-// ---- brand palette (flat, matches the onboarding screens) -----------
 const ACCENT = '#FFC629'
 const ACCENT_STRONG = '#F5B700'
-const INK = '#141416' // page background
-const SURFACE = '#1D1D20' // card background
+const INK = '#141416'
+const SURFACE = '#1D1D20'
 const SURFACE_SOFT = '#232326'
 const BORDER = 'rgba(255,255,255,0.09)'
 const TEXT_PRIMARY = '#F5F5F3'
 const TEXT_MUTED = 'rgba(245,245,243,0.55)'
 const TEXT_FAINT = 'rgba(245,245,243,0.38)'
 
-// A dark, glassy control used for buttons that float over the live camera
-// feed or a photo — kept from the previous camera chrome since it's read
-// against live video, not against the app's flat surfaces.
 const scrimControl = {
   background: 'rgba(20,20,22,0.5)',
   borderColor: 'rgba(255,255,255,0.2)',
@@ -115,15 +70,9 @@ const scrimShadow = '0 20px 50px -22px rgba(0,0,0,0.6)'
 let idSeq = 0
 const nextId = () => `media_${Date.now()}_${idSeq++}`
 
-// Resize + re-encode an image file in the browser using a canvas. Falls back to the
-// original file if anything goes wrong (e.g. unsupported format) so uploads never break.
-// Videos are skipped (returned as-is) — see generateVideoThumbnail below for their preview.
 function compressImage(file) {
   return new Promise((resolve) => {
-    if (!file.type.startsWith('image/')) {
-      resolve(file)
-      return
-    }
+    if (!file.type.startsWith('image/')) { resolve(file); return }
     const img = new window.Image()
     const url = URL.createObjectURL(file)
     img.onload = () => {
@@ -142,10 +91,10 @@ function compressImage(file) {
       canvas.width = width
       canvas.height = height
       const ctx = canvas.getContext('2d')
+      if (!ctx) { resolve(file); return }
       ctx.drawImage(img, 0, 0, width, height)
       canvas.toBlob((blob) => {
         if (!blob) { resolve(file); return }
-        // Only use the compressed version if it's actually smaller
         if (blob.size >= file.size) { resolve(file); return }
         resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }))
       }, 'image/jpeg', JPEG_QUALITY)
@@ -155,9 +104,6 @@ function compressImage(file) {
   })
 }
 
-// Grabs a single frame from a video file and returns it as a JPEG data URL, so
-// video previews behave exactly like image previews — no <video> tag needed in
-// the grid, no risk of it rendering blank because autoplay never fired.
 function generateVideoThumbnail(file) {
   return new Promise((resolve) => {
     const video = document.createElement('video')
@@ -168,12 +114,9 @@ function generateVideoThumbnail(file) {
     video.src = url
 
     const cleanup = () => URL.revokeObjectURL(url)
-    // Safety net — if a video never fires loadedmetadata/seeked (corrupt file,
-    // unsupported codec), don't leave the tile stuck spinning forever.
     const timeout = setTimeout(() => { cleanup(); resolve(null) }, 8000)
 
     video.onloadedmetadata = () => {
-      // The very first frame is often black/undecoded — seek in a touch.
       video.currentTime = Math.min(0.3, (video.duration || 1) / 4)
     }
     video.onseeked = () => {
@@ -182,6 +125,7 @@ function generateVideoThumbnail(file) {
       canvas.width = video.videoWidth || MAX_DIMENSION
       canvas.height = video.videoHeight || MAX_DIMENSION
       const ctx = canvas.getContext('2d')
+      if (!ctx) { cleanup(); resolve(null); return }
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
       canvas.toBlob((blob) => {
         cleanup()
@@ -196,8 +140,6 @@ function generateVideoThumbnail(file) {
   })
 }
 
-// Picks the best-supported mimeType for MediaRecorder, preferring mp4/h264
-// (plays natively everywhere) and falling back through webm variants.
 function pickRecorderMimeType() {
   if (typeof window === 'undefined' || !window.MediaRecorder) return ''
   const candidates = [
@@ -209,73 +151,187 @@ function pickRecorderMimeType() {
   return candidates.find((type) => window.MediaRecorder.isTypeSupported?.(type)) || ''
 }
 
-// The five collage slots, in the order they fill. `area` maps each slot to
-// a named cell in the CSS grid below — one big slot, two stacked beside it,
-// two smaller ones along the bottom.
 const COLLAGE_AREAS = ['big', 'small1', 'small2', 'wide', 'small3']
 
-export default function CreatePostPage() {
+/* ------------------------------------------------------------------ *
+ * CollageSlot — hoisted OUT of CreatePostPage on purpose. Defining it
+ * inside the page created a brand-new component type on every render,
+ * which forced React to unmount+remount all five tiles on every
+ * keystroke (restarting their fade-in animations from opacity:0 and
+ * thrashing framer-motion's `layout`). That is the "page goes blank /
+ * flickers" bug.
+ * ------------------------------------------------------------------ */
+const CollageSlot = ({ area, item, isNextEmpty, onRemove, onPick, onPreview, onDrop, onDragOver, onDragLeave }) => {
+  if (item) {
+    const { id, preview, compressing, isVideo } = item
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, scale: 0.94 }}
+        animate={{ opacity: 1, scale: 1 }}
+        style={{ gridArea: area, background: SURFACE_SOFT, borderColor: BORDER }}
+        className="relative rounded-2xl overflow-hidden border"
+        onClick={() => preview && !compressing && onPreview(id)}
+      >
+        {preview ? (
+          <motion.img
+            src={preview}
+            alt=""
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="w-full h-full object-cover cursor-zoom-in"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <motion.span
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+              className="rounded-full h-5 w-5 border-2 block"
+              style={{ borderColor: BORDER, borderTopColor: ACCENT }}
+            />
+          </div>
+        )}
+        {compressing && preview && (
+          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
+            <motion.span
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+              className="rounded-full h-5 w-5 border-2 block"
+              style={{ borderColor: 'rgba(255,255,255,0.4)', borderTopColor: '#fff' }}
+            />
+          </div>
+        )}
+        {isVideo && preview && !compressing && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}>
+              <FiPlay size={13} color="white" fill="white" style={{ marginLeft: 1 }} />
+            </div>
+          </div>
+        )}
+        <button
+          onClick={(e) => onRemove(id, e)}
+          aria-label="Remove media"
+          className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center"
+          style={{ background: '#fff', boxShadow: '0 2px 6px rgba(0,0,0,0.35)' }}
+        >
+          <FiX size={12} color="#171717" strokeWidth={2.5} />
+        </button>
+      </motion.div>
+    )
+  }
+  return (
+    <motion.button
+      type="button"
+      layout
+      whileTap={{ scale: 0.97 }}
+      style={{ gridArea: area, borderColor: 'rgba(255,198,41,0.45)' }}
+      className="relative rounded-2xl border-2 border-dashed flex items-center justify-center"
+      onClick={onPick}
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+    >
+      <FiImage size={area === 'big' ? 26 : 16} color={ACCENT} strokeWidth={2} />
+      {area === 'big' && (
+        <span className="absolute bottom-2 left-0 right-0 text-center text-[11px] font-semibold" style={{ color: TEXT_MUTED }}>
+          {isNextEmpty ? 'Add photos' : ''}
+        </span>
+      )}
+    </motion.button>
+  )
+}
+
+/* ------------------------------------------------------------------ *
+ * Error boundary — if anything in the page throws during render, show a
+ * small recoverable fallback instead of a blank screen for the whole app.
+ * ------------------------------------------------------------------ */
+class PageErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { error: null }
+  }
+  static getDerivedStateFromError(error) { return { error } }
+  componentDidCatch(error, info) { console.error('CreatePostPage crashed:', error, info) }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center" style={{ background: INK }}>
+          <p className="text-lg font-bold mb-2" style={{ color: TEXT_PRIMARY }}>Something went wrong</p>
+          <p className="text-sm mb-6" style={{ color: TEXT_MUTED }}>
+            {String(this.state.error?.message || this.state.error || 'Unknown error')}
+          </p>
+          <button
+            onClick={() => this.setState({ error: null })}
+            className="px-5 py-2.5 rounded-full text-sm font-bold"
+            style={{ background: ACCENT, color: '#171717' }}
+          >
+            Try again
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+function CreatePostPage() {
   const navigate = useNavigate()
   const fileRef = useRef(null)
   const cameraFallbackRef = useRef(null)
   const titleRef = useRef(null)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  // files/previews are parallel arrays, each entry keyed by a stable id.
-  // preview is ALWAYS a static image data URL (a real photo for images, a
-  // captured frame for videos) — isVideo just controls the play-icon badge.
-  const [mediaItems, setMediaItems] = useState([]) // [{ id, file, preview, compressing, isVideo }]
+  const [mediaItems, setMediaItems] = useState([])
   const [loading, setLoading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0) // 0-100, real bytes-uploaded progress
-  const [uploadStage, setUploadStage] = useState('uploading') // 'uploading' | 'saving' | 'cancelling'
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadStage, setUploadStage] = useState('uploading')
   const [dragOver, setDragOver] = useState(false)
   const [errors, setErrors] = useState({})
   const [justPasted, setJustPasted] = useState(false)
-  const [previewId, setPreviewId] = useState(null) // id of the item shown in the lightbox, or null
+  const [previewId, setPreviewId] = useState(null)
 
-  // ---- capture overlay: opened on demand from "Add media" / "Take a
-  // photo" — never the page's default screen.
+  // Camera opens first, full-screen, by default.
   const camVideoRef = useRef(null)
   const camStreamRef = useRef(null)
   const camCanvasRef = useRef(null)
-  const [cameraOpen, setCameraOpen] = useState(false)
+  const [cameraOpen, setCameraOpen] = useState(true)
   const [camFacing, setCamFacing] = useState('environment')
   const [camReady, setCamReady] = useState(false)
   const [camError, setCamError] = useState(false)
   const [shutterFlash, setShutterFlash] = useState(false)
-  // A captured-but-not-yet-accepted shot, shown as a Retake/Use review.
-  // kind distinguishes a still frame from a recorded clip so the review UI
-  // and the eventual File() both handle it correctly.
-  const [capturedShot, setCapturedShot] = useState(null) // { blob, previewUrl, kind: 'photo'|'video', durationSec? } | null
-  // Press-and-hold video recording state
+  const [capturedShot, setCapturedShot] = useState(null)
   const pressTimerRef = useRef(null)
-  const recordingRef = useRef(false) // synchronous flag — avoids stale-closure races with pointer events
+  const recordingRef = useRef(false)
   const mediaRecorderRef = useRef(null)
   const recordedChunksRef = useRef([])
   const recordMimeRef = useRef('')
   const recordIntervalRef = useRef(null)
+  const recordSecondsRef = useRef(0)
   const maxRecordTimeoutRef = useRef(null)
   const [isRecording, setIsRecording] = useState(false)
   const [recordSeconds, setRecordSeconds] = useState(0)
 
-  // Holds the AbortController for whatever's currently in flight (Cloudinary
-  // upload(s) or the final post-create call) so Cancel can actually stop it.
   const abortControllerRef = useRef(null)
-  // Caches the Cloudinary signature for a few minutes so Post doesn't have to
-  // wait on a fresh fetch on top of the actual upload.
-  const signatureRef = useRef(null) // { promise, timestamp }
+  const signatureRef = useRef(null)
   const remainingSlots = MAX_MEDIA - mediaItems.length
   const anyCompressing = mediaItems.some(item => item.compressing)
   const previewIndex = mediaItems.findIndex(item => item.id === previewId)
   const previewItem = previewIndex >= 0 ? mediaItems[previewIndex] : null
   const lastShotPreview = mediaItems[mediaItems.length - 1]?.preview || null
-  // Simple "how filled out is this post" measure, shown as the thin bar
-  // under the header — same visual motif as the onboarding steps.
   const progressFraction = (
     (title.trim() ? 1 : 0) + (content.trim() ? 1 : 0) + (mediaItems.length > 0 ? 1 : 0)
   ) / 3
 
-  // ---- signature caching --------------------------------------------
+  // Lock body scroll while the camera is open. Without this, the page
+  // behind it scrolls under touch and it feels like you're "scrolling a
+  // camera".
+  useEffect(() => {
+    if (!cameraOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [cameraOpen])
+
   const getCachedSignature = useCallback(() => {
     const now = Date.now()
     if (signatureRef.current && now - signatureRef.current.timestamp < SIGNATURE_TTL) {
@@ -287,7 +343,6 @@ export default function CreatePostPage() {
     return promise
   }, [])
 
-  // ---- validation --------------------------------------------------
   const validate = () => {
     const e = {}
     const t = title.trim()
@@ -297,10 +352,7 @@ export default function CreatePostPage() {
     setErrors(e)
     return Object.keys(e).length === 0
   }
-  // ---- file handling -----------------------------------------------
-  // Images and videos can be freely mixed, up to MAX_MEDIA total, in any order.
-  // This is the single entry point for gallery picks, pastes, and anything
-  // accepted out of the capture overlay — they all become plain Files here.
+
   const handleFiles = useCallback((fileListLike) => {
     const incoming = Array.from(fileListLike || [])
     if (!incoming.length) return
@@ -329,15 +381,11 @@ export default function CreatePostPage() {
       accepted.push(f)
     }
     if (!accepted.length) return
-    // Warm the signature cache the moment the first item lands, so Post
-    // doesn't pay for that round-trip later.
     if (mediaItems.length === 0) getCachedSignature()
     setErrors(prev => ({ ...prev, content: '' }))
     accepted.forEach((f) => {
       const id = nextId()
       const isVideo = f.type.startsWith('video/')
-      // Add a placeholder immediately with compressing:true, then swap in the
-      // real preview once ready. Keeps the UI responsive for many items.
       setMediaItems(prev => [...prev, { id, file: f, preview: null, compressing: true, isVideo }])
       if (isVideo) {
         ;(async () => {
@@ -360,30 +408,30 @@ export default function CreatePostPage() {
       }
     })
   }, [remainingSlots, mediaItems.length, getCachedSignature])
-  const handleDrop = (e) => {
+
+  const handleDrop = useCallback((e) => {
     e.preventDefault()
     setDragOver(false)
     handleFiles(e.dataTransfer.files)
-  }
-  const removeMedia = (id, e) => {
+  }, [handleFiles])
+
+  const removeMedia = useCallback((id, e) => {
     e?.stopPropagation()
     setMediaItems(prev => {
       const next = prev.filter(item => item.id !== id)
-      if (!next.length) signatureRef.current = null // nothing left to reuse it for
+      if (!next.length) signatureRef.current = null
       return next
     })
     setPreviewId(prev => (prev === id ? null : prev))
     if (fileRef.current) fileRef.current.value = ''
-  }
-  // Files picked via the shared gallery/OS-camera inputs.
+  }, [])
+
   const onFilesPicked = (e) => {
     handleFiles(e.target.files)
     e.target.value = ''
-    // These are an escape hatch out of the capture overlay (used when the
-    // camera/mic isn't available) — close it once a file's been chosen.
     if (cameraOpen) setCameraOpen(false)
   }
-  // Paste image(s) from clipboard anywhere on the page — desktop delight
+
   useEffect(() => {
     const onPaste = (e) => {
       const items = [...(e.clipboardData?.items || [])].filter(i => i.type.startsWith('image/'))
@@ -398,16 +446,19 @@ export default function CreatePostPage() {
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
   }, [handleFiles])
-  // ⌘/Ctrl + Enter to post
+
+  // Keep a fresh submit handler in a ref so the ⌘+Enter listener never
+  // fires a stale closure.
+  const submitRef = useRef(null)
+
   useEffect(() => {
     const onKey = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleSubmit()
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitRef.current?.()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, content, mediaItems, loading])
-  // Abort whatever's in flight if the user navigates away mid-upload.
+  }, [])
+
   useEffect(() => () => abortControllerRef.current?.abort(), [])
   const canPost = Boolean((title.trim() || content.trim() || mediaItems.length > 0) && !loading && !anyCompressing)
 
@@ -430,8 +481,6 @@ export default function CreatePostPage() {
       if (mediaItems.length > 0) {
         const signatureData = await getCachedSignature()
 
-        // Track each file's own progress so the overall bar reflects real
-        // bytes uploaded across all files, not just "file N of M done".
         const fileProgress = new Array(mediaItems.length).fill(0)
         const updateOverall = () => {
           const total = fileProgress.reduce((a, b) => a + b, 0)
@@ -456,10 +505,6 @@ export default function CreatePostPage() {
       }
 
       setUploadStage('saving')
-      // Plain JSON — matches post.controller.js's createPost exactly.
-      // Do NOT wrap this in FormData or set a multipart header: there's no
-      // multer on this route anymore, so anything but JSON gets silently
-      // dropped by express.json() and the post will fail to create.
       const payload = { images, videos }
       if (title.trim()) payload.title = title.trim()
       if (content.trim()) payload.content = content.trim()
@@ -481,13 +526,12 @@ export default function CreatePostPage() {
       setUploadProgress(0)
       setUploadStage('uploading')
       abortControllerRef.current = null
-      signatureRef.current = null // fetch a fresh one next time, win or lose
+      signatureRef.current = null
     }
   }
+  submitRef.current = handleSubmit
 
   // ---- device camera ---------------------------------------------------
-  // Drives the capture overlay only — the stream lives and dies with
-  // `cameraOpen`.
   const stopCameraStream = useCallback(() => {
     camStreamRef.current?.getTracks().forEach(t => t.stop())
     camStreamRef.current = null
@@ -499,12 +543,12 @@ export default function CreatePostPage() {
     setCamReady(false)
     setCamError(false)
     ;(async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        if (!cancelled) setCamError(true)
+        return
+      }
       const videoConstraints = { facingMode: camFacing, width: { ideal: 1920 }, height: { ideal: 1080 } }
       let stream = null
-      // Ask for mic + camera together first so press-and-hold recording can
-      // start instantly with no extra permission round-trip. If the mic is
-      // denied (or simply unavailable) fall back to video-only — photos
-      // still work fine, video recording just won't have sound.
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: true })
       } catch (err) {
@@ -531,9 +575,6 @@ export default function CreatePostPage() {
     }
   }, [cameraOpen, camFacing, stopCameraStream])
 
-  // Closes the capture overlay and cleans up everything it touched: any
-  // in-progress recording, the frozen review frame, and the camera/mic
-  // stream itself.
   const closeCameraModal = () => {
     if (recordingRef.current) {
       mediaRecorderRef.current?.stop()
@@ -544,6 +585,7 @@ export default function CreatePostPage() {
     if (pressTimerRef.current) { clearTimeout(pressTimerRef.current); pressTimerRef.current = null }
     setIsRecording(false)
     setRecordSeconds(0)
+    recordSecondsRef.current = 0
     if (capturedShot?.previewUrl) URL.revokeObjectURL(capturedShot.previewUrl)
     setCapturedShot(null)
     setCameraOpen(false)
@@ -551,13 +593,13 @@ export default function CreatePostPage() {
     setCamError(false)
   }
 
-  // Freezes the current frame into a review step (Retake / Use) — nothing
-  // is added to the post until the person explicitly accepts it.
   const capturePhoto = () => {
     const video = camVideoRef.current
     if (!video || !camReady || !video.videoWidth) return
     const canvas = camCanvasRef.current
+    if (!canvas) return
     const ctx = canvas.getContext('2d')
+    if (!ctx) return
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
     if (camFacing === 'user') {
@@ -574,7 +616,6 @@ export default function CreatePostPage() {
     }, 'image/jpeg', 0.92)
   }
 
-  // ---- press-and-hold video recording --------------------------------
   const startRecording = () => {
     const stream = camStreamRef.current
     if (!stream || recordingRef.current) return
@@ -597,7 +638,7 @@ export default function CreatePostPage() {
             blob,
             previewUrl: URL.createObjectURL(blob),
             kind: 'video',
-            durationSec: recordSeconds,
+            durationSec: recordSecondsRef.current,
           })
         }
       }
@@ -606,8 +647,14 @@ export default function CreatePostPage() {
       recordingRef.current = true
       setIsRecording(true)
       setRecordSeconds(0)
-      recordIntervalRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000)
-      // Auto-stop so a stuck/forgotten hold can't produce a huge clip.
+      recordSecondsRef.current = 0
+      recordIntervalRef.current = setInterval(() => {
+        setRecordSeconds((s) => {
+          const next = s + 1
+          recordSecondsRef.current = next
+          return next
+        })
+      }, 1000)
       maxRecordTimeoutRef.current = setTimeout(() => {
         if (recordingRef.current) mediaRecorderRef.current?.stop()
       }, MAX_RECORD_MS)
@@ -627,8 +674,6 @@ export default function CreatePostPage() {
     }
   }
 
-  // Tap → photo, hold past LONG_PRESS_MS → video. Handled with a single
-  // timer so a quick tap never has to know recording exists.
   const handleShutterDown = (e) => {
     e.preventDefault()
     if (!camReady || capturedShot) return
@@ -639,7 +684,6 @@ export default function CreatePostPage() {
   }
   const handleShutterUp = () => {
     if (pressTimerRef.current) {
-      // Released before the long-press threshold — it was a tap.
       clearTimeout(pressTimerRef.current)
       pressTimerRef.current = null
       capturePhoto()
@@ -647,8 +691,6 @@ export default function CreatePostPage() {
     }
     if (recordingRef.current) stopRecording()
   }
-  // Pointer sliding off the button while held should behave like a release,
-  // not leave a recording stuck running forever.
   const handleShutterCancel = () => {
     if (pressTimerRef.current) { clearTimeout(pressTimerRef.current); pressTimerRef.current = null }
     if (recordingRef.current) stopRecording()
@@ -659,12 +701,15 @@ export default function CreatePostPage() {
     setCapturedShot(null)
   }
 
-  // Accepts the reviewed shot — photo or video — turns it into a File and
-  // runs it through the exact same pipeline as any gallery pick, then
-  // closes the overlay.
   const useCapturedShot = () => {
     if (!capturedShot) return
     const { blob, kind } = capturedShot
+    if (!blob || !blob.size) {
+      toast.error('Capture failed — nothing was recorded')
+      URL.revokeObjectURL(capturedShot.previewUrl)
+      setCapturedShot(null)
+      return
+    }
     const file = kind === 'video'
       ? new File([blob], `capture_${Date.now()}.${blob.type.includes('mp4') ? 'mp4' : 'webm'}`, { type: blob.type || 'video/webm' })
       : new File([blob], `capture_${Date.now()}.jpg`, { type: 'image/jpeg' })
@@ -685,19 +730,13 @@ export default function CreatePostPage() {
     return `${m}:${s}`
   }
 
-  // ---- capture overlay UI --------------------------------------------
-  // The card is a flex COLUMN with a flexible video area (`flex-1 min-h-0`)
-  // and a fixed-height control strip below it. That's what makes it fit
-  // any leftover height above the bottom nav — on a short viewport the
-  // video area just shrinks (and crops via object-cover), instead of the
-  // whole card overflowing past the nav or getting squeezed into a tiny
-  // box the way a fixed aspect-ratio card does.
+  /* ------------------------------------------------------------------ *
+   * Full-screen capture UI. No card, no backdrop, no padding-bottom
+   * reservation for the nav — it simply covers the entire viewport.
+   * ------------------------------------------------------------------ */
   const renderCaptureOverlay = () => (
-    <div
-      className="relative w-full h-full max-w-md flex flex-col rounded-[32px] overflow-hidden border p-1.5"
-      style={{ background: 'rgba(10,10,10,0.7)', borderColor: 'rgba(255,255,255,0.14)', boxShadow: scrimShadow }}
-    >
-      <div className="relative flex-1 min-h-0 rounded-[26px] overflow-hidden">
+    <div className="relative w-full h-full flex flex-col" style={{ background: '#000' }}>
+      <div className="relative flex-1 min-h-0 overflow-hidden">
         {!camError ? (
           <video
             ref={camVideoRef}
@@ -737,9 +776,6 @@ export default function CreatePostPage() {
           </div>
         )}
 
-        {/* Frozen review frame — shown after a tap (photo) or a hold (video),
-            before Retake/Use. Videos play back muted+looping so the review
-            still reads as "this is what you captured" without extra chrome. */}
         <AnimatePresence>
           {capturedShot && (
             capturedShot.kind === 'video' ? (
@@ -791,15 +827,18 @@ export default function CreatePostPage() {
           )}
         </AnimatePresence>
 
-        {/* Recording indicator — timer + pulsing dot, top-center */}
         <AnimatePresence>
           {isRecording && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
-              className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-xl border"
-              style={{ background: 'rgba(20,20,22,0.5)', borderColor: 'rgba(255,255,255,0.2)' }}
+              className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-xl border"
+              style={{
+                top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+                background: 'rgba(20,20,22,0.5)',
+                borderColor: 'rgba(255,255,255,0.2)',
+              }}
             >
               <motion.span
                 animate={{ opacity: [1, 0.3, 1] }}
@@ -814,14 +853,13 @@ export default function CreatePostPage() {
           )}
         </AnimatePresence>
 
-        {/* Top controls — hidden while reviewing or recording */}
         {!capturedShot && !isRecording && (
           <>
             <button
               onClick={closeCameraModal}
               aria-label="Close camera"
-              className="absolute top-3 left-3 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
-              style={scrimControl}
+              className="absolute w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
+              style={{ ...scrimControl, top: 'calc(env(safe-area-inset-top, 0px) + 12px)', left: 12 }}
             >
               <FiX size={18} color="white" />
             </button>
@@ -829,8 +867,8 @@ export default function CreatePostPage() {
               <button
                 onClick={flipCamera}
                 aria-label="Flip camera"
-                className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
-                style={scrimControl}
+                className="absolute w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
+                style={{ ...scrimControl, top: 'calc(env(safe-area-inset-top, 0px) + 12px)', right: 12 }}
               >
                 <FiRotateCw size={16} color="white" />
               </button>
@@ -839,10 +877,11 @@ export default function CreatePostPage() {
         )}
       </div>
 
-      {/* Bottom controls — fixed height; the video area above shrinks to
-          leave room for this, so it's never the thing that gets cut off. */}
       {!camError && (
-        <div className="flex-none flex items-center justify-center py-4 px-8">
+        <div
+          className="flex-none flex items-center justify-center px-8 pt-4"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)', background: '#000' }}
+        >
           {capturedShot ? (
             <div className="flex items-center gap-3">
               <motion.button
@@ -881,9 +920,6 @@ export default function CreatePostPage() {
                   <FiImage size={18} color="white" />
                 )}
               </motion.button>
-              {/* Tap = photo, press & hold = video. touch-action:none stops
-                  the browser from treating the hold as a scroll/selection
-                  gesture on mobile. */}
               <motion.button
                 whileTap={{ scale: 0.94 }}
                 onPointerDown={handleShutterDown}
@@ -930,98 +966,9 @@ export default function CreatePostPage() {
     </div>
   )
 
-  // ---- media collage slot -------------------------------------------
-  // Renders one of the five fixed collage cells. `area` names the CSS grid
-  // area it occupies (see the grid below). If media already fills this
-  // index, show the thumbnail; if this is the next empty slot, show the
-  // dashed "add" placeholder; otherwise show an inert dashed placeholder.
-  const CollageSlot = ({ area, index }) => {
-    const item = mediaItems[index]
-    const isNextEmpty = !item && index === mediaItems.length
-    if (item) {
-      const { id, preview, compressing, isVideo } = item
-      return (
-        <motion.div
-          layout
-          initial={{ opacity: 0, scale: 0.94 }}
-          animate={{ opacity: 1, scale: 1 }}
-          style={{ gridArea: area, background: SURFACE_SOFT, borderColor: BORDER }}
-          className="relative rounded-2xl overflow-hidden border"
-          onClick={() => preview && !compressing && setPreviewId(id)}
-        >
-          {preview ? (
-            <motion.img
-              src={preview}
-              alt=""
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="w-full h-full object-cover cursor-zoom-in"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <motion.span
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-                className="rounded-full h-5 w-5 border-2 block"
-                style={{ borderColor: BORDER, borderTopColor: ACCENT }}
-              />
-            </div>
-          )}
-          {compressing && preview && (
-            <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
-              <motion.span
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-                className="rounded-full h-5 w-5 border-2 block"
-                style={{ borderColor: 'rgba(255,255,255,0.4)', borderTopColor: '#fff' }}
-              />
-            </div>
-          )}
-          {isVideo && preview && !compressing && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}>
-                <FiPlay size={13} color="white" fill="white" style={{ marginLeft: 1 }} />
-              </div>
-            </div>
-          )}
-          <button
-            onClick={(e) => removeMedia(id, e)}
-            aria-label="Remove media"
-            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center"
-            style={{ background: '#fff', boxShadow: '0 2px 6px rgba(0,0,0,0.35)' }}
-          >
-            <FiX size={12} color="#171717" strokeWidth={2.5} />
-          </button>
-        </motion.div>
-      )
-    }
-    return (
-      <motion.button
-        type="button"
-        layout
-        whileTap={{ scale: 0.97 }}
-        style={{ gridArea: area, borderColor: 'rgba(255,198,41,0.45)' }}
-        className="relative rounded-2xl border-2 border-dashed flex items-center justify-center"
-        onClick={() => fileRef.current?.click()}
-        onDrop={handleDrop}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-        onDragLeave={() => setDragOver(false)}
-      >
-        <FiImage size={area === 'big' ? 26 : 16} color={ACCENT} strokeWidth={2} />
-        {area === 'big' && (
-          <span className="absolute bottom-2 left-0 right-0 text-center text-[11px] font-semibold" style={{ color: TEXT_MUTED }}>
-            {isNextEmpty ? 'Add photos' : ''}
-          </span>
-        )}
-      </motion.button>
-    )
-  }
-
   // ---- render ------------------------------------------------------
   return (
     <div className="min-h-screen relative" style={{ background: INK }}>
-      {/* Shared canvas + hidden inputs — used by the capture overlay and by
-          the ordinary gallery / OS-camera-app pickers. */}
       <canvas ref={camCanvasRef} className="hidden" />
       <input
         ref={fileRef}
@@ -1031,8 +978,6 @@ export default function CreatePostPage() {
         className="hidden"
         onChange={onFilesPicked}
       />
-      {/* Fallback for devices/browsers where getUserMedia isn't available:
-          this opens the OS camera app directly via the file picker. */}
       <input
         ref={cameraFallbackRef}
         type="file"
@@ -1042,8 +987,6 @@ export default function CreatePostPage() {
         onChange={onFilesPicked}
       />
 
-      {/* Top bar — back arrow + thin progress bar, matching the onboarding
-          screens' header. No blur/glass here; flat charcoal. */}
       <header
         className="sticky top-0 z-30 px-4 pt-4 pb-3"
         style={{ background: INK, paddingTop: TOP_CLEARANCE }}
@@ -1074,9 +1017,6 @@ export default function CreatePostPage() {
         </div>
       </header>
 
-      {/* Full-screen upload overlay — visible while the request is actually in flight.
-          Includes a Cancel button that aborts the real network transfer via
-          AbortController, not just a fake UI dismiss. */}
       <AnimatePresence>
         {loading && (
           <motion.div
@@ -1141,7 +1081,6 @@ export default function CreatePostPage() {
         )}
       </AnimatePresence>
 
-      {/* Body — bottom padding reserves room for the fixed CTA bar below. */}
       <main
         className="relative z-10 max-w-2xl mx-auto px-4 sm:px-6 pt-2"
         style={{ paddingBottom: `calc(${BOTTOM_CLEARANCE} + 84px)` }}
@@ -1150,8 +1089,6 @@ export default function CreatePostPage() {
           New post
         </h1>
 
-        {/* Media collage — one big slot, two stacked beside it, two along
-            the bottom. Mirrors the "Upload Your Photos" onboarding layout. */}
         <section className="mb-6">
           <div
             className="grid gap-2.5"
@@ -1162,7 +1099,18 @@ export default function CreatePostPage() {
             }}
           >
             {COLLAGE_AREAS.map((area, i) => (
-              <CollageSlot key={area} area={area} index={i} />
+              <CollageSlot
+                key={area}
+                area={area}
+                item={mediaItems[i]}
+                isNextEmpty={!mediaItems[i] && i === mediaItems.length}
+                onRemove={removeMedia}
+                onPick={() => fileRef.current?.click()}
+                onPreview={setPreviewId}
+                onDrop={handleDrop}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+              />
             ))}
           </div>
           <div className="flex items-center justify-between mt-2.5 px-0.5">
@@ -1196,7 +1144,6 @@ export default function CreatePostPage() {
           </AnimatePresence>
         </section>
 
-        {/* Title */}
         <section className="rounded-[24px] border px-5 py-4" style={{ background: SURFACE, borderColor: BORDER }}>
           <div className="flex items-baseline gap-3 mb-2">
             <span className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: ACCENT }}>
@@ -1235,7 +1182,6 @@ export default function CreatePostPage() {
           </div>
         </section>
 
-        {/* Content */}
         <section className="mt-3 rounded-[24px] border px-5 py-4" style={{ background: SURFACE, borderColor: BORDER }}>
           <div className="flex items-baseline gap-3 mb-2">
             <span className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: ACCENT }}>
@@ -1277,9 +1223,6 @@ export default function CreatePostPage() {
         </div>
       </main>
 
-      {/* Bottom CTA — pinned above the app's bottom nav, same clearance
-          math the capture overlay and lightbox use, so it never overlaps
-          nav chrome that lives outside this component. */}
       <div
         className="fixed left-0 right-0 z-30 px-4"
         style={{ bottom: `calc(${BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px))` }}
@@ -1289,107 +1232,103 @@ export default function CreatePostPage() {
         </div>
       </div>
 
-      {/* Capture overlay — sized to whatever vertical space is left above
-          the bottom nav (see renderCaptureOverlay), and rendered at
-          OVERLAY_Z so it always sits above that nav instead of needing it
-          hidden. */}
-      <AnimatePresence>
-        {cameraOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 flex items-center justify-center px-4"
-            style={{ background: 'rgba(0,0,0,0.75)', paddingTop: TOP_CLEARANCE, paddingBottom: BOTTOM_CLEARANCE, zIndex: OVERLAY_Z }}
-          >
+      {/* Full-screen camera. Portaled to <body> at OVERLAY_Z so it covers
+          the app's persistent bottom nav (and any parent stacking context). */}
+      {createPortal(
+        <AnimatePresence>
+          {cameraOpen && (
             <motion.div
-              initial={{ scale: 0.94, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.94, opacity: 0 }}
-              className="w-full max-w-md h-full"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0"
+              style={{ background: '#000', zIndex: OVERLAY_Z }}
             >
               {renderCaptureOverlay()}
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
-      {/* Lightbox preview — tap any collage tile to open a full-size view
-          with prev/next when there's more than one item, and a way to
-          remove it. Same z-index/clearance treatment as the capture overlay. */}
-      <AnimatePresence>
-        {previewItem && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 flex flex-col items-center justify-center px-4"
-            style={{ background: 'rgba(0,0,0,0.88)', paddingTop: TOP_CLEARANCE, paddingBottom: BOTTOM_CLEARANCE, zIndex: OVERLAY_Z }}
-            onClick={() => setPreviewId(null)}
-          >
-            <button
+      {/* Lightbox — also portaled so it clears the nav the same way. */}
+      {createPortal(
+        <AnimatePresence>
+          {previewItem && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 flex flex-col items-center justify-center px-4"
+              style={{ background: 'rgba(0,0,0,0.88)', paddingTop: TOP_CLEARANCE, paddingBottom: BOTTOM_CLEARANCE, zIndex: OVERLAY_Z }}
               onClick={() => setPreviewId(null)}
-              aria-label="Close preview"
-              className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
-              style={scrimControl}
             >
-              <FiX size={18} color="white" />
-            </button>
-            {mediaItems.length > 1 && (
-              <span className="absolute top-5 left-5 text-xs font-semibold px-2.5 py-1 rounded-full text-white border backdrop-blur-xl"
-                style={scrimControl}>
-                {previewIndex + 1} / {mediaItems.length}
-              </span>
-            )}
-            <div className="relative w-full flex-1 flex items-center justify-center min-h-0" onClick={(e) => e.stopPropagation()}>
-              {previewIndex > 0 && (
-                <button
-                  onClick={() => setPreviewId(mediaItems[previewIndex - 1].id)}
-                  aria-label="Previous"
-                  className="absolute left-2 z-10 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
-                  style={scrimControl}
-                >
-                  <FiChevronLeft size={18} color="white" />
-                </button>
-              )}
-              <img
-                src={previewItem.preview}
-                alt=""
-                className="max-w-full max-h-full rounded-[24px] object-contain"
-              />
-              {previewIndex < mediaItems.length - 1 && (
-                <button
-                  onClick={() => setPreviewId(mediaItems[previewIndex + 1].id)}
-                  aria-label="Next"
-                  className="absolute right-2 z-10 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
-                  style={scrimControl}
-                >
-                  <FiChevronRight size={18} color="white" />
-                </button>
-              )}
-            </div>
-            <div className="flex-none flex items-center gap-3 pt-4" onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={(e) => removeMedia(previewItem.id, e)}
-                className="flex items-center gap-1.5 px-5 h-10 rounded-full text-sm font-semibold border backdrop-blur-xl"
-                style={{ background: 'rgba(239,68,68,0.18)', color: '#ff6b6b', borderColor: 'rgba(239,68,68,0.3)' }}
-              >
-                <FiTrash2 size={14} /> Remove
-              </button>
               <button
                 onClick={() => setPreviewId(null)}
-                className="px-5 h-10 rounded-full text-sm font-semibold text-white border backdrop-blur-xl"
+                aria-label="Close preview"
+                className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
                 style={scrimControl}
               >
-                Done
+                <FiX size={18} color="white" />
               </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              {mediaItems.length > 1 && (
+                <span className="absolute top-5 left-5 text-xs font-semibold px-2.5 py-1 rounded-full text-white border backdrop-blur-xl"
+                  style={scrimControl}>
+                  {previewIndex + 1} / {mediaItems.length}
+                </span>
+              )}
+              <div className="relative w-full flex-1 flex items-center justify-center min-h-0" onClick={(e) => e.stopPropagation()}>
+                {previewIndex > 0 && (
+                  <button
+                    onClick={() => setPreviewId(mediaItems[previewIndex - 1].id)}
+                    aria-label="Previous"
+                    className="absolute left-2 z-10 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
+                    style={scrimControl}
+                  >
+                    <FiChevronLeft size={18} color="white" />
+                  </button>
+                )}
+                <img
+                  src={previewItem.preview}
+                  alt=""
+                  className="max-w-full max-h-full rounded-[24px] object-contain"
+                />
+                {previewIndex < mediaItems.length - 1 && (
+                  <button
+                    onClick={() => setPreviewId(mediaItems[previewIndex + 1].id)}
+                    aria-label="Next"
+                    className="absolute right-2 z-10 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
+                    style={scrimControl}
+                  >
+                    <FiChevronRight size={18} color="white" />
+                  </button>
+                )}
+              </div>
+              <div className="flex-none flex items-center gap-3 pt-4" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={(e) => removeMedia(previewItem.id, e)}
+                  className="flex items-center gap-1.5 px-5 h-10 rounded-full text-sm font-semibold border backdrop-blur-xl"
+                  style={{ background: 'rgba(239,68,68,0.18)', color: '#ff6b6b', borderColor: 'rgba(239,68,68,0.3)' }}
+                >
+                  <FiTrash2 size={14} /> Remove
+                </button>
+                <button
+                  onClick={() => setPreviewId(null)}
+                  className="px-5 h-10 rounded-full text-sm font-semibold text-white border backdrop-blur-xl"
+                  style={scrimControl}
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   )
 }
+
 // ---------- sub-components ------------------------------------------------
 function PostButton({ canPost, loading, uploadProgress, onClick }) {
   return (
@@ -1435,6 +1374,7 @@ function PostButton({ canPost, loading, uploadProgress, onClick }) {
     </motion.button>
   )
 }
+
 function CharCounter({ value, max }) {
   const pct = Math.min(1, value / max)
   const color = pct > 0.9 ? '#f87171' : pct > 0.7 ? ACCENT : TEXT_FAINT
@@ -1463,5 +1403,16 @@ function CharCounter({ value, max }) {
         {value}/{max}
       </motion.span>
     </div>
+  )
+}
+
+// Default export wraps the page in an error boundary so a render crash
+// inside this route shows a small recoverable fallback instead of a blank
+// screen for the whole app.
+export default function CreatePostPageWithBoundary() {
+  return (
+    <PageErrorBoundary>
+      <CreatePostPage />
+    </PageErrorBoundary>
   )
 }
