@@ -9,40 +9,41 @@ import { postsAPI, uploadAPI, uploadMediaDirect } from '../api'
 import toast from 'react-hot-toast'
 
 /**
- * CreatePostPage — camera-first compose screen
- * -------------------------------------------------
- * The page now opens straight into a real, live camera feed (not a modal,
- * not a form) — the device camera API starts as soon as the page mounts.
- * From there:
- *   • Capture → freezes the frame and shows a Retake / Use Photo review,
- *     exactly like a native camera app.
- *   • Use Photo → the shot is handed to the exact same compress/upload
- *     pipeline every other photo on this page already used, then the UI
- *     transitions (an animated screen swap, not a page reload) into the
- *     existing post composer (title, story, media grid).
- *   • If the camera is unavailable/denied, or the person just wants to
- *     type, the camera screen always offers a way out: pick from the
- *     gallery, fall back to the OS camera app, or skip straight to
- *     writing — so a blocked camera can never blank the page.
- *   • Once in the composer, the same camera experience is reused as an
- *     on-demand modal (via the existing "Add media"/"Take a photo"
- *     controls) to add further shots up to MAX_MEDIA, mixed freely with
- *     gallery photos/videos.
+ * CreatePostPage
+ * -------------------------------------------------------------------
+ * Compose-first: the page opens straight into the composer (heading,
+ * media collage, title, story). The device camera is a single on-demand
+ * overlay, opened from the "Add media" / "Take a photo" controls, and it
+ * hands its result to the exact same compress/upload pipeline every other
+ * photo or video on this page uses.
  *
- * Everything below the screen-switch — validation, compression, signed
- * Cloudinary upload, progress tracking, cancel-in-flight, post creation —
- * is untouched from the previous version.
+ * Capture overlay behavior (Instagram-style):
+ *   • Tap the shutter  → takes a photo, freezes it into a Retake/Use review.
+ *   • Press and hold   → starts recording video (with audio, mic permitting);
+ *     releasing stops the recording and shows the same Retake/Use review,
+ *     just with a video instead of a still.
+ *   • "Use" hands the resulting File to the same handleFiles() path that
+ *     gallery picks and pastes already go through — no separate code path.
+ *   • The overlay's own height adapts to whatever vertical space is left
+ *     above the app's bottom navigation (it never assumes a fixed aspect
+ *     ratio), and it renders on a z-index high enough to sit above that
+ *     nav rather than needing the nav hidden while the camera is open.
+ *   • If the camera (or mic) is unavailable/denied, the overlay always
+ *     offers a way out: pick from the gallery, or fall back to the OS
+ *     camera app.
  *
- * VISUAL LANGUAGE (liquid glass):
- *  • Every surface is a translucent, blurred pane — chrome (top bar, cards,
- *    controls) reads as frosted glass floating above the page, not flat fills.
- *  • Corner radii are chosen concentrically: an outer glass panel's radius
- *    equals its inner content's radius plus the panel's own padding, so
- *    nested shapes (bar → button, card → tile, modal → video frame) always
- *    share a common curvature center, the way Apple's glass surfaces do.
- *  • A thin inner highlight (inset box-shadow) traces the top edge of every
- *    glass pane to fake a specular light catch, plus a soft outer shadow to
- *    keep the pane feeling lifted off the page.
+ * Everything below capture — validation, compression, signed Cloudinary
+ * upload, progress tracking, cancel-in-flight, post creation — is untouched.
+ *
+ * VISUAL LANGUAGE:
+ *  • Matches the app's dark-charcoal / gold-yellow onboarding screens: flat
+ *    matte cards (no blur/glass), a single accent yellow used for CTAs,
+ *    labels and progress, dashed yellow borders on empty upload slots, and
+ *    a big full-width CTA pinned above the bottom navigation.
+ *  • The media picker is a five-slot collage (one large slot + two stacked
+ *    slots beside it + two along the bottom) rather than a uniform grid —
+ *    it mirrors the onboarding "Upload Your Photos" layout so the two
+ *    screens feel like the same product.
  *
  * Upload path: files go straight from the browser to Cloudinary using a
  * signed upload (uploadAPI.getSignature() + uploadMediaDirect() in ../api.js).
@@ -68,29 +69,48 @@ const MAX_VIDEO_SIZE = 100 * 1024 * 1024 // 100MB — matches backend's VIDEO_SI
 // the backend's own expiry so we never hand uploadMediaDirect a stale signature.
 const SIGNATURE_TTL = 8 * 60 * 1000
 
-// ---- liquid-glass style helpers -------------------------------------
-// Small, reusable style objects so every "pane" in the UI shares the same
-// translucency / blur / edge-highlight recipe. Kept as plain style objects
-// (not Tailwind plugins) so they work with the existing CSS-variable theming.
-const glassEdge = '0 1px 0 0 rgba(255,255,255,0.35) inset, 0 -1px 0 0 rgba(0,0,0,0.04) inset'
-const glassShadow = '0 20px 50px -22px rgba(0,0,0,0.35)'
-const glassShadowSoft = '0 10px 26px -16px rgba(0,0,0,0.3)'
+// ---- capture overlay tuning -----------------------------------------
+// How long a shutter press has to be held before it turns into a video
+// recording instead of a photo tap — matches the feel of Instagram/Stories.
+const LONG_PRESS_MS = 280
+// Hard ceiling on a single in-app recording so nobody accidentally uploads
+// a multi-minute clip through the "hold the button" gesture.
+const MAX_RECORD_MS = 60 * 1000
+// Height reserved at the bottom of the viewport for the app's own bottom
+// navigation, plus whatever the device's home-indicator/safe-area needs.
+// Bump BOTTOM_NAV_HEIGHT if the real nav bar's height ever changes — every
+// fixed/overlay element on this page (capture overlay, lightbox, bottom
+// CTA bar) reads from this one constant so they all clear the nav the
+// same way instead of each guessing their own number.
+const BOTTOM_NAV_HEIGHT = 64
+const BOTTOM_CLEARANCE = `calc(${BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px) + 12px)`
+const TOP_CLEARANCE = 'calc(env(safe-area-inset-top, 0px) + 12px)'
+// Any overlay that needs to sit above the app's persistent bottom nav uses
+// this z-index. It's deliberately much higher than any in-page chrome so a
+// nav bar with its own stacking context can never render on top of it —
+// that's what actually fixes "the camera overlaps the nav", not hiding it.
+const OVERLAY_Z = 9999
 
-function surfaceGlass(opacity = 62) {
-  return {
-    background: `color-mix(in oklab, var(--bg-primary) ${opacity}%, transparent)`,
-    borderColor: 'color-mix(in oklab, var(--border) 65%, transparent)',
-    boxShadow: `${glassEdge}, ${glassShadowSoft}`,
-  }
-}
+// ---- brand palette (flat, matches the onboarding screens) -----------
+const ACCENT = '#FFC629'
+const ACCENT_STRONG = '#F5B700'
+const INK = '#141416' // page background
+const SURFACE = '#1D1D20' // card background
+const SURFACE_SOFT = '#232326'
+const BORDER = 'rgba(255,255,255,0.09)'
+const TEXT_PRIMARY = '#F5F5F3'
+const TEXT_MUTED = 'rgba(245,245,243,0.55)'
+const TEXT_FAINT = 'rgba(245,245,243,0.38)'
 
 // A dark, glassy control used for buttons that float over the live camera
-// feed or a photo — same recipe as the rest of the app's overlay chrome.
+// feed or a photo — kept from the previous camera chrome since it's read
+// against live video, not against the app's flat surfaces.
 const scrimControl = {
-  background: 'rgba(20,20,22,0.4)',
+  background: 'rgba(20,20,22,0.5)',
   borderColor: 'rgba(255,255,255,0.2)',
-  boxShadow: glassEdge,
+  boxShadow: '0 1px 0 0 rgba(255,255,255,0.25) inset',
 }
+const scrimShadow = '0 20px 50px -22px rgba(0,0,0,0.6)'
 
 let idSeq = 0
 const nextId = () => `media_${Date.now()}_${idSeq++}`
@@ -176,6 +196,24 @@ function generateVideoThumbnail(file) {
   })
 }
 
+// Picks the best-supported mimeType for MediaRecorder, preferring mp4/h264
+// (plays natively everywhere) and falling back through webm variants.
+function pickRecorderMimeType() {
+  if (typeof window === 'undefined' || !window.MediaRecorder) return ''
+  const candidates = [
+    'video/mp4;codecs=h264,aac',
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+  ]
+  return candidates.find((type) => window.MediaRecorder.isTypeSupported?.(type)) || ''
+}
+
+// The five collage slots, in the order they fill. `area` maps each slot to
+// a named cell in the CSS grid below — one big slot, two stacked beside it,
+// two smaller ones along the bottom.
+const COLLAGE_AREAS = ['big', 'small1', 'small2', 'wide', 'small3']
+
 export default function CreatePostPage() {
   const navigate = useNavigate()
   const fileRef = useRef(null)
@@ -195,24 +233,30 @@ export default function CreatePostPage() {
   const [justPasted, setJustPasted] = useState(false)
   const [previewId, setPreviewId] = useState(null) // id of the item shown in the lightbox, or null
 
-  // ---- top-level screen: the page opens straight into the live camera,
-  // then transitions to the composer once a photo is used or the person
-  // chooses to skip / picks something from the gallery.
-  const [screen, setScreen] = useState('camera') // 'camera' | 'compose'
-
-  // ---- device camera (used both as the initial full-page experience and,
-  // later, as an on-demand modal from inside the composer to add more shots)
+  // ---- capture overlay: opened on demand from "Add media" / "Take a
+  // photo" — never the page's default screen.
   const camVideoRef = useRef(null)
   const camStreamRef = useRef(null)
   const camCanvasRef = useRef(null)
-  const [cameraOpen, setCameraOpen] = useState(false) // secondary modal camera, opened from the composer
+  const [cameraOpen, setCameraOpen] = useState(false)
   const [camFacing, setCamFacing] = useState('environment')
   const [camReady, setCamReady] = useState(false)
   const [camError, setCamError] = useState(false)
   const [shutterFlash, setShutterFlash] = useState(false)
-  // A captured-but-not-yet-accepted frame, shown as a Retake/Use Photo review.
-  const [capturedShot, setCapturedShot] = useState(null) // { blob, previewUrl } | null
-  const cameraActive = screen === 'camera' || cameraOpen
+  // A captured-but-not-yet-accepted shot, shown as a Retake/Use review.
+  // kind distinguishes a still frame from a recorded clip so the review UI
+  // and the eventual File() both handle it correctly.
+  const [capturedShot, setCapturedShot] = useState(null) // { blob, previewUrl, kind: 'photo'|'video', durationSec? } | null
+  // Press-and-hold video recording state
+  const pressTimerRef = useRef(null)
+  const recordingRef = useRef(false) // synchronous flag — avoids stale-closure races with pointer events
+  const mediaRecorderRef = useRef(null)
+  const recordedChunksRef = useRef([])
+  const recordMimeRef = useRef('')
+  const recordIntervalRef = useRef(null)
+  const maxRecordTimeoutRef = useRef(null)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordSeconds, setRecordSeconds] = useState(0)
 
   // Holds the AbortController for whatever's currently in flight (Cloudinary
   // upload(s) or the final post-create call) so Cancel can actually stop it.
@@ -220,16 +264,16 @@ export default function CreatePostPage() {
   // Caches the Cloudinary signature for a few minutes so Post doesn't have to
   // wait on a fresh fetch on top of the actual upload.
   const signatureRef = useRef(null) // { promise, timestamp }
-  // Subtle tilt on the dropzone that follows the cursor — feels alive without being loud
-  const mx = useMotionValue(0)
-  const my = useMotionValue(0)
-  const rotateX = useTransform(my, [-40, 40], [4, -4])
-  const rotateY = useTransform(mx, [-40, 40], [-4, 4])
   const remainingSlots = MAX_MEDIA - mediaItems.length
   const anyCompressing = mediaItems.some(item => item.compressing)
   const previewIndex = mediaItems.findIndex(item => item.id === previewId)
   const previewItem = previewIndex >= 0 ? mediaItems[previewIndex] : null
   const lastShotPreview = mediaItems[mediaItems.length - 1]?.preview || null
+  // Simple "how filled out is this post" measure, shown as the thin bar
+  // under the header — same visual motif as the onboarding steps.
+  const progressFraction = (
+    (title.trim() ? 1 : 0) + (content.trim() ? 1 : 0) + (mediaItems.length > 0 ? 1 : 0)
+  ) / 3
 
   // ---- signature caching --------------------------------------------
   const getCachedSignature = useCallback(() => {
@@ -255,6 +299,8 @@ export default function CreatePostPage() {
   }
   // ---- file handling -----------------------------------------------
   // Images and videos can be freely mixed, up to MAX_MEDIA total, in any order.
+  // This is the single entry point for gallery picks, pastes, and anything
+  // accepted out of the capture overlay — they all become plain Files here.
   const handleFiles = useCallback((fileListLike) => {
     const incoming = Array.from(fileListLike || [])
     if (!incoming.length) return
@@ -329,12 +375,13 @@ export default function CreatePostPage() {
     setPreviewId(prev => (prev === id ? null : prev))
     if (fileRef.current) fileRef.current.value = ''
   }
-  // Files picked via the shared gallery/OS-camera inputs — used from both the
-  // initial camera screen and the composer, so route the screen switch here.
+  // Files picked via the shared gallery/OS-camera inputs.
   const onFilesPicked = (e) => {
     handleFiles(e.target.files)
     e.target.value = ''
-    if (screen === 'camera') setScreen('compose')
+    // These are an escape hatch out of the capture overlay (used when the
+    // camera/mic isn't available) — close it once a file's been chosen.
+    if (cameraOpen) setCameraOpen(false)
   }
   // Paste image(s) from clipboard anywhere on the page — desktop delight
   useEffect(() => {
@@ -439,48 +486,64 @@ export default function CreatePostPage() {
   }
 
   // ---- device camera ---------------------------------------------------
-  // Drives whichever camera UI is currently visible — the full-page initial
-  // screen (screen === 'camera') or the secondary "add another shot" modal
-  // opened from the composer (cameraOpen). Only one is ever active at once.
-  // The stream is always torn down the moment neither is active, so the
-  // camera is never left running in the background.
+  // Drives the capture overlay only — the stream lives and dies with
+  // `cameraOpen`.
   const stopCameraStream = useCallback(() => {
     camStreamRef.current?.getTracks().forEach(t => t.stop())
     camStreamRef.current = null
   }, [])
 
   useEffect(() => {
-    if (!cameraActive) return
+    if (!cameraOpen) return
     let cancelled = false
     setCamReady(false)
     setCamError(false)
     ;(async () => {
+      const videoConstraints = { facingMode: camFacing, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      let stream = null
+      // Ask for mic + camera together first so press-and-hold recording can
+      // start instantly with no extra permission round-trip. If the mic is
+      // denied (or simply unavailable) fall back to video-only — photos
+      // still work fine, video recording just won't have sound.
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: camFacing, width: { ideal: 1920 }, height: { ideal: 1080 } },
-          audio: false,
-        })
-        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
-        stopCameraStream()
-        camStreamRef.current = stream
-        if (camVideoRef.current) {
-          camVideoRef.current.srcObject = stream
-          await camVideoRef.current.play().catch(() => {})
-        }
-        if (!cancelled) setCamReady(true)
+        stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: true })
       } catch (err) {
-        console.error('Camera unavailable', err)
-        if (!cancelled) setCamError(true)
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false })
+        } catch (err2) {
+          console.error('Camera unavailable', err2)
+          if (!cancelled) setCamError(true)
+          return
+        }
       }
+      if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+      stopCameraStream()
+      camStreamRef.current = stream
+      if (camVideoRef.current) {
+        camVideoRef.current.srcObject = stream
+        await camVideoRef.current.play().catch(() => {})
+      }
+      if (!cancelled) setCamReady(true)
     })()
     return () => {
       cancelled = true
       stopCameraStream()
     }
-  }, [cameraActive, camFacing, stopCameraStream])
+  }, [cameraOpen, camFacing, stopCameraStream])
 
-  // Closes the secondary (composer) camera modal without touching `screen`.
+  // Closes the capture overlay and cleans up everything it touched: any
+  // in-progress recording, the frozen review frame, and the camera/mic
+  // stream itself.
   const closeCameraModal = () => {
+    if (recordingRef.current) {
+      mediaRecorderRef.current?.stop()
+      recordingRef.current = false
+    }
+    clearInterval(recordIntervalRef.current)
+    clearTimeout(maxRecordTimeoutRef.current)
+    if (pressTimerRef.current) { clearTimeout(pressTimerRef.current); pressTimerRef.current = null }
+    setIsRecording(false)
+    setRecordSeconds(0)
     if (capturedShot?.previewUrl) URL.revokeObjectURL(capturedShot.previewUrl)
     setCapturedShot(null)
     setCameraOpen(false)
@@ -488,8 +551,8 @@ export default function CreatePostPage() {
     setCamError(false)
   }
 
-  // Freezes the current frame into a review step (Retake / Use Photo) —
-  // nothing is added to the post until the person explicitly accepts it.
+  // Freezes the current frame into a review step (Retake / Use) — nothing
+  // is added to the post until the person explicitly accepts it.
   const capturePhoto = () => {
     const video = camVideoRef.current
     if (!video || !camReady || !video.videoWidth) return
@@ -507,97 +570,194 @@ export default function CreatePostPage() {
     setTimeout(() => setShutterFlash(false), 150)
     canvas.toBlob((blob) => {
       if (!blob) return
-      setCapturedShot({ blob, previewUrl: URL.createObjectURL(blob) })
+      setCapturedShot({ blob, previewUrl: URL.createObjectURL(blob), kind: 'photo' })
     }, 'image/jpeg', 0.92)
   }
 
-  const retakePhoto = () => {
+  // ---- press-and-hold video recording --------------------------------
+  const startRecording = () => {
+    const stream = camStreamRef.current
+    if (!stream || recordingRef.current) return
+    recordedChunksRef.current = []
+    recordMimeRef.current = pickRecorderMimeType()
+    try {
+      const recorder = new MediaRecorder(stream, recordMimeRef.current ? { mimeType: recordMimeRef.current } : undefined)
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data)
+      }
+      recorder.onstop = () => {
+        clearInterval(recordIntervalRef.current)
+        clearTimeout(maxRecordTimeoutRef.current)
+        recordingRef.current = false
+        setIsRecording(false)
+        const blob = new Blob(recordedChunksRef.current, { type: recordMimeRef.current || 'video/webm' })
+        recordedChunksRef.current = []
+        if (blob.size > 0) {
+          setCapturedShot({
+            blob,
+            previewUrl: URL.createObjectURL(blob),
+            kind: 'video',
+            durationSec: recordSeconds,
+          })
+        }
+      }
+      mediaRecorderRef.current = recorder
+      recorder.start()
+      recordingRef.current = true
+      setIsRecording(true)
+      setRecordSeconds(0)
+      recordIntervalRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000)
+      // Auto-stop so a stuck/forgotten hold can't produce a huge clip.
+      maxRecordTimeoutRef.current = setTimeout(() => {
+        if (recordingRef.current) mediaRecorderRef.current?.stop()
+      }, MAX_RECORD_MS)
+    } catch (err) {
+      console.error('Recording failed to start', err)
+      recordingRef.current = false
+      setIsRecording(false)
+    }
+  }
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    } else {
+      recordingRef.current = false
+      setIsRecording(false)
+    }
+  }
+
+  // Tap → photo, hold past LONG_PRESS_MS → video. Handled with a single
+  // timer so a quick tap never has to know recording exists.
+  const handleShutterDown = (e) => {
+    e.preventDefault()
+    if (!camReady || capturedShot) return
+    pressTimerRef.current = setTimeout(() => {
+      pressTimerRef.current = null
+      startRecording()
+    }, LONG_PRESS_MS)
+  }
+  const handleShutterUp = () => {
+    if (pressTimerRef.current) {
+      // Released before the long-press threshold — it was a tap.
+      clearTimeout(pressTimerRef.current)
+      pressTimerRef.current = null
+      capturePhoto()
+      return
+    }
+    if (recordingRef.current) stopRecording()
+  }
+  // Pointer sliding off the button while held should behave like a release,
+  // not leave a recording stuck running forever.
+  const handleShutterCancel = () => {
+    if (pressTimerRef.current) { clearTimeout(pressTimerRef.current); pressTimerRef.current = null }
+    if (recordingRef.current) stopRecording()
+  }
+
+  const retakeCapture = () => {
     if (capturedShot?.previewUrl) URL.revokeObjectURL(capturedShot.previewUrl)
     setCapturedShot(null)
   }
 
-  // Accepts the reviewed frame: runs it through the exact same
-  // compress/preview pipeline as any other photo, then moves on —
-  // to the composer for the initial screen, or just closes the modal.
-  const usePhoto = () => {
+  // Accepts the reviewed shot — photo or video — turns it into a File and
+  // runs it through the exact same pipeline as any gallery pick, then
+  // closes the overlay.
+  const useCapturedShot = () => {
     if (!capturedShot) return
-    const file = new File([capturedShot.blob], `capture_${Date.now()}.jpg`, { type: 'image/jpeg' })
+    const { blob, kind } = capturedShot
+    const file = kind === 'video'
+      ? new File([blob], `capture_${Date.now()}.${blob.type.includes('mp4') ? 'mp4' : 'webm'}`, { type: blob.type || 'video/webm' })
+      : new File([blob], `capture_${Date.now()}.jpg`, { type: 'image/jpeg' })
     handleFiles([file])
     URL.revokeObjectURL(capturedShot.previewUrl)
     setCapturedShot(null)
-    if (screen === 'camera') setScreen('compose')
-    else setCameraOpen(false)
+    setCameraOpen(false)
   }
 
-  const flipCamera = () => setCamFacing(f => (f === 'user' ? 'environment' : 'user'))
+  const flipCamera = () => {
+    if (recordingRef.current) stopRecording()
+    setCamFacing(f => (f === 'user' ? 'environment' : 'user'))
+  }
 
-  // ---- shared camera UI --------------------------------------------
-  // Renders identically whether it's the initial full-page screen or the
-  // composer's on-demand modal — only the outer wrapper differs.
-  const renderCameraUI = (mode) => {
-    const isModal = mode === 'modal'
-    const onClose = isModal ? closeCameraModal : () => navigate(-1)
-    return (
-      <div
-        className={isModal
-          ? 'relative w-full max-w-md mx-4 rounded-[36px] overflow-hidden border backdrop-blur-2xl p-1.5'
-          : 'relative w-full h-full'}
-        style={isModal ? { background: 'rgba(10,10,10,0.55)', borderColor: 'rgba(255,255,255,0.14)', boxShadow: `${glassEdge}, ${glassShadow}` } : undefined}
-      >
-        <div className={isModal ? 'relative aspect-[3/4] rounded-[30px] overflow-hidden' : 'relative w-full h-full'}>
-          {!camError ? (
-            <video
-              ref={camVideoRef}
-              playsInline
-              muted
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{
-                opacity: camReady ? 1 : 0,
-                transition: 'opacity .4s ease',
-                transform: camFacing === 'user' ? 'scaleX(-1)' : 'none',
-              }}
-            />
-          ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-center px-8" style={{ background: '#0a0a0a' }}>
-              <FiCamera size={24} color="rgba(255,255,255,0.5)" />
-              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>
-                Couldn't access the camera. You can still add photos another way.
-              </p>
-              <div className="flex flex-col gap-2 w-full max-w-[220px]">
-                <motion.button
-                  whileTap={{ scale: 0.96 }}
-                  onClick={() => cameraFallbackRef.current?.click()}
-                  className="px-4 py-2.5 rounded-full text-xs font-bold"
-                  style={{ background: '#f59e0b', color: 'white' }}
-                >
-                  Open camera app
-                </motion.button>
-                <motion.button
-                  whileTap={{ scale: 0.96 }}
-                  onClick={() => fileRef.current?.click()}
-                  className="px-4 py-2.5 rounded-full text-xs font-bold border backdrop-blur-xl"
-                  style={{ ...scrimControl, color: 'white' }}
-                >
-                  Choose from gallery
-                </motion.button>
-                {!isModal && (
-                  <button
-                    onClick={() => setScreen('compose')}
-                    className="mt-1 text-xs font-semibold underline underline-offset-2"
-                    style={{ color: 'rgba(255,255,255,0.55)' }}
-                  >
-                    Skip, just write instead
-                  </button>
-                )}
-              </div>
+  const recordLabel = (secs) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, '0')
+    const s = (secs % 60).toString().padStart(2, '0')
+    return `${m}:${s}`
+  }
+
+  // ---- capture overlay UI --------------------------------------------
+  // The card is a flex COLUMN with a flexible video area (`flex-1 min-h-0`)
+  // and a fixed-height control strip below it. That's what makes it fit
+  // any leftover height above the bottom nav — on a short viewport the
+  // video area just shrinks (and crops via object-cover), instead of the
+  // whole card overflowing past the nav or getting squeezed into a tiny
+  // box the way a fixed aspect-ratio card does.
+  const renderCaptureOverlay = () => (
+    <div
+      className="relative w-full h-full max-w-md flex flex-col rounded-[32px] overflow-hidden border p-1.5"
+      style={{ background: 'rgba(10,10,10,0.7)', borderColor: 'rgba(255,255,255,0.14)', boxShadow: scrimShadow }}
+    >
+      <div className="relative flex-1 min-h-0 rounded-[26px] overflow-hidden">
+        {!camError ? (
+          <video
+            ref={camVideoRef}
+            playsInline
+            muted
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{
+              opacity: camReady ? 1 : 0,
+              transition: 'opacity .4s ease',
+              transform: camFacing === 'user' ? 'scaleX(-1)' : 'none',
+            }}
+          />
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-center px-8" style={{ background: '#0a0a0a' }}>
+            <FiCamera size={24} color="rgba(255,255,255,0.5)" />
+            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>
+              Couldn't access the camera. You can still add photos another way.
+            </p>
+            <div className="flex flex-col gap-2 w-full max-w-[220px]">
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                onClick={() => cameraFallbackRef.current?.click()}
+                className="px-4 py-2.5 rounded-full text-xs font-bold"
+                style={{ background: ACCENT, color: '#171717' }}
+              >
+                Open camera app
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                onClick={() => fileRef.current?.click()}
+                className="px-4 py-2.5 rounded-full text-xs font-bold border backdrop-blur-xl"
+                style={{ ...scrimControl, color: 'white' }}
+              >
+                Choose from gallery
+              </motion.button>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Frozen review frame — shown after Capture, before Retake/Use Photo */}
-          <AnimatePresence>
-            {capturedShot && (
+        {/* Frozen review frame — shown after a tap (photo) or a hold (video),
+            before Retake/Use. Videos play back muted+looping so the review
+            still reads as "this is what you captured" without extra chrome. */}
+        <AnimatePresence>
+          {capturedShot && (
+            capturedShot.kind === 'video' ? (
+              <motion.video
+                key="review-video"
+                src={capturedShot.previewUrl}
+                autoPlay
+                loop
+                muted
+                playsInline
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            ) : (
               <motion.img
-                key="review"
+                key="review-photo"
                 src={capturedShot.previewUrl}
                 alt="Captured preview"
                 initial={{ opacity: 0 }}
@@ -605,148 +765,263 @@ export default function CreatePostPage() {
                 exit={{ opacity: 0 }}
                 className="absolute inset-0 w-full h-full object-cover"
               />
-            )}
-          </AnimatePresence>
+            )
+          )}
+        </AnimatePresence>
 
-          {!camReady && !camError && !capturedShot && (
-            <div className="absolute inset-0 flex items-center justify-center">
+        {!camReady && !camError && !capturedShot && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <motion.span
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+              className="rounded-full h-6 w-6 border-2 block"
+              style={{ borderColor: 'rgba(255,255,255,0.25)', borderTopColor: ACCENT }}
+            />
+          </div>
+        )}
+
+        <AnimatePresence>
+          {shutterFlash && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.08 }}
+              className="absolute inset-0 pointer-events-none"
+              style={{ background: '#fff' }}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Recording indicator — timer + pulsing dot, top-center */}
+        <AnimatePresence>
+          {isRecording && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-xl border"
+              style={{ background: 'rgba(20,20,22,0.5)', borderColor: 'rgba(255,255,255,0.2)' }}
+            >
+              <motion.span
+                animate={{ opacity: [1, 0.3, 1] }}
+                transition={{ repeat: Infinity, duration: 1 }}
+                className="w-2 h-2 rounded-full block"
+                style={{ background: '#ef4444' }}
+              />
+              <span className="text-xs font-bold tabular-nums" style={{ color: 'white' }}>
+                {recordLabel(recordSeconds)}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Top controls — hidden while reviewing or recording */}
+        {!capturedShot && !isRecording && (
+          <>
+            <button
+              onClick={closeCameraModal}
+              aria-label="Close camera"
+              className="absolute top-3 left-3 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
+              style={scrimControl}
+            >
+              <FiX size={18} color="white" />
+            </button>
+            {!camError && (
+              <button
+                onClick={flipCamera}
+                aria-label="Flip camera"
+                className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
+                style={scrimControl}
+              >
+                <FiRotateCw size={16} color="white" />
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Bottom controls — fixed height; the video area above shrinks to
+          leave room for this, so it's never the thing that gets cut off. */}
+      {!camError && (
+        <div className="flex-none flex items-center justify-center py-4 px-8">
+          {capturedShot ? (
+            <div className="flex items-center gap-3">
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={retakeCapture}
+                className="px-5 h-11 rounded-full text-sm font-bold border backdrop-blur-xl"
+                style={{ ...scrimControl, color: 'white' }}
+              >
+                Retake
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={useCapturedShot}
+                className="flex items-center gap-1.5 px-6 h-11 rounded-full text-sm font-bold"
+                style={{ background: ACCENT, color: '#171717' }}
+              >
+                <FiCheck size={15} strokeWidth={3} /> {capturedShot.kind === 'video' ? 'Use Video' : 'Use Photo'}
+              </motion.button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between w-full">
+              <motion.button
+                whileHover={{ scale: 1.06 }}
+                whileTap={{ scale: 0.94 }}
+                onClick={() => fileRef.current?.click()}
+                aria-label="Choose from gallery"
+                className="w-12 h-12 rounded-2xl overflow-hidden border backdrop-blur-xl flex items-center justify-center"
+                style={scrimControl}
+                disabled={isRecording}
+              >
+                {lastShotPreview ? (
+                  <img src={lastShotPreview} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <FiImage size={18} color="white" />
+                )}
+              </motion.button>
+              {/* Tap = photo, press & hold = video. touch-action:none stops
+                  the browser from treating the hold as a scroll/selection
+                  gesture on mobile. */}
+              <motion.button
+                whileTap={{ scale: 0.94 }}
+                onPointerDown={handleShutterDown}
+                onPointerUp={handleShutterUp}
+                onPointerLeave={handleShutterCancel}
+                onPointerCancel={handleShutterCancel}
+                onContextMenu={(e) => e.preventDefault()}
+                disabled={!camReady}
+                aria-label="Hold to record, tap for photo"
+                className="rounded-full disabled:opacity-40 select-none flex-none"
+                style={{
+                  width: 68,
+                  height: 68,
+                  touchAction: 'none',
+                  background: 'rgba(255,255,255,0.14)',
+                  backdropFilter: 'blur(12px)',
+                  boxShadow: isRecording
+                    ? '0 0 0 2px rgba(239,68,68,0.95), 0 0 0 6px rgba(239,68,68,0.2), inset 0 1px 0 rgba(255,255,255,0.5)'
+                    : `0 0 0 2px ${ACCENT}, 0 0 0 6px rgba(255,198,41,0.18), inset 0 1px 0 rgba(255,255,255,0.5)`,
+                }}
+              >
+                <motion.span
+                  animate={isRecording ? { borderRadius: '10px', width: 26, height: 26 } : { borderRadius: '999px', width: 54, height: 54 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                  className="block"
+                  style={{ margin: '0 auto', background: isRecording ? '#ef4444' : '#fff' }}
+                />
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.06 }}
+                whileTap={{ scale: 0.94 }}
+                onClick={flipCamera}
+                aria-label="Flip camera"
+                className="w-12 h-12 rounded-2xl flex items-center justify-center border backdrop-blur-xl"
+                style={scrimControl}
+                disabled={isRecording}
+              >
+                <FiRotateCw size={18} color="white" />
+              </motion.button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+
+  // ---- media collage slot -------------------------------------------
+  // Renders one of the five fixed collage cells. `area` names the CSS grid
+  // area it occupies (see the grid below). If media already fills this
+  // index, show the thumbnail; if this is the next empty slot, show the
+  // dashed "add" placeholder; otherwise show an inert dashed placeholder.
+  const CollageSlot = ({ area, index }) => {
+    const item = mediaItems[index]
+    const isNextEmpty = !item && index === mediaItems.length
+    if (item) {
+      const { id, preview, compressing, isVideo } = item
+      return (
+        <motion.div
+          layout
+          initial={{ opacity: 0, scale: 0.94 }}
+          animate={{ opacity: 1, scale: 1 }}
+          style={{ gridArea: area, background: SURFACE_SOFT, borderColor: BORDER }}
+          className="relative rounded-2xl overflow-hidden border"
+          onClick={() => preview && !compressing && setPreviewId(id)}
+        >
+          {preview ? (
+            <motion.img
+              src={preview}
+              alt=""
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="w-full h-full object-cover cursor-zoom-in"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
               <motion.span
                 animate={{ rotate: 360 }}
                 transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-                className="rounded-full h-6 w-6 border-2 block"
-                style={{ borderColor: 'rgba(255,255,255,0.25)', borderTopColor: '#f59e0b' }}
+                className="rounded-full h-5 w-5 border-2 block"
+                style={{ borderColor: BORDER, borderTopColor: ACCENT }}
               />
             </div>
           )}
-
-          <AnimatePresence>
-            {shutterFlash && (
-              <motion.div
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                transition={{ duration: 0.08 }}
-                className="absolute inset-0 pointer-events-none"
-                style={{ background: '#fff' }}
+          {compressing && preview && (
+            <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
+              <motion.span
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                className="rounded-full h-5 w-5 border-2 block"
+                style={{ borderColor: 'rgba(255,255,255,0.4)', borderTopColor: '#fff' }}
               />
-            )}
-          </AnimatePresence>
-
-          {/* Top controls — hidden while reviewing a shot */}
-          {!capturedShot && (
-            <>
-              <button
-                onClick={onClose}
-                aria-label={isModal ? 'Close camera' : 'Back'}
-                className="absolute top-3 left-3 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
-                style={scrimControl}
-              >
-                {isModal ? <FiX size={18} color="white" /> : <FiArrowLeft size={18} color="white" />}
-              </button>
-              {!camError && (
-                <button
-                  onClick={flipCamera}
-                  aria-label="Flip camera"
-                  className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
-                  style={scrimControl}
-                >
-                  <FiRotateCw size={16} color="white" />
-                </button>
-              )}
-              {!isModal && !camError && (
-                <button
-                  onClick={() => setScreen('compose')}
-                  className="absolute top-3 left-1/2 -translate-x-1/2 px-3.5 py-1.5 rounded-full text-xs font-bold border backdrop-blur-xl"
-                  style={{ ...scrimControl, color: 'white' }}
-                >
-                  Skip, just write
-                </button>
-              )}
-            </>
+            </div>
           )}
-        </div>
-
-        {/* Bottom controls */}
-        {!camError && (
-          <div className="flex items-center justify-center py-5 px-8">
-            {capturedShot ? (
-              <div className="flex items-center gap-3">
-                <motion.button
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  onClick={retakePhoto}
-                  className="px-5 h-11 rounded-full text-sm font-bold border backdrop-blur-xl"
-                  style={{ ...scrimControl, color: 'white' }}
-                >
-                  Retake
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  onClick={usePhoto}
-                  className="flex items-center gap-1.5 px-6 h-11 rounded-full text-sm font-bold"
-                  style={{
-                    background: 'linear-gradient(135deg, #f59e0b, #f97316)',
-                    color: 'white',
-                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 20px -8px rgba(245,158,11,0.6)',
-                  }}
-                >
-                  <FiCheck size={15} strokeWidth={3} /> Use Photo
-                </motion.button>
+          {isVideo && preview && !compressing && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}>
+                <FiPlay size={13} color="white" fill="white" style={{ marginLeft: 1 }} />
               </div>
-            ) : (
-              <div className="flex items-center justify-between w-full">
-                <motion.button
-                  whileHover={{ scale: 1.06 }}
-                  whileTap={{ scale: 0.94 }}
-                  onClick={() => fileRef.current?.click()}
-                  aria-label="Choose from gallery"
-                  className="w-12 h-12 rounded-2xl overflow-hidden border backdrop-blur-xl flex items-center justify-center"
-                  style={scrimControl}
-                >
-                  {lastShotPreview ? (
-                    <img src={lastShotPreview} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <FiImage size={18} color="white" />
-                  )}
-                </motion.button>
-                <motion.button
-                  whileTap={{ scale: 0.9 }}
-                  onClick={capturePhoto}
-                  disabled={!camReady}
-                  aria-label="Take photo"
-                  className="rounded-full disabled:opacity-40"
-                  style={{
-                    width: 72,
-                    height: 72,
-                    background: 'rgba(255,255,255,0.14)',
-                    backdropFilter: 'blur(12px)',
-                    boxShadow: '0 0 0 2px rgba(255,255,255,0.9), 0 0 0 6px rgba(255,255,255,0.15), inset 0 1px 0 rgba(255,255,255,0.5)',
-                  }}
-                >
-                  <span className="block rounded-full" style={{ width: 58, height: 58, margin: '0 auto', background: '#fff' }} />
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.06 }}
-                  whileTap={{ scale: 0.94 }}
-                  onClick={flipCamera}
-                  aria-label="Flip camera"
-                  className="w-12 h-12 rounded-2xl flex items-center justify-center border backdrop-blur-xl"
-                  style={scrimControl}
-                >
-                  <FiRotateCw size={18} color="white" />
-                </motion.button>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
+          <button
+            onClick={(e) => removeMedia(id, e)}
+            aria-label="Remove media"
+            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center"
+            style={{ background: '#fff', boxShadow: '0 2px 6px rgba(0,0,0,0.35)' }}
+          >
+            <FiX size={12} color="#171717" strokeWidth={2.5} />
+          </button>
+        </motion.div>
+      )
+    }
+    return (
+      <motion.button
+        type="button"
+        layout
+        whileTap={{ scale: 0.97 }}
+        style={{ gridArea: area, borderColor: 'rgba(255,198,41,0.45)' }}
+        className="relative rounded-2xl border-2 border-dashed flex items-center justify-center"
+        onClick={() => fileRef.current?.click()}
+        onDrop={handleDrop}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+      >
+        <FiImage size={area === 'big' ? 26 : 16} color={ACCENT} strokeWidth={2} />
+        {area === 'big' && (
+          <span className="absolute bottom-2 left-0 right-0 text-center text-[11px] font-semibold" style={{ color: TEXT_MUTED }}>
+            {isNextEmpty ? 'Add photos' : ''}
+          </span>
         )}
-      </div>
+      </motion.button>
     )
   }
 
   // ---- render ------------------------------------------------------
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{ background: screen === 'camera' ? '#000' : 'var(--bg-primary)' }}>
-      {/* Shared canvas + hidden inputs — used by both the full-page camera
-          and the composer's modal camera / gallery pickers. */}
+    <div className="min-h-screen relative" style={{ background: INK }}>
+      {/* Shared canvas + hidden inputs — used by the capture overlay and by
+          the ordinary gallery / OS-camera-app pickers. */}
       <canvas ref={camCanvasRef} className="hidden" />
       <input
         ref={fileRef}
@@ -767,581 +1042,348 @@ export default function CreatePostPage() {
         onChange={onFilesPicked}
       />
 
-      <AnimatePresence mode="wait">
-        {screen === 'camera' ? (
+      {/* Top bar — back arrow + thin progress bar, matching the onboarding
+          screens' header. No blur/glass here; flat charcoal. */}
+      <header
+        className="sticky top-0 z-30 px-4 pt-4 pb-3"
+        style={{ background: INK, paddingTop: TOP_CLEARANCE }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <motion.button
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.92 }}
+            onClick={() => navigate(-1)}
+            aria-label="Back"
+            className="w-10 h-10 flex items-center justify-center rounded-full"
+            style={{ color: TEXT_PRIMARY, background: SURFACE }}
+          >
+            <FiArrowLeft size={18} strokeWidth={2.4} />
+          </motion.button>
+          <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: TEXT_FAINT }}>
+            Draft
+          </span>
+        </div>
+        <div className="h-1 rounded-full overflow-hidden" style={{ background: SURFACE_SOFT }}>
           <motion.div
-            key="camera-screen"
+            className="h-full rounded-full"
+            style={{ background: ACCENT }}
+            initial={false}
+            animate={{ width: `${Math.max(8, progressFraction * 100)}%` }}
+            transition={{ type: 'spring', stiffness: 200, damping: 26 }}
+          />
+        </div>
+      </header>
+
+      {/* Full-screen upload overlay — visible while the request is actually in flight.
+          Includes a Cancel button that aborts the real network transfer via
+          AbortController, not just a fake UI dismiss. */}
+      <AnimatePresence>
+        {loading && (
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-0 z-20"
-          >
-            {renderCameraUI('full')}
-          </motion.div>
-        ) : (
-          <motion.div
-            key="compose-screen"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed inset-0 z-40 flex items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.6)' }}
           >
-            {/* Soft ambient glow that drifts — pure decoration */}
             <motion.div
-              aria-hidden
-              className="pointer-events-none fixed -top-40 -right-40 w-[520px] h-[520px] rounded-full blur-3xl opacity-40"
-              style={{ background: 'radial-gradient(circle, #f59e0b 0%, transparent 60%)' }}
-              animate={{ x: [0, 30, -20, 0], y: [0, -20, 20, 0] }}
-              transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
-            />
-            <motion.div
-              aria-hidden
-              className="pointer-events-none fixed -bottom-40 -left-40 w-[420px] h-[420px] rounded-full blur-3xl opacity-30"
-              style={{ background: 'radial-gradient(circle, #6366f1 0%, transparent 60%)' }}
-              animate={{ x: [0, -20, 30, 0], y: [0, 20, -10, 0] }}
-              transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
-            />
-            {/* Floating liquid-glass top bar */}
-            <motion.header
-              initial={{ y: -20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 26 }}
-              className="sticky top-3 z-30 flex items-center justify-between mx-3 px-3 py-2.5 rounded-[28px] border backdrop-blur-2xl backdrop-saturate-150"
-              style={surfaceGlass(58)}
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="w-64 rounded-[28px] px-6 py-7 flex flex-col items-center gap-4 border"
+              style={{ background: SURFACE, borderColor: BORDER }}
             >
-              <motion.button
-                whileHover={{ scale: 1.06 }}
-                whileTap={{ scale: 0.92 }}
-                onClick={() => navigate(-1)}
-                aria-label="Back"
-                className="w-10 h-10 flex items-center justify-center rounded-full border backdrop-blur-xl"
-                style={{
-                  color: 'var(--text-primary)',
-                  background: 'color-mix(in oklab, var(--bg-secondary) 55%, transparent)',
-                  borderColor: 'color-mix(in oklab, var(--border) 70%, transparent)',
-                  boxShadow: glassEdge,
-                }}
+              <div className="relative w-16 h-16 rounded-full border flex items-center justify-center"
+                style={{ background: SURFACE_SOFT, borderColor: BORDER }}
               >
-                <FiArrowLeft size={18} strokeWidth={2.4} />
-              </motion.button>
-              <div className="flex flex-col items-center leading-tight">
-                <h1 className="text-sm font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>New post</h1>
-                <span className="text-[10px] uppercase tracking-[0.18em] font-medium" style={{ color: 'var(--text-muted)' }}>
-                  Draft
-                </span>
+                <svg width="56" height="56" viewBox="0 0 64 64" className="-rotate-90 absolute">
+                  <circle cx="32" cy="32" r="27" fill="none" stroke={SURFACE_SOFT} strokeWidth="5" />
+                  <motion.circle
+                    cx="32" cy="32" r="27" fill="none" stroke={ACCENT} strokeWidth="5" strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 27}
+                    initial={false}
+                    animate={{ strokeDashoffset: 2 * Math.PI * 27 * (1 - uploadProgress / 100) }}
+                    transition={{ ease: 'linear', duration: 0.15 }}
+                  />
+                </svg>
+                <div className="text-sm font-bold" style={{ color: TEXT_PRIMARY }}>
+                  {uploadProgress}%
+                </div>
               </div>
-              <PostButton canPost={canPost} loading={loading} uploadProgress={uploadProgress} onClick={handleSubmit} />
-            </motion.header>
-            {/* Full-screen upload overlay — visible while the request is actually in flight.
-                Includes a Cancel button that aborts the real network transfer via
-                AbortController, not just a fake UI dismiss. */}
-            <AnimatePresence>
-              {loading && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-40 flex items-center justify-center backdrop-blur-md"
-                  style={{ background: 'rgba(0,0,0,0.32)' }}
-                >
-                  <motion.div
-                    initial={{ scale: 0.92, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.92, opacity: 0 }}
-                    className="w-64 rounded-[32px] px-6 py-7 flex flex-col items-center gap-4 border backdrop-blur-2xl backdrop-saturate-150"
-                    style={{ ...surfaceGlass(72), boxShadow: `${glassEdge}, ${glassShadow}` }}
-                  >
-                    <div className="relative w-16 h-16 rounded-full border flex items-center justify-center"
-                      style={{
-                        background: 'color-mix(in oklab, var(--bg-secondary) 60%, transparent)',
-                        borderColor: 'color-mix(in oklab, var(--border) 60%, transparent)',
-                      }}
-                    >
-                      <svg width="56" height="56" viewBox="0 0 64 64" className="-rotate-90 absolute">
-                        <defs>
-                          <linearGradient id="postProgGrad" x1="0" y1="0" x2="1" y2="1">
-                            <stop offset="0%" stopColor="#f59e0b" />
-                            <stop offset="100%" stopColor="#f97316" />
-                          </linearGradient>
-                        </defs>
-                        <circle cx="32" cy="32" r="27" fill="none" stroke="var(--border)" strokeWidth="5" />
-                        <motion.circle
-                          cx="32" cy="32" r="27" fill="none" stroke="url(#postProgGrad)" strokeWidth="5" strokeLinecap="round"
-                          strokeDasharray={2 * Math.PI * 27}
-                          initial={false}
-                          animate={{ strokeDashoffset: 2 * Math.PI * 27 * (1 - uploadProgress / 100) }}
-                          transition={{ ease: 'linear', duration: 0.15 }}
-                        />
-                      </svg>
-                      <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                        {uploadProgress}%
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                        {uploadStage === 'cancelling'
-                          ? 'Cancelling…'
-                          : uploadStage === 'saving'
-                          ? 'Saving post…'
-                          : uploadProgress < 100
-                          ? 'Uploading…'
-                          : 'Almost done…'}
-                      </p>
-                      {mediaItems.length > 0 && (
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                          {mediaItems.length} media item{mediaItems.length > 1 ? 's' : ''}
-                        </p>
-                      )}
-                    </div>
-                    <motion.button
-                      whileHover={{ scale: 1.04 }}
-                      whileTap={{ scale: 0.96 }}
-                      onClick={handleCancel}
-                      disabled={uploadStage === 'cancelling'}
-                      className="px-4 py-2 rounded-full text-xs font-bold border backdrop-blur-xl disabled:opacity-50"
-                      style={{
-                        background: 'color-mix(in oklab, var(--bg-secondary) 65%, transparent)',
-                        color: 'var(--text-primary)',
-                        borderColor: 'color-mix(in oklab, var(--border) 70%, transparent)',
-                        boxShadow: glassEdge,
-                      }}
-                    >
-                      {uploadStage === 'cancelling' ? 'Cancelling…' : 'Cancel'}
-                    </motion.button>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            {/* Body */}
-            <motion.main
-              initial="hidden"
-              animate="show"
-              variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } } }}
-              className="relative z-10 max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-10"
+              <div className="text-center">
+                <p className="text-sm font-bold" style={{ color: TEXT_PRIMARY }}>
+                  {uploadStage === 'cancelling'
+                    ? 'Cancelling…'
+                    : uploadStage === 'saving'
+                    ? 'Saving post…'
+                    : uploadProgress < 100
+                    ? 'Uploading…'
+                    : 'Almost done…'}
+                </p>
+                {mediaItems.length > 0 && (
+                  <p className="text-xs mt-0.5" style={{ color: TEXT_MUTED }}>
+                    {mediaItems.length} media item{mediaItems.length > 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={handleCancel}
+                disabled={uploadStage === 'cancelling'}
+                className="px-4 py-2 rounded-full text-xs font-bold border disabled:opacity-50"
+                style={{ background: SURFACE_SOFT, color: TEXT_PRIMARY, borderColor: BORDER }}
+              >
+                {uploadStage === 'cancelling' ? 'Cancelling…' : 'Cancel'}
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Body — bottom padding reserves room for the fixed CTA bar below. */}
+      <main
+        className="relative z-10 max-w-2xl mx-auto px-4 sm:px-6 pt-2"
+        style={{ paddingBottom: `calc(${BOTTOM_CLEARANCE} + 84px)` }}
+      >
+        <h1 className="text-2xl font-extrabold tracking-tight mb-4" style={{ color: TEXT_PRIMARY }}>
+          New post
+        </h1>
+
+        {/* Media collage — one big slot, two stacked beside it, two along
+            the bottom. Mirrors the "Upload Your Photos" onboarding layout. */}
+        <section className="mb-6">
+          <div
+            className="grid gap-2.5"
+            style={{
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gridTemplateRows: 'repeat(2, 84px) 84px',
+              gridTemplateAreas: `"big big small1" "big big small2" "wide wide small3"`,
+            }}
+          >
+            {COLLAGE_AREAS.map((area, i) => (
+              <CollageSlot key={area} area={area} index={i} />
+            ))}
+          </div>
+          <div className="flex items-center justify-between mt-2.5 px-0.5">
+            <span className="text-[11px] font-semibold" style={{ color: TEXT_FAINT }}>
+              {mediaItems.length} / {MAX_MEDIA} media
+              {anyCompressing && <span style={{ color: ACCENT }}> · optimizing…</span>}
+            </span>
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => setCameraOpen(true)}
+              disabled={remainingSlots <= 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold disabled:opacity-40"
+              style={{ background: SURFACE, color: TEXT_PRIMARY }}
             >
-              {/* Dropzone / preview grid */}
-              <motion.section
-                variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
-                className="mb-8"
-              >
-                <AnimatePresence mode="wait">
-                  {mediaItems.length > 0 ? (
-                    <motion.div
-                      key="grid"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="rounded-[32px] border backdrop-blur-2xl backdrop-saturate-150 p-3 space-y-3"
-                      style={surfaceGlass(50)}
-                    >
-                      <div className="flex items-center justify-between px-1">
-                        <span className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
-                          {mediaItems.length} / {MAX_MEDIA} media
-                          {anyCompressing && <span style={{ color: '#f59e0b' }}> · optimizing…</span>}
-                        </span>
-                        {justPasted && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -6, scale: 0.9 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -6, scale: 0.9 }}
-                            className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold backdrop-blur-md"
-                            style={{ background: 'rgba(245,158,11,0.85)', color: 'white', boxShadow: glassEdge }}
-                          >
-                            <FiClipboard size={12} /> Pasted
-                          </motion.div>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        <AnimatePresence>
-                          {mediaItems.map(({ id, preview, file, compressing, isVideo }) => (
-                            <motion.div
-                              key={id}
-                              layout
-                              initial={{ opacity: 0, scale: 0.9 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.9 }}
-                              transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-                              onClick={() => preview && !compressing && setPreviewId(id)}
-                              className="relative aspect-square rounded-[20px] overflow-hidden group border"
-                              style={{
-                                background: 'var(--bg-secondary)',
-                                borderColor: 'color-mix(in oklab, var(--border) 55%, transparent)',
-                                boxShadow: glassShadowSoft,
-                                cursor: preview && !compressing ? 'zoom-in' : 'default',
-                              }}
-                            >
-                              {preview ? (
-                                <motion.img
-                                  src={preview}
-                                  alt={file?.name || 'Preview'}
-                                  initial={{ scale: 1.08, opacity: 0 }}
-                                  animate={{ scale: 1, opacity: 1 }}
-                                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <motion.span
-                                    animate={{ rotate: 360 }}
-                                    transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-                                    className="rounded-full h-5 w-5 border-2 block"
-                                    style={{ borderColor: 'var(--border)', borderTopColor: '#f59e0b' }}
-                                  />
-                                </div>
-                              )}
-                              {compressing && preview && (
-                                <div className="absolute inset-0 flex items-center justify-center backdrop-blur-[2px]" style={{ background: 'rgba(0,0,0,0.22)' }}>
-                                  <motion.span
-                                    animate={{ rotate: 360 }}
-                                    transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-                                    className="rounded-full h-6 w-6 border-2 block"
-                                    style={{ borderColor: 'rgba(255,255,255,0.4)', borderTopColor: '#fff' }}
-                                  />
-                                </div>
-                              )}
-                              {/* Play badge marks video items — preview is a captured frame, not a live video */}
-                              {isVideo && preview && !compressing && (
-                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                  <div className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-xl border"
-                                    style={{ background: 'rgba(20,20,22,0.4)', borderColor: 'rgba(255,255,255,0.22)', boxShadow: glassEdge }}>
-                                    <FiPlay size={16} color="white" fill="white" style={{ marginLeft: 2 }} />
-                                  </div>
-                                </div>
-                              )}
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
-                              <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={(e) => removeMedia(id, e)}
-                                aria-label="Remove media"
-                                className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-xl border"
-                                style={{ background: 'rgba(20,20,22,0.4)', borderColor: 'rgba(255,255,255,0.2)', boxShadow: glassEdge }}
-                              >
-                                <FiX size={14} color="white" />
-                              </motion.button>
-                              {file && !compressing && (
-                                <div
-                                  className="absolute bottom-2 left-2 px-2 py-1 rounded-full text-[10px] font-semibold backdrop-blur-xl border"
-                                  style={{ background: 'rgba(20,20,22,0.4)', color: 'white', borderColor: 'rgba(255,255,255,0.16)' }}
-                                >
-                                  {(file.size / 1024 / 1024).toFixed(1)} MB
-                                </div>
-                              )}
-                            </motion.div>
-                          ))}
-                          {remainingSlots > 0 && (
-                            <motion.div
-                              key="add-more-group"
-                              layout
-                              initial={{ opacity: 0, scale: 0.9 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.9 }}
-                              className="aspect-square rounded-[20px] border-2 border-dashed flex flex-col items-center justify-center gap-2"
-                              style={{ borderColor: 'color-mix(in oklab, var(--border) 80%, transparent)', background: 'color-mix(in oklab, var(--bg-secondary) 45%, transparent)' }}
-                            >
-                              <div className="flex items-center gap-2">
-                                <motion.button
-                                  whileHover={{ scale: 1.08 }}
-                                  whileTap={{ scale: 0.94 }}
-                                  onClick={() => fileRef.current?.click()}
-                                  aria-label="Add from gallery"
-                                  className="w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
-                                  style={{ background: 'color-mix(in oklab, var(--bg-primary) 60%, transparent)', borderColor: 'color-mix(in oklab, var(--border) 70%, transparent)', boxShadow: glassEdge }}
-                                >
-                                  <FiPlus size={16} color="#f59e0b" />
-                                </motion.button>
-                                <motion.button
-                                  whileHover={{ scale: 1.08 }}
-                                  whileTap={{ scale: 0.94 }}
-                                  onClick={() => setCameraOpen(true)}
-                                  aria-label="Take a photo"
-                                  className="w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
-                                  style={{ background: 'color-mix(in oklab, var(--bg-primary) 60%, transparent)', borderColor: 'color-mix(in oklab, var(--border) 70%, transparent)', boxShadow: glassEdge }}
-                                >
-                                  <FiCamera size={15} color="#f59e0b" />
-                                </motion.button>
-                              </div>
-                              <span className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
-                                Add media
-                              </span>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="dropzone"
-                      initial={{ opacity: 0, scale: 0.98 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.98 }}
-                      transition={{ duration: 0.25 }}
-                      onClick={() => fileRef.current?.click()}
-                      onDrop={handleDrop}
-                      onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-                      onDragLeave={() => setDragOver(false)}
-                      onMouseMove={(e) => {
-                        const r = e.currentTarget.getBoundingClientRect()
-                        mx.set(e.clientX - r.left - r.width / 2)
-                        my.set(e.clientY - r.top - r.height / 2)
-                      }}
-                      onMouseLeave={() => { mx.set(0); my.set(0) }}
-                      style={{
-                        borderColor: dragOver ? '#f59e0b' : 'color-mix(in oklab, var(--border) 75%, transparent)',
-                        background: dragOver
-                          ? 'linear-gradient(135deg, rgba(245,158,11,0.14), rgba(245,158,11,0.05))'
-                          : 'color-mix(in oklab, var(--bg-secondary) 45%, transparent)',
-                        rotateX,
-                        rotateY,
-                        transformPerspective: 1000,
-                        boxShadow: `${glassEdge}, ${glassShadowSoft}`,
-                      }}
-                      className="relative rounded-[32px] border-2 border-dashed backdrop-blur-2xl backdrop-saturate-150 flex flex-col items-center justify-center gap-3 cursor-pointer py-16 sm:py-20 px-6 text-center"
-                    >
-                      <motion.div
-                        animate={{
-                          scale: dragOver ? 1.15 : 1,
-                          rotate: dragOver ? [0, -6, 6, 0] : 0,
-                        }}
-                        transition={{ type: 'spring', stiffness: 300, damping: 18 }}
-                        className="w-16 h-16 rounded-[22px] flex items-center justify-center border"
-                        style={{
-                          background: 'linear-gradient(135deg, rgba(245,158,11,0.20), rgba(245,158,11,0.06))',
-                          borderColor: 'rgba(245,158,11,0.25)',
-                          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)',
-                        }}
-                      >
-                        <FiImage size={28} color="#f59e0b" strokeWidth={2} />
-                      </motion.div>
-                      <div className="space-y-1">
-                        <p className="text-base font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-                          {dragOver ? 'Drop it here' : 'Add photos & videos'}
-                        </p>
-                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                          Drag & drop, click to browse, or <kbd className="px-1.5 py-0.5 rounded-md text-[10px] font-mono border backdrop-blur-xl"
-                            style={{ background: 'color-mix(in oklab, var(--bg-primary) 60%, transparent)', borderColor: 'color-mix(in oklab, var(--border) 70%, transparent)' }}>⌘V</kbd> to paste — up to {MAX_MEDIA}, mix photos and videos freely
-                        </p>
-                      </div>
-                      <motion.button
-                        whileHover={{ scale: 1.04 }}
-                        whileTap={{ scale: 0.96 }}
-                        onClick={(e) => { e.stopPropagation(); setCameraOpen(true) }}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border backdrop-blur-xl"
-                        style={{ background: 'color-mix(in oklab, var(--bg-primary) 60%, transparent)', borderColor: 'color-mix(in oklab, var(--border) 70%, transparent)', color: 'var(--text-primary)', boxShadow: glassEdge }}
-                      >
-                        <FiCamera size={13} color="#f59e0b" /> Take a photo instead
-                      </motion.button>
-                      <div className="flex items-center gap-2 mt-1 text-[10px] uppercase tracking-wider"
-                        style={{ color: 'var(--text-muted)' }}>
-                        <span>PNG</span><span>·</span><span>JPG</span><span>·</span><span>WEBP</span><span>·</span><span>MP4</span><span>·</span><span>10MB photos / 100MB video</span>
-                      </div>
-                      <AnimatePresence>
-                        {justPasted && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -10, scale: 0.9 }}
-                            className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold backdrop-blur-md"
-                            style={{ background: 'rgba(245,158,11,0.85)', color: 'white', boxShadow: glassEdge }}
-                          >
-                            <FiClipboard size={12} /> Pasted
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.section>
-              {/* Title */}
-              <motion.section
-                variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-                className="rounded-[28px] border backdrop-blur-xl px-5 py-4"
-                style={surfaceGlass(40)}
-              >
-                <div className="flex items-baseline gap-3 mb-2">
-                  <span className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: '#f59e0b' }}>
-                    Title
-                  </span>
-                  <span className="flex-1 h-px" style={{ background: 'color-mix(in oklab, var(--border) 70%, transparent)' }} />
-                </div>
-                <input
-                  ref={titleRef}
-                  type="text"
-                  placeholder="Give it a name…"
-                  value={title}
-                  onChange={(e) => {
-                    setTitle(e.target.value)
-                    if (errors.title) setErrors(p => ({ ...p, title: '' }))
-                  }}
-                  maxLength={100}
-                  className="w-full bg-transparent outline-none text-2xl sm:text-3xl font-extrabold tracking-tight"
-                  style={{ color: 'var(--text-primary)' }}
-                />
-                <div className="flex justify-between items-center mt-1.5 min-h-[18px]">
-                  <AnimatePresence mode="wait">
-                    {errors.title ? (
-                      <motion.p
-                        key="err"
-                        initial={{ opacity: 0, x: -6 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0 }}
-                        className="text-xs text-red-500 font-medium"
-                      >
-                        {errors.title}
-                      </motion.p>
-                    ) : <span key="ph" />}
-                  </AnimatePresence>
-                  <CharCounter value={title.length} max={100} />
-                </div>
-              </motion.section>
-              {/* Content */}
-              <motion.section
-                variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-                className="mt-4 rounded-[28px] border backdrop-blur-xl px-5 py-4"
-                style={surfaceGlass(40)}
-              >
-                <div className="flex items-baseline gap-3 mb-2">
-                  <span className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: '#f59e0b' }}>
-                    Story
-                  </span>
-                  <span className="flex-1 h-px" style={{ background: 'color-mix(in oklab, var(--border) 70%, transparent)' }} />
-                </div>
-                <textarea
-                  placeholder="What's on your mind?"
-                  value={content}
-                  onChange={(e) => {
-                    setContent(e.target.value)
-                    if (errors.content) setErrors(p => ({ ...p, content: '' }))
-                  }}
-                  rows={6}
-                  className="w-full bg-transparent outline-none text-[16px] resize-none leading-[1.7]"
-                  style={{ color: 'var(--text-secondary)' }}
-                />
-                <AnimatePresence>
-                  {errors.content && (
-                    <motion.p
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4 }}
-                      className="text-xs text-red-500 font-medium"
-                    >
-                      {errors.content}
-                    </motion.p>
-                  )}
-                </AnimatePresence>
-              </motion.section>
-              {/* Footer hint */}
+              <FiCamera size={13} color={ACCENT} /> Take a photo or video
+            </motion.button>
+          </div>
+          <AnimatePresence>
+            {justPasted && (
               <motion.div
-                variants={{ hidden: { opacity: 0 }, show: { opacity: 1 } }}
-                className="mt-8 flex items-center justify-center gap-2 text-xs"
-                style={{ color: 'var(--text-muted)' }}
+                initial={{ opacity: 0, y: -6, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.9 }}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold"
+                style={{ background: ACCENT, color: '#171717' }}
               >
-                <span>Press</span>
-                <kbd className="px-1.5 py-0.5 rounded-md text-[10px] font-mono border backdrop-blur-xl"
-                  style={{ background: 'color-mix(in oklab, var(--bg-secondary) 55%, transparent)', borderColor: 'color-mix(in oklab, var(--border) 70%, transparent)' }}>⌘</kbd>
-                <span>+</span>
-                <kbd className="px-1.5 py-0.5 rounded-md text-[10px] font-mono border backdrop-blur-xl"
-                  style={{ background: 'color-mix(in oklab, var(--bg-secondary) 55%, transparent)', borderColor: 'color-mix(in oklab, var(--border) 70%, transparent)' }}>Enter</kbd>
-                <span>to post</span>
+                <FiClipboard size={12} /> Pasted
               </motion.div>
-            </motion.main>
+            )}
+          </AnimatePresence>
+        </section>
 
-            {/* Secondary camera modal — opened from the composer to add
-                further shots. Same capture/retake/use flow as the initial
-                full-page camera, just presented as a floating glass card. */}
-            <AnimatePresence>
-              {cameraOpen && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
+        {/* Title */}
+        <section className="rounded-[24px] border px-5 py-4" style={{ background: SURFACE, borderColor: BORDER }}>
+          <div className="flex items-baseline gap-3 mb-2">
+            <span className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: ACCENT }}>
+              Title
+            </span>
+            <span className="flex-1 h-px" style={{ background: BORDER }} />
+          </div>
+          <input
+            ref={titleRef}
+            type="text"
+            placeholder="Give it a name…"
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value)
+              if (errors.title) setErrors(p => ({ ...p, title: '' }))
+            }}
+            maxLength={100}
+            className="w-full bg-transparent outline-none text-2xl sm:text-3xl font-extrabold tracking-tight"
+            style={{ color: TEXT_PRIMARY }}
+          />
+          <div className="flex justify-between items-center mt-1.5 min-h-[18px]">
+            <AnimatePresence mode="wait">
+              {errors.title ? (
+                <motion.p
+                  key="err"
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md"
-                  style={{ background: 'rgba(0,0,0,0.7)' }}
+                  className="text-xs text-red-400 font-medium"
                 >
-                  <motion.div
-                    initial={{ scale: 0.94, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.94, opacity: 0 }}
-                  >
-                    {renderCameraUI('modal')}
-                  </motion.div>
-                </motion.div>
-              )}
+                  {errors.title}
+                </motion.p>
+              ) : <span key="ph" />}
             </AnimatePresence>
+            <CharCounter value={title.length} max={100} />
+          </div>
+        </section>
 
-            {/* Lightbox preview — tap any grid tile to open a full-size view with
-                prev/next when there's more than one item, and a way to remove it. */}
-            <AnimatePresence>
-              {previewItem && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-50 flex flex-col items-center justify-center px-4 backdrop-blur-md"
-                  style={{ background: 'rgba(0,0,0,0.82)' }}
-                  onClick={() => setPreviewId(null)}
+        {/* Content */}
+        <section className="mt-3 rounded-[24px] border px-5 py-4" style={{ background: SURFACE, borderColor: BORDER }}>
+          <div className="flex items-baseline gap-3 mb-2">
+            <span className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: ACCENT }}>
+              Story
+            </span>
+            <span className="flex-1 h-px" style={{ background: BORDER }} />
+          </div>
+          <textarea
+            placeholder="What's on your mind?"
+            value={content}
+            onChange={(e) => {
+              setContent(e.target.value)
+              if (errors.content) setErrors(p => ({ ...p, content: '' }))
+            }}
+            rows={6}
+            className="w-full bg-transparent outline-none text-[16px] resize-none leading-[1.7]"
+            style={{ color: TEXT_MUTED }}
+          />
+          <AnimatePresence>
+            {errors.content && (
+              <motion.p
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                className="text-xs text-red-400 font-medium"
+              >
+                {errors.content}
+              </motion.p>
+            )}
+          </AnimatePresence>
+        </section>
+
+        <div className="mt-6 flex items-center justify-center gap-2 text-xs" style={{ color: TEXT_FAINT }}>
+          <span>Press</span>
+          <kbd className="px-1.5 py-0.5 rounded-md text-[10px] font-mono border" style={{ background: SURFACE, borderColor: BORDER }}>⌘</kbd>
+          <span>+</span>
+          <kbd className="px-1.5 py-0.5 rounded-md text-[10px] font-mono border" style={{ background: SURFACE, borderColor: BORDER }}>Enter</kbd>
+          <span>to post</span>
+        </div>
+      </main>
+
+      {/* Bottom CTA — pinned above the app's bottom nav, same clearance
+          math the capture overlay and lightbox use, so it never overlaps
+          nav chrome that lives outside this component. */}
+      <div
+        className="fixed left-0 right-0 z-30 px-4"
+        style={{ bottom: `calc(${BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px))` }}
+      >
+        <div className="max-w-2xl mx-auto pb-3 pt-2" style={{ background: `linear-gradient(to top, ${INK} 60%, transparent)` }}>
+          <PostButton canPost={canPost} loading={loading} uploadProgress={uploadProgress} onClick={handleSubmit} />
+        </div>
+      </div>
+
+      {/* Capture overlay — sized to whatever vertical space is left above
+          the bottom nav (see renderCaptureOverlay), and rendered at
+          OVERLAY_Z so it always sits above that nav instead of needing it
+          hidden. */}
+      <AnimatePresence>
+        {cameraOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center px-4"
+            style={{ background: 'rgba(0,0,0,0.75)', paddingTop: TOP_CLEARANCE, paddingBottom: BOTTOM_CLEARANCE, zIndex: OVERLAY_Z }}
+          >
+            <motion.div
+              initial={{ scale: 0.94, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.94, opacity: 0 }}
+              className="w-full max-w-md h-full"
+            >
+              {renderCaptureOverlay()}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Lightbox preview — tap any collage tile to open a full-size view
+          with prev/next when there's more than one item, and a way to
+          remove it. Same z-index/clearance treatment as the capture overlay. */}
+      <AnimatePresence>
+        {previewItem && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex flex-col items-center justify-center px-4"
+            style={{ background: 'rgba(0,0,0,0.88)', paddingTop: TOP_CLEARANCE, paddingBottom: BOTTOM_CLEARANCE, zIndex: OVERLAY_Z }}
+            onClick={() => setPreviewId(null)}
+          >
+            <button
+              onClick={() => setPreviewId(null)}
+              aria-label="Close preview"
+              className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
+              style={scrimControl}
+            >
+              <FiX size={18} color="white" />
+            </button>
+            {mediaItems.length > 1 && (
+              <span className="absolute top-5 left-5 text-xs font-semibold px-2.5 py-1 rounded-full text-white border backdrop-blur-xl"
+                style={scrimControl}>
+                {previewIndex + 1} / {mediaItems.length}
+              </span>
+            )}
+            <div className="relative w-full flex-1 flex items-center justify-center min-h-0" onClick={(e) => e.stopPropagation()}>
+              {previewIndex > 0 && (
+                <button
+                  onClick={() => setPreviewId(mediaItems[previewIndex - 1].id)}
+                  aria-label="Previous"
+                  className="absolute left-2 z-10 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
+                  style={scrimControl}
                 >
-                  <button
-                    onClick={() => setPreviewId(null)}
-                    aria-label="Close preview"
-                    className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
-                    style={{ background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.16)', boxShadow: glassEdge }}
-                  >
-                    <FiX size={18} color="white" />
-                  </button>
-                  {mediaItems.length > 1 && (
-                    <span className="absolute top-5 left-5 text-xs font-semibold px-2.5 py-1 rounded-full text-white border backdrop-blur-xl"
-                      style={{ background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.16)' }}>
-                      {previewIndex + 1} / {mediaItems.length}
-                    </span>
-                  )}
-                  <div className="relative w-full flex-1 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-                    {previewIndex > 0 && (
-                      <button
-                        onClick={() => setPreviewId(mediaItems[previewIndex - 1].id)}
-                        aria-label="Previous"
-                        className="absolute left-2 z-10 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
-                        style={{ background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.16)', boxShadow: glassEdge }}
-                      >
-                        <FiChevronLeft size={18} color="white" />
-                      </button>
-                    )}
-                    <img
-                      src={previewItem.preview}
-                      alt=""
-                      className="max-w-full max-h-[70vh] rounded-[24px] object-contain"
-                    />
-                    {previewIndex < mediaItems.length - 1 && (
-                      <button
-                        onClick={() => setPreviewId(mediaItems[previewIndex + 1].id)}
-                        aria-label="Next"
-                        className="absolute right-2 z-10 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
-                        style={{ background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.16)', boxShadow: glassEdge }}
-                      >
-                        <FiChevronRight size={18} color="white" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 pb-8" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={(e) => removeMedia(previewItem.id, e)}
-                      className="flex items-center gap-1.5 px-5 h-10 rounded-full text-sm font-semibold border backdrop-blur-xl"
-                      style={{ background: 'rgba(239,68,68,0.18)', color: '#ff6b6b', borderColor: 'rgba(239,68,68,0.3)', boxShadow: glassEdge }}
-                    >
-                      <FiTrash2 size={14} /> Remove
-                    </button>
-                    <button
-                      onClick={() => setPreviewId(null)}
-                      className="px-5 h-10 rounded-full text-sm font-semibold text-white border backdrop-blur-xl"
-                      style={{ background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.16)', boxShadow: glassEdge }}
-                    >
-                      Done
-                    </button>
-                  </div>
-                </motion.div>
+                  <FiChevronLeft size={18} color="white" />
+                </button>
               )}
-            </AnimatePresence>
+              <img
+                src={previewItem.preview}
+                alt=""
+                className="max-w-full max-h-full rounded-[24px] object-contain"
+              />
+              {previewIndex < mediaItems.length - 1 && (
+                <button
+                  onClick={() => setPreviewId(mediaItems[previewIndex + 1].id)}
+                  aria-label="Next"
+                  className="absolute right-2 z-10 w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
+                  style={scrimControl}
+                >
+                  <FiChevronRight size={18} color="white" />
+                </button>
+              )}
+            </div>
+            <div className="flex-none flex items-center gap-3 pt-4" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={(e) => removeMedia(previewItem.id, e)}
+                className="flex items-center gap-1.5 px-5 h-10 rounded-full text-sm font-semibold border backdrop-blur-xl"
+                style={{ background: 'rgba(239,68,68,0.18)', color: '#ff6b6b', borderColor: 'rgba(239,68,68,0.3)' }}
+              >
+                <FiTrash2 size={14} /> Remove
+              </button>
+              <button
+                onClick={() => setPreviewId(null)}
+                className="px-5 h-10 rounded-full text-sm font-semibold text-white border backdrop-blur-xl"
+                style={scrimControl}
+              >
+                Done
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1352,31 +1394,16 @@ export default function CreatePostPage() {
 function PostButton({ canPost, loading, uploadProgress, onClick }) {
   return (
     <motion.button
-      whileHover={canPost ? { scale: 1.05 } : {}}
-      whileTap={canPost ? { scale: 0.94 } : {}}
+      whileHover={canPost ? { scale: 1.015 } : {}}
+      whileTap={canPost ? { scale: 0.98 } : {}}
       onClick={onClick}
       disabled={!canPost}
-      className="relative px-5 py-2 rounded-full font-bold text-sm border disabled:opacity-40 disabled:cursor-not-allowed overflow-hidden backdrop-blur-xl"
+      className="relative w-full h-14 rounded-full font-bold text-base disabled:opacity-40 disabled:cursor-not-allowed overflow-hidden"
       style={{
-        background: canPost
-          ? 'linear-gradient(135deg, #f59e0b, #f97316)'
-          : 'color-mix(in oklab, var(--bg-secondary) 60%, transparent)',
-        borderColor: canPost ? 'rgba(255,255,255,0.35)' : 'color-mix(in oklab, var(--border) 70%, transparent)',
-        color: canPost ? 'white' : 'var(--text-muted)',
-        boxShadow: canPost
-          ? 'inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 20px -8px rgba(245,158,11,0.6)'
-          : 'none',
+        background: canPost ? ACCENT : SURFACE,
+        color: canPost ? '#171717' : TEXT_MUTED,
       }}
     >
-      {canPost && (
-        <motion.span
-          aria-hidden
-          className="absolute inset-0 opacity-0"
-          style={{ background: 'linear-gradient(120deg, transparent, rgba(255,255,255,0.45), transparent)' }}
-          animate={{ x: ['-120%', '120%'], opacity: [0, 1, 0] }}
-          transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-        />
-      )}
       <AnimatePresence mode="wait" initial={false}>
         {loading ? (
           <motion.span
@@ -1384,12 +1411,12 @@ function PostButton({ canPost, loading, uploadProgress, onClick }) {
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            className="relative flex items-center gap-1.5"
+            className="relative flex items-center justify-center gap-2"
           >
             <motion.span
               animate={{ rotate: 360 }}
               transition={{ repeat: Infinity, duration: 0.7, ease: 'linear' }}
-              className="rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent block"
+              className="rounded-full h-4 w-4 border-2 border-current border-t-transparent block"
             />
             {uploadProgress > 0 ? `${uploadProgress}%` : 'Posting'}
           </motion.span>
@@ -1399,9 +1426,9 @@ function PostButton({ canPost, loading, uploadProgress, onClick }) {
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            className="relative flex items-center gap-1"
+            className="relative flex items-center justify-center gap-1.5"
           >
-            <FiCheck size={14} strokeWidth={3} /> Post
+            <FiCheck size={16} strokeWidth={3} /> Post
           </motion.span>
         )}
       </AnimatePresence>
@@ -1410,12 +1437,12 @@ function PostButton({ canPost, loading, uploadProgress, onClick }) {
 }
 function CharCounter({ value, max }) {
   const pct = Math.min(1, value / max)
-  const color = pct > 0.9 ? '#ef4444' : pct > 0.7 ? '#f59e0b' : 'var(--text-muted)'
+  const color = pct > 0.9 ? '#f87171' : pct > 0.7 ? ACCENT : TEXT_FAINT
   const circumference = 2 * Math.PI * 7
   return (
     <div className="flex items-center gap-1.5">
       <svg width="18" height="18" viewBox="0 0 18 18">
-        <circle cx="9" cy="9" r="7" fill="none" stroke="var(--border)" strokeWidth="1.5" />
+        <circle cx="9" cy="9" r="7" fill="none" stroke={BORDER} strokeWidth="1.5" />
         <motion.circle
           cx="9" cy="9" r="7" fill="none"
           stroke={color} strokeWidth="1.5" strokeLinecap="round"
