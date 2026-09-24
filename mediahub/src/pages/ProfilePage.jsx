@@ -11,6 +11,7 @@ import Stack from '../components/ui/Stack'
 import BounceCards from '../components/ui/BounceCards'
 import MemoryVideo from '../components/ui/MemoryVideo'
 import DomeGallery from '../components/ui/DomeGallery'
+import AvatarCropper from '../components/ui/AvatarCropper'
 
 function getPostMedia(post) {
   const images = getImageUrls(post).filter(Boolean)
@@ -28,6 +29,7 @@ export default function ProfilePage() {
   const { myPosts: userPosts, isLoading, myPostsHasMore, fetchMyPosts } = usePostStore()
   const [loading, setLoading] = useState(true)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarToCrop, setAvatarToCrop] = useState(null)
   const [downloadingMap, setDownloadingMap] = useState({})
 
   useEffect(() => {
@@ -39,8 +41,7 @@ export default function ProfilePage() {
     loadData()
   }, [])
 
-  const handleAvatarChange = async (event) => {
-    const file = event.target.files?.[0]
+  const uploadAvatar = async (file) => {
     if (!file) return
     setUploadingAvatar(true)
     try {
@@ -52,6 +53,12 @@ export default function ProfilePage() {
     } finally {
       setUploadingAvatar(false)
     }
+  }
+
+  const handleAvatarChange = (event) => {
+    const file = event.target.files?.[0]
+    if (file) setAvatarToCrop(file)
+    event.target.value = ''
   }
 
   const handleDeletePost = async (postId, event) => {
@@ -213,7 +220,16 @@ export default function ProfilePage() {
             </button>
           </div>
         )}
+
+        {userPosts.length === 0 && (
+          <div className="mt-10 flex flex-col items-start gap-3 border-y py-8">
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Your memory wall is empty.</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Capture a photo or video to start collecting memories.</p>
+            <button type="button" onClick={() => navigate('/create')} className="rounded-full bg-amber-500 px-5 py-2.5 text-sm font-bold text-white">Create your first memory</button>
+          </div>
+        )}
       </main>
+      {avatarToCrop && <AvatarCropper file={avatarToCrop} onCancel={() => setAvatarToCrop(null)} onConfirm={(file) => { setAvatarToCrop(null); uploadAvatar(file) }} />}
     </div>
   )
 }
