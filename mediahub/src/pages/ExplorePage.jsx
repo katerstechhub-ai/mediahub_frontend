@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FiSearch, FiX, FiGrid, FiLayers, FiBell, FiPlus, FiPlay } from 'react-icons/fi'
 import { useAuthStore } from '../store'
+import ThemeOverlay from '../components/ui/ThemeOverlay'
 import { EmptyState, Avatar } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
-import ReelGallery from '../components/ui/reel-gallery'
+import TiltedMediaReel from '../components/ui/TiltedMediaReel'
 import { postsAPI, notificationsAPI } from '../api'
 
 /* ─────────── Boomerang video: plays forward, then reverses back to start, on loop ─────────── */
@@ -83,12 +84,16 @@ export default function ExplorePage() {
   const inputRef = useRef()
   const { user } = useAuthStore()
 
-  // Keep the reel curated and lightweight: it is a featured strip, not one
-  // animated gallery per post card.
-  const reelImages = filtered
-    .flatMap((post) => getImageUrls(post))
-    .filter(Boolean)
-    .slice(0, 18)
+  // Keep the reel curated while preserving the same mixed image/video
+  // behavior used by Feed's multi-media viewer.
+  const reelItems = filtered
+    .flatMap((post) => [
+      ...getImageUrls(post).filter(Boolean).map((src) => ({ type: 'image', src })),
+      ...(Array.isArray(post.videos) ? post.videos : [])
+        .filter((video) => video?.url)
+        .map((video) => ({ type: 'video', src: video.url, poster: video.thumbnail || video.url })),
+    ])
+    .slice(0, 24)
 
   const fetchPosts = async () => {
     try {
@@ -159,11 +164,15 @@ export default function ExplorePage() {
   }
 
   return (
-    <div className="min-h-full pb-20 fade-in" style={{ background: 'var(--bg-primary)' }}>
+    <div className="relative min-h-full pb-24 fade-in" style={{ background: 'var(--bg-primary)' }}>
+      <ThemeOverlay className="fixed bottom-20 right-4 z-40 sm:bottom-6 sm:right-6" />
       {/* Sticky header — Pinterest style */}
       <div
-        className="sticky top-0 z-20 px-4 sm:px-6 py-3 backdrop-blur-xl"
-        style={{ background: 'color-mix(in oklab, var(--bg-primary) 82%, transparent)' }}
+        className="sticky top-0 z-40 pointer-events-auto px-3 py-3 sm:px-6 backdrop-blur-xl"
+        style={{
+          background: 'color-mix(in srgb, var(--bg-primary) 94%, transparent)',
+          borderBottom: '1px solid var(--border)',
+        }}
       >
         <div className="max-w-7xl mx-auto flex items-center gap-3">
           {/* ── Removed "Explore" heading ── */}
@@ -210,17 +219,17 @@ export default function ExplorePage() {
 
           <div className="flex items-center gap-1 flex-shrink-0">
             <motion.button
-              onClick={() => navigate('/create')}
+              onClick={(event) => { event.preventDefault(); navigate('/create') }}
               whileTap={{ scale: 0.9 }}
               aria-label="Create"
-              className="hidden sm:flex items-center justify-center h-10 w-10 rounded-full hover:bg-[var(--bg-secondary)] transition-colors"
+              className="flex items-center justify-center h-10 w-10 rounded-full hover:bg-[var(--bg-secondary)] transition-colors"
               style={{ color: 'var(--text-primary)' }}
             >
               <FiPlus size={22} strokeWidth={2.25} />
             </motion.button>
 
             <motion.button
-              onClick={() => navigate('/notifications')}
+              onClick={(event) => { event.preventDefault(); navigate('/notifications') }}
               whileTap={{ scale: 0.9 }}
               aria-label="Notifications"
               className="relative flex items-center justify-center h-10 w-10 rounded-full hover:bg-[var(--bg-secondary)] transition-colors"
@@ -248,36 +257,14 @@ export default function ExplorePage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-4">
-        {reelImages.length > 0 && !query.trim() && (
+        {reelItems.length > 0 && !query.trim() && (
           <section className="relative mb-8 overflow-hidden px-0 py-2 sm:py-4">
-            <div className="relative z-10 h-[300px] w-full sm:h-[380px]">
-              <ReelGallery
-                images={reelImages}
-                rows={4}
-                rowHeight={74}
-                rowGap={15}
-                itemGap={14}
-                tilt={5}
-                arch={34}
-                speed={0.8}
-                speedVariance={0.45}
-                alternate
-                autoScroll={18}
-                inertia={0.92}
-                damping={0.12}
-                radius={12}
-                grayscale={0.35}
-                focusRadius={190}
-                focusStrength={0.9}
-                brightness={1}
-                fade={0.16}
-                dim={0.28}
-                taper={0.1}
-                backgroundColor="transparent"
-                interactive
-                className="h-full w-full"
-              />
-            </div>
+            <TiltedMediaReel
+              items={reelItems}
+              rows={2}
+              tilt={3.5}
+              className="touch-pan-y"
+            />
           </section>
         )}
 

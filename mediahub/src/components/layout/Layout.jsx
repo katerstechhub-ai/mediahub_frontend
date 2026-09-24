@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import BottomNav from './BottomNav'
@@ -109,21 +109,18 @@ export default function Layout() {
           hidden entirely.
         */}
         <main
-          className="flex-1 overflow-y-auto overscroll-contain lg:!pb-6"
+          className="flex-1 min-w-0 overflow-y-auto overscroll-contain touch-pan-y lg:!pb-6"
           style={{ background: 'var(--bg-primary)', paddingBottom: `${mobileBottomPadding}px`, WebkitOverflowScrolling: 'touch' }}
         >
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={location.pathname}
-              variants={pageVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
+          <motion.div
+            key={location.pathname}
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+          >
+            <Outlet />
+          </motion.div>
         </main>
         <BottomNav />
       </div>

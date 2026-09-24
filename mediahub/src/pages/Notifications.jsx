@@ -4,6 +4,7 @@ import { motion, useMotionValue, animate } from 'framer-motion'
 import { FiBell, FiArrowLeft, FiHeart, FiMessageCircle, FiUserPlus, FiThumbsDown, FiTrash2, FiLayers, FiPlay } from 'react-icons/fi'
 import { notificationsAPI, postsAPI } from '../api'
 import { Avatar } from '../components/ui'
+import AnimatedContent from '../components/ui/AnimatedContent'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
@@ -305,16 +306,46 @@ export default function Notifications() {
 
       <div className="max-w-2xl mx-auto">
         {notifications.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
-            <div className="w-24 h-24 rounded-full flex items-center justify-center mb-6" style={{ background: 'var(--bg-secondary)' }}>
-              <FiBell size={40} style={{ color: 'var(--text-muted)' }} />
-            </div>
-            <h3 className="text-xl font-extrabold font-display mb-2" style={{ color: 'var(--text-primary)' }}>
-              No notifications yet
-            </h3>
-            <p className="text-sm max-w-sm" style={{ color: 'var(--text-muted)' }}>
-              When someone likes, comments, or follows you, you'll see it here.
-            </p>
+          <div className="flex flex-col items-center justify-center px-4 py-24 text-center">
+            <AnimatedContent
+              distance={28}
+              duration={0.8}
+              ease="back.out(1.7)"
+              initialOpacity={0}
+              scale={0.86}
+              threshold={0.2}
+            >
+              <div
+                className="flex h-20 w-20 items-center justify-center rounded-full border border-amber-500/20"
+                style={{ background: 'var(--bg-secondary)' }}
+              >
+                <FiBell size={34} strokeWidth={1.8} style={{ color: '#d97706' }} />
+              </div>
+            </AnimatedContent>
+
+            <AnimatedContent
+              distance={18}
+              delay={0.12}
+              duration={0.7}
+              threshold={0.2}
+              className="mt-6"
+            >
+              <h3 className="font-display text-xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
+                Your activity will appear here
+              </h3>
+            </AnimatedContent>
+
+            <AnimatedContent
+              distance={14}
+              delay={0.22}
+              duration={0.7}
+              threshold={0.2}
+              className="mt-2"
+            >
+              <p className="max-w-sm text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                Likes and comments on your posts will show up here when they happen.
+              </p>
+            </AnimatedContent>
           </div>
         ) : (
           <div className="px-3 sm:px-4 py-3 flex flex-col gap-1.5">

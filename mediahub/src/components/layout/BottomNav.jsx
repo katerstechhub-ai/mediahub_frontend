@@ -1,4 +1,4 @@
-import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { FiHome, FiCompass, FiPlusSquare, FiBell, FiLogIn } from 'react-icons/fi'
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
@@ -67,16 +67,19 @@ export default function BottomNav() {
   }
 
   const handleTabClick = (to, e) => {
+    e.preventDefault()
+    e.stopPropagation()
     if (isActiveTab(to) && to !== '/create') {
-      e.preventDefault()
       navigate(0)
+      return
     }
+    navigate(to)
   }
 
   return createPortal(
     <motion.div
       ref={outerRef}
-      className="lg:hidden fixed z-50 flex justify-center"
+      className="lg:hidden fixed z-[100] flex justify-center pointer-events-none"
       style={{
         bottom: 'calc(1rem + env(safe-area-inset-bottom))',
         left: 0,
@@ -97,6 +100,8 @@ export default function BottomNav() {
           WebkitBackdropFilter: 'var(--glass-blur-lg, saturate(180%) blur(28px))',
           border: '1px solid var(--glass-border, color-mix(in oklab, var(--border) 80%, transparent))',
           boxShadow: 'var(--glass-shadow, 0 12px 40px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.08))',
+          pointerEvents: 'auto',
+          touchAction: 'manipulation',
         }}
       >
         {/* Specular sheen — top-lit glass highlight, the thing that reads as "liquid" rather than flat frosted */}
@@ -108,19 +113,19 @@ export default function BottomNav() {
         {visibleTabs.map(({ to, icon: Icon, label }) => {
           const active = isActiveTab(to)
           return (
-            <NavLink
+            <button
               key={to}
-              to={to}
-              end={to === '/'}
+              type="button"
               aria-label={label}
               onClick={(e) => handleTabClick(to, e)}
-              className="relative flex items-center justify-center w-11 h-11 rounded-full"
+              className="relative flex items-center justify-center w-11 h-11 rounded-full appearance-none border-0"
+              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', background: 'transparent' }}
             >
               {active && (
                 <motion.div
                   layoutId="bottomNavActivePill"
                   transition={{ type: 'spring', stiffness: 500, damping: 34 }}
-                  className="absolute inset-0 rounded-full"
+                  className="pointer-events-none absolute inset-0 rounded-full"
                   style={{
                     background: 'linear-gradient(135deg,#fbbf24,#f59e0b)',
                     boxShadow: '0 6px 18px rgba(245,158,11,0.45), inset 0 1px 0 rgba(255,255,255,0.35)',
@@ -131,7 +136,7 @@ export default function BottomNav() {
                 size={20}
                 color={active ? '#fff' : 'var(--text-muted)'}
                 strokeWidth={2.5}
-                style={{ position: 'relative', zIndex: 1 }}
+                style={{ position: 'relative', zIndex: 1, pointerEvents: 'none' }}
               />
               {to === '/notifications' && unreadCount > 0 && (
                 <span
@@ -141,16 +146,21 @@ export default function BottomNav() {
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
-            </NavLink>
+            </button>
           )
         })}
 
         <motion.button
-          onClick={handleAvatarClick}
+          type="button"
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            handleAvatarClick()
+          }}
           whileTap={{ scale: 0.9 }}
           aria-label={user ? 'Profile' : 'Sign in'}
           className="relative flex items-center justify-center w-12 h-12 rounded-full flex-shrink-0"
-          style={{ background: 'transparent' }}
+          style={{ background: 'transparent', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
         >
           {user ? (
             user.avatar ? (

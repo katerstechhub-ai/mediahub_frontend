@@ -11,9 +11,14 @@ import {
 import { FaHeart } from 'react-icons/fa'
 import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'
 import { useAuthStore } from '../store'
+import ThemeOverlay from '../components/ui/ThemeOverlay'
 import { Avatar } from '../components/ui'
 import { getMediaItems, MediaSlider, useMediaAspect } from '../components/PostMedia'
 import CardSpread from '../components/ui/card-spread'
+import MonthFilter from '../components/ui/MonthFilter'
+import Stack from '../components/ui/Stack'
+import BounceCards from '../components/ui/BounceCards'
+import MemoryVideo from '../components/ui/MemoryVideo'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -233,6 +238,52 @@ function MultiImageBadge({ count }) {
       <FiCopy size={11} strokeWidth={2.8} />
       {count}
     </div>
+  )
+}
+
+function isVideoMedia(item) {
+  if (!item) return false
+  if (item.type === 'video' || item.resourceType === 'video') return true
+  return /\.(mp4|webm|mov|m4v|ogg)(\?|$)/i.test(item.url || '')
+}
+
+function MultiMediaShowcase({ items, postId, onOpen, compact = false }) {
+  const [mode] = useState(() => (Math.random() > 0.5 ? 'stack' : 'bounce'))
+  const visibleItems = items.slice(0, 5).map((item) => ({
+    type: isVideoMedia(item) ? 'video' : 'image',
+    src: item.url,
+    poster: item.thumbnail || item.url,
+  }))
+
+  const cards = visibleItems.map((item, index) => (
+    item.type === 'video' ? (
+      <MemoryVideo key={`${postId}-video-${index}`} src={item.src} poster={item.poster} className="h-full w-full object-cover" />
+    ) : (
+      <img key={`${postId}-image-${index}`} src={item.src} alt="Memory" className="h-full w-full object-cover" draggable={false} />
+    )
+  ))
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={`relative block w-full overflow-hidden bg-[#fdfaf3] text-left ${compact ? 'h-full min-h-[190px]' : 'h-[360px] sm:h-[440px]'}`}
+      aria-label="Open multiple memories"
+    >
+      <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
+        {mode === 'stack' ? (
+          <div className="h-[220px] w-[220px] sm:h-[300px] sm:w-[300px]">
+            <Stack cards={cards} randomRotation sendToBackOnClick mobileClickOnly />
+          </div>
+        ) : (
+          <div className="w-full max-w-[520px]">
+            <BounceCards images={visibleItems} containerHeight={compact ? 180 : 260} enableHover={!compact} />
+          </div>
+        )}
+      </div>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/20 to-transparent" />
+      <MultiImageBadge count={items.length} />
+    </button>
   )
 }
 
@@ -864,26 +915,34 @@ function PostListItem({
       {mediaItems.length > 0 && (
         <div className="relative w-full cursor-pointer overflow-hidden"
           style={{ background: '#000', aspectRatio: mediaRatio, maxHeight: 560 }}>
-          <MediaSlider
-            items={mediaItems}
-            title={post.title}
-            postId={post._id}
-            onDoubleTap={(e) => handleDoubleTap(e, post._id, () => navigate(`/posts/${post._id}`))}
-            rounded=""
-            className="w-full h-full"
-            hideDots
-            tapToNavigate
-            fit="cover"
-            renderVideo={(item, isActive) => (
-              <FeedVideo
-                src={item.url}
-                poster={item.thumbnail}
-                postId={post._id}
-                className="w-full h-full"
-                isActive={isActive}
-              />
-            )}
-          />
+          {mediaItems.length > 1 ? (
+            <MultiMediaShowcase
+              items={mediaItems}
+              postId={post._id}
+              onOpen={() => navigate(`/posts/${post._id}`)}
+            />
+          ) : (
+            <MediaSlider
+              items={mediaItems}
+              title={post.title}
+              postId={post._id}
+              onDoubleTap={(e) => handleDoubleTap(e, post._id, () => navigate(`/posts/${post._id}`))}
+              rounded=""
+              className="w-full h-full"
+              hideDots
+              tapToNavigate
+              fit="cover"
+              renderVideo={(item, isActive) => (
+                <FeedVideo
+                  src={item.url}
+                  poster={item.thumbnail}
+                  postId={post._id}
+                  className="w-full h-full"
+                  isActive={isActive}
+                />
+              )}
+            />
+          )}
           <MultiImageBadge count={mediaItems.length} />
           <HeartAnimation postId={post._id} />
 
@@ -1017,6 +1076,7 @@ export default function FeedPage() {
   const [hasMore, setHasMore] = useState(false)
   const [viewMode, setViewMode] = useState('grid')
   const [query, setQuery] = useState('')
+  const [selectedMonth, setSelectedMonth] = useState('all')
   const [activeCommentPostId, setActiveCommentPostId] = useState(null)
   const [commentDeltas, setCommentDeltas] = useState({})
   const [gridCommentCounts, setGridCommentCounts] = useState({})
@@ -1192,7 +1252,7 @@ export default function FeedPage() {
   }
 
   const q = query.trim().toLowerCase()
-  const visiblePosts = q
+  const searchedPosts = q
     ? posts.filter(p =>
       p.title?.toLowerCase().includes(q) ||
       p.content?.toLowerCase().includes(q) ||
@@ -1201,6 +1261,17 @@ export default function FeedPage() {
       p.author?.name?.toLowerCase().includes(q)
     )
     : posts
+
+  const monthOptions = [
+    { value: 'all', label: 'All months' },
+    ...groupPostsByMonth(posts).map((group) => ({ value: group.key, label: group.label })),
+  ]
+  const visiblePosts = selectedMonth === 'all'
+    ? searchedPosts
+    : searchedPosts.filter((post) => {
+      const date = post.createdAt ? new Date(post.createdAt) : new Date()
+      return `${date.getFullYear()}-${date.getMonth()}` === selectedMonth
+    })
 
   const gridContainer = { animate: { transition: { staggerChildren: 0.03 } } }
   const gridItem = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0, transition: { duration: 0.22 } } }
@@ -1219,19 +1290,28 @@ export default function FeedPage() {
         style={{ background: 'var(--bg-secondary)' }}
       >
         {mediaItems.length > 0 ? (
-          <MediaSlider
-            items={mediaItems}
-            title={post.title}
-            postId={post._id}
-            onDoubleTap={(e) => handleDoubleTap(e, post._id, () => openLightbox(post))}
-            rounded=""
-            className="w-full h-full"
-            hideDots
-            peek
-            renderVideo={(item, isActive) => (
-              <BoomerangVideo src={item.url} poster={item.thumbnail} className="w-full h-full object-cover" isActive={isActive} />
-            )}
-          />
+          mediaItems.length > 1 ? (
+            <MultiMediaShowcase
+              items={mediaItems}
+              postId={post._id}
+              compact
+              onOpen={() => openLightbox(post)}
+            />
+          ) : (
+            <MediaSlider
+              items={mediaItems}
+              title={post.title}
+              postId={post._id}
+              onDoubleTap={(e) => handleDoubleTap(e, post._id, () => openLightbox(post))}
+              rounded=""
+              className="w-full h-full"
+              hideDots
+              peek
+              renderVideo={(item, isActive) => (
+                <BoomerangVideo src={item.url} poster={item.thumbnail} className="w-full h-full object-cover" isActive={isActive} />
+              )}
+            />
+          )
         ) : (
           <div onClick={(e) => handleDoubleTap(e, post._id, () => openLightbox(post))} className="w-full h-full flex items-center justify-center">
             <FiImage size={22} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
@@ -1251,6 +1331,7 @@ export default function FeedPage() {
 
   return (
     <>
+      <ThemeOverlay className="fixed bottom-20 right-4 z-40 sm:bottom-6 sm:right-6" />
       <div className="min-h-screen pb-10" style={{ background: 'var(--bg-primary)' }}>
 
         {/* Floating header */}
@@ -1276,12 +1357,12 @@ export default function FeedPage() {
                 transition={{ type: 'spring', stiffness: 400, damping: 28 }} />
               <button onClick={() => setViewMode('grid')} aria-label="Grid view"
                 className="relative z-10 h-9 flex items-center justify-center rounded-full"
-                style={{ color: viewMode === 'grid' ? '#fff' : (scrolled ? 'var(--text-muted)' : 'rgba(255,255,255,0.9)') }}>
+                style={{ color: viewMode === 'grid' ? '#fff' : 'var(--text-muted)' }}>
                 <FiGrid size={18} strokeWidth={2.5} />
               </button>
               <button onClick={() => setViewMode('list')} aria-label="List view"
                 className="relative z-10 h-9 flex items-center justify-center rounded-full"
-                style={{ color: viewMode === 'list' ? '#fff' : (scrolled ? 'var(--text-muted)' : 'rgba(255,255,255,0.9)') }}>
+                style={{ color: viewMode === 'list' ? '#fff' : 'var(--text-muted)' }}>
                 <FiList size={18} strokeWidth={2.5} />
               </button>
             </div>
@@ -1291,7 +1372,7 @@ export default function FeedPage() {
                 size={16}
                 strokeWidth={2.25}
                 className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
-                style={{ color: scrolled ? 'var(--text-muted)' : 'rgba(255,255,255,0.9)' }}
+                style={{ color: 'var(--text-muted)' }}
               />
               <input
                 type="text"
@@ -1300,11 +1381,13 @@ export default function FeedPage() {
                 onChange={(e) => setQuery(e.target.value)}
                 className="w-full rounded-full text-sm outline-none border-0 transition-all focus:ring-2 focus:ring-amber-500/40 placeholder:opacity-80"
                 style={{
-                  background: scrolled ? 'var(--bg-secondary)' : 'rgba(255,255,255,0.18)',
-                  color: scrolled ? 'var(--text-primary)' : '#fff',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border)',
+                  boxShadow: scrolled ? '0 6px 20px rgba(15, 23, 42, 0.08)' : '0 4px 16px rgba(15, 23, 42, 0.06)',
                   padding: '11px 40px 11px 42px',
                   fontWeight: 500,
-                  backdropFilter: 'blur(8px)',
+                  backdropFilter: 'blur(12px)',
                 }}
               />
               <AnimatePresence>
@@ -1342,6 +1425,13 @@ export default function FeedPage() {
         </div>
 
         <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-3">
+          <div className="mb-4">
+            <MonthFilter
+              items={monthOptions}
+              value={selectedMonth}
+              onChange={setSelectedMonth}
+            />
+          </div>
           {monthGroups.length === 0 ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
               className="flex flex-col items-center justify-center text-center px-4 pt-20">

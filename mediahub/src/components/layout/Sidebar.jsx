@@ -49,10 +49,10 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="fixed top-0 left-0 h-screen flex flex-col"
+      className="fixed top-0 left-0 h-screen flex flex-col pointer-events-auto"
       style={{
         width: '84px',
-        zIndex: 40,
+        zIndex: 100,
         background: 'var(--glass-surface-2, var(--bg-primary))',
         backdropFilter: 'var(--glass-blur-lg, saturate(180%) blur(28px))',
         WebkitBackdropFilter: 'var(--glass-blur-lg, saturate(180%) blur(28px))',
@@ -161,6 +161,7 @@ export default function Sidebar() {
                 end={to === '/'}
                 title={label}
                 className="relative flex items-center justify-center w-14 h-14 mx-auto rounded-full"
+                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
               >
                 <motion.div
                   whileHover={{ scale: 1.05 }}
@@ -170,7 +171,7 @@ export default function Sidebar() {
                   {active && (
                     <motion.div
                       layoutId="sidebarActivePill"
-                      className="absolute inset-0 rounded-full"
+                      className="pointer-events-none absolute inset-0 rounded-full"
                       style={{
                         background: '#f59e0b',
                         boxShadow: '0 4px 14px rgba(245,158,11,0.35), inset 0 1px 0 rgba(255,255,255,0.3)',
@@ -181,7 +182,7 @@ export default function Sidebar() {
                   <Icon
                     size={26}
                     strokeWidth={2.5}
-                    className="relative z-10"
+                    className="pointer-events-none relative z-10"
                     color={active ? '#ffffff' : 'var(--text-secondary)'}
                   />
                   <AnimatePresence>

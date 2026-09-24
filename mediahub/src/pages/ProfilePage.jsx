@@ -1,23 +1,30 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  FiGrid, FiArrowLeft, FiHeart, FiMessageCircle, FiUser, FiEdit2,
-  FiSettings, FiLayers, FiImage, FiCalendar, FiDownload, FiLoader, FiPlay, FiShare2
-} from 'react-icons/fi'
+import { FiArrowLeft, FiEdit2, FiSettings, FiShare2, FiDownload, FiLoader, FiPlay, FiLayers, FiPlus } from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
 import api, { authAPI, postsAPI, getDownloadUrl } from '../api'
 import toast from 'react-hot-toast'
-import dayjs from 'dayjs'
+import Stack from '../components/ui/Stack'
+import BounceCards from '../components/ui/BounceCards'
+import MemoryVideo from '../components/ui/MemoryVideo'
+import DomeGallery from '../components/ui/DomeGallery'
+
+function getPostMedia(post) {
+  const images = getImageUrls(post).filter(Boolean)
+  const videos = Array.isArray(post?.videos) ? post.videos : []
+  const videoItems = videos.map((video) => ({
+    url: video?.url,
+    thumbnail: video?.thumbnail || video?.url,
+  })).filter((item) => item.url)
+  return { images, videos: videoItems }
+}
 
 export default function ProfilePage() {
   const navigate = useNavigate()
   const { user, updateUser } = useAuthStore()
-  // Own posts only — fetched directly from the paginated per-author endpoint,
-  // not filtered out of a global list (that silently loses older posts once
-  // you've posted more than one page's worth).
   const { myPosts: userPosts, isLoading, myPostsHasMore, fetchMyPosts } = usePostStore()
   const [loading, setLoading] = useState(true)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
@@ -32,8 +39,8 @@ export default function ProfilePage() {
     loadData()
   }, [])
 
-  const handleAvatarChange = async (e) => {
-    const file = e.target.files[0]
+  const handleAvatarChange = async (event) => {
+    const file = event.target.files?.[0]
     if (!file) return
     setUploadingAvatar(true)
     try {
@@ -47,25 +54,24 @@ export default function ProfilePage() {
     }
   }
 
-  const handleDeletePost = async (postId, e) => {
-    e.stopPropagation()
-    if (!confirm('Delete this post?')) return
+  const handleDeletePost = async (postId, event) => {
+    event.stopPropagation()
+    if (!window.confirm('Delete this memory?')) return
     try {
       await postsAPI.delete(postId)
-      toast.success('Post deleted')
+      toast.success('Memory deleted')
       await fetchMyPosts(true)
     } catch {
-      toast.error('Failed to delete post')
+      toast.error('Failed to delete memory')
     }
   }
 
   const handleDownload = async (postId, url, filename) => {
     if (!url) return
-    setDownloadingMap(prev => ({ ...prev, [postId]: true }))
-    const toastId = toast.loading('Downloading…')
+    setDownloadingMap((current) => ({ ...current, [postId]: true }))
+    const toastId = toast.loading('Preparing download…')
     try {
-      const proxyUrl = getDownloadUrl(url, filename)
-      const response = await api.get(proxyUrl, { responseType: 'blob' })
+      const response = await api.get(getDownloadUrl(url, filename), { responseType: 'blob' })
       const blob = new Blob([response.data])
       const link = document.createElement('a')
       link.href = URL.createObjectURL(blob)
@@ -75,334 +81,139 @@ export default function ProfilePage() {
       link.remove()
       URL.revokeObjectURL(link.href)
       toast.success('Download complete', { id: toastId })
-    } catch (err) {
-      console.error('Download failed:', err)
+    } catch {
       toast.error('Download failed', { id: toastId })
     } finally {
-      setDownloadingMap(prev => ({ ...prev, [postId]: false }))
+      setDownloadingMap((current) => ({ ...current, [postId]: false }))
     }
   }
 
-  // Share this profile the same way a post gets shared — native share sheet
-  // where available, clipboard copy as the fallback. NOTE: adjust the path
-  // below if the public profile route isn't `/profile/:id` in your router.
   const handleShareProfile = async () => {
     const userId = user?._id || user?.id
     const shareUrl = `${window.location.origin}/profile/${userId}`
-    const shareData = {
-      title: user?.name || 'Profile',
-      text: `Check out ${user?.name || 'this'}'s profile`,
-      url: shareUrl,
-    }
     try {
-      if (navigator.share) {
-        await navigator.share(shareData)
-      } else {
+      if (navigator.share) await navigator.share({ title: user?.name || 'Profile', text: `Check out ${user?.name || 'this'}'s memories`, url: shareUrl })
+      else {
         await navigator.clipboard.writeText(shareUrl)
         toast.success('Profile link copied')
       }
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error('Share failed:', err)
-        toast.error('Failed to share profile')
-      }
+    } catch (error) {
+      if (error?.name !== 'AbortError') toast.error('Failed to share profile')
     }
   }
 
-  const memberSince = user?.createdAt ? dayjs(user.createdAt).format('MMM YYYY') : '—'
+  const memoryMedia = useMemo(() => {
+    return userPosts.flatMap((post) => {
+      const { images, videos } = getPostMedia(post)
+      return [
+        ...images.map((src) => ({ type: 'image', src })),
+        ...videos.map((video) => ({ type: 'video', src: video.url, poster: video.thumbnail })),
+      ]
+    }).filter((item) => item.src).sort(() => Math.random() - 0.5).slice(0, 10)
+  }, [userPosts])
+
+  const featuredCards = memoryMedia.slice(0, 5).map((item, index) => (
+    item.type === 'video' ? (
+      <MemoryVideo key={`${item.src}-${index}`} src={item.src} poster={item.poster} className="h-full w-full object-cover" />
+    ) : (
+      <img key={`${item.src}-${index}`} src={item.src} alt={`Featured memory ${index + 1}`} className="h-full w-full object-cover" draggable={false} />
+    )
+  ))
 
   if (loading || isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-dvh" style={{ background: 'var(--bg-primary)' }}>
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-          className="rounded-full h-10 w-10 border-4 border-amber-500 border-t-transparent"
-        />
+      <div className="flex min-h-dvh items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" />
       </div>
     )
   }
 
-  const stats = [
-    { label: 'Posts', value: userPosts.length, icon: null, onClick: null },
-    { label: 'Member since', value: memberSince, icon: null, onClick: null },
-  ]
-
   return (
-    <div className="min-h-dvh pb-20 fade-in" style={{ background: 'var(--bg-primary)' }}>
-      <div className="max-w-3xl lg:max-w-5xl mx-auto px-5" style={{ paddingTop: 'max(env(safe-area-inset-top), 28px)' }}>
-
-        {/* Top bar */}
-        <div className="flex items-center justify-between mb-10">
+    <div className="min-h-dvh pb-24 fade-in" style={{ background: 'var(--bg-primary)' }}>
+      <main className="mx-auto max-w-5xl px-4 sm:px-6" style={{ paddingTop: 'max(env(safe-area-inset-top), 24px)' }}>
+        <div className="flex items-center justify-between">
           <motion.button
-            whileHover={{ x: -2 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => navigate(-1)}
             aria-label="Go back"
-            className="w-10 h-10 flex items-center justify-center rounded-full transition-colors"
+            className="flex h-10 w-10 items-center justify-center rounded-full"
             style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
           >
             <FiArrowLeft size={20} />
           </motion.button>
-
           <div className="flex items-center gap-2">
             <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.94 }}
+              whileTap={{ scale: 0.92 }}
               onClick={handleShareProfile}
               aria-label="Share profile"
-              className="flex items-center gap-1.5 px-4 h-10 rounded-full text-sm font-semibold transition-colors"
+              className="flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-semibold"
               style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
             >
-              <FiShare2 size={15} />
-              Share
+              <FiShare2 size={15} /> Share
             </motion.button>
             <motion.button
-              whileHover={{ rotate: 45 }}
               whileTap={{ scale: 0.9 }}
               onClick={() => navigate('/settings')}
               aria-label="Settings"
-              className="w-10 h-10 flex items-center justify-center rounded-full transition-colors"
+              className="flex h-10 w-10 items-center justify-center rounded-full"
               style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
             >
-              <FiSettings size={20} />
+              <FiSettings size={19} />
             </motion.button>
           </div>
         </div>
 
-        {/* Avatar + name + stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="flex items-start gap-4"
-        >
-          <div className="relative shrink-0">
-            <Avatar src={user?.avatar} name={user?.name} size={72} />
-            <motion.label
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.9 }}
+        <section className="mt-6 flex flex-col items-start gap-5">
+          <div className="relative">
+            <div className="rounded-full p-1" style={{ background: 'linear-gradient(135deg, #fbbf24, #f3e8d7, #93a6d4)' }}>
+              <Avatar src={user?.avatar} name={user?.name} size={72} />
+            </div>
+            <label
               htmlFor="avatar-upload"
-              className="absolute -bottom-1 -right-1 w-6 h-6 flex items-center justify-center rounded-full cursor-pointer text-white shadow-sm"
-              style={{ background: '#f59e0b' }}
+              className="absolute bottom-1 right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-2 text-white shadow-md"
+              style={{ background: '#f59e0b', borderColor: 'var(--bg-primary)' }}
+              aria-label="Change profile picture"
             >
-              <AnimatePresence mode="wait" initial={false}>
-                {uploadingAvatar ? (
-                  <motion.span
-                    key="loading"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1, rotate: 360 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ rotate: { repeat: Infinity, duration: 0.8, ease: 'linear' } }}
-                  >
-                    …
-                  </motion.span>
-                ) : (
-                  <motion.span key="edit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                    <FiEdit2 size={11} />
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.label>
+              {uploadingAvatar ? <span className="animate-spin">…</span> : <FiEdit2 size={13} />}
+            </label>
             <input id="avatar-upload" type="file" accept="image/*" className="hidden" disabled={uploadingAvatar} onChange={handleAvatarChange} />
           </div>
 
-          <div className="pt-1 flex-1">
-            <h2 className="text-lg font-extrabold font-display" style={{ color: 'var(--text-primary)' }}>
-              {user?.name || 'User'}
-            </h2>
-            <p className="text-xs mb-2.5" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
-            {user?.bio && (
-              <p className="text-sm mb-2.5 leading-snug" style={{ color: 'var(--text-secondary)' }}>
-                {user.bio}
-              </p>
-            )}
-
-            <div className="flex gap-5">
-              {stats.map(({ label, value, onClick }, i) => (
-                <motion.div
-                  key={label}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 + i * 0.06 }}
-                  whileHover={onClick ? { scale: 1.06 } : {}}
-                  whileTap={onClick ? { scale: 0.94 } : {}}
-                  onClick={onClick || undefined}
-                  className={onClick ? 'cursor-pointer' : ''}
-                >
-                  <p className="text-base font-extrabold font-display leading-tight" style={{ color: 'var(--text-primary)' }}>{value}</p>
-                  <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{label}</p>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Posts */}
-        <div className="mt-12">
-          <div className="flex items-center mb-3">
-            <FiGrid size={14} style={{ color: 'var(--text-muted)' }} />
+          <div className="text-left">
+            <h1 className="mt-1 font-display text-xl font-extrabold tracking-tight sm:text-2xl" style={{ color: 'var(--text-primary)' }}>
+              {user?.name || 'Your memories'}
+            </h1>
+            {user?.bio && <p className="mt-1 max-w-md text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{user.bio}</p>}
           </div>
 
-          {userPosts.length === 0 ? (
-            <EmptyState
-              icon={FiUser}
-              title="No posts yet"
-              description="Share your first post with the community!"
-              action={
-                <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} onClick={() => navigate('/create')} className="text-sm font-semibold hover:text-amber-500" style={{ color: 'var(--text-primary)' }}>
-                  Create Post
-                </motion.button>
-              }
-            />
-          ) : (
-            <motion.div
-              initial="hidden"
-              animate="show"
-              variants={{ hidden: {}, show: { transition: { staggerChildren: 0.03 } } }}
-              className="grid grid-cols-3 gap-0.5"
-              style={{ background: 'var(--bg-primary)' }}
-            >
-              <AnimatePresence>
-                {userPosts.map(post => {
-                  const urls = getImageUrls(post)
-                  const mediaUrl = urls[0] || null
-                  const hasMultiple = urls.length > 1
-                  const hasVideos = post.videos && post.videos.length > 0
-                  const isDownloading = downloadingMap[post._id] || false
-
-                  const videoThumbnail = hasVideos ? post.videos[0].thumbnail : null
-                  const videoUrl = hasVideos ? post.videos[0].url : null
-
-                  const downloadUrl = mediaUrl || videoUrl
-                  const fileExt = downloadUrl ? downloadUrl.split('.').pop() || 'jpg' : 'jpg'
-                  const downloadFilename = post.title ? `${post.title}.${fileExt}` : `download.${fileExt}`
-
-                  return (
-                    <motion.div
-                      key={post._id || post.id}
-                      layout
-                      variants={{ hidden: { opacity: 0, scale: 0.9 }, show: { opacity: 1, scale: 1 } }}
-                      exit={{ opacity: 0, scale: 0.85 }}
-                      whileHover={{ scale: 1.03, zIndex: 1 }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 24 }}
-                      onClick={() => navigate(`/posts/${post._id || post.id}`)}
-                      className="cursor-pointer overflow-hidden group relative"
-                      style={{ aspectRatio: '1/1', background: 'var(--bg-secondary)', boxShadow: 'inset 0 0 0 0.5px var(--border)' }}
-                    >
-                      {/* Delete button */}
-                      <motion.button
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.85 }}
-                        onClick={e => handleDeletePost(post._id || post.id, e)}
-                        className="absolute top-1.5 right-1.5 z-10 opacity-0 group-hover:opacity-100 text-white text-xs"
-                        style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))' }}
-                      >
-                        ✕
-                      </motion.button>
-
-                      {/* Multiple media badge */}
-                      {hasMultiple && !hasVideos && (
-                        <div
-                          className="absolute top-1.5 left-1.5 z-10 text-white"
-                          style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))' }}
-                          aria-label={`${urls.length} media items`}
-                        >
-                          <FiLayers size={15} strokeWidth={2.5} />
-                        </div>
-                      )}
-
-                      {/* Play icon overlay for videos */}
-                      {hasVideos && (
-                        <div
-                          className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
-                          style={{ background: 'rgba(0,0,0,0.15)' }}
-                        >
-                          <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm"
-                            style={{ background: 'rgba(0,0,0,0.5)' }}
-                          >
-                            <FiPlay
-                              size={18}
-                              className="text-white"
-                              style={{ marginLeft: 2 }}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ── FIXED: removed onClick from video ── */}
-                      {hasVideos ? (
-                        <video
-                          src={videoUrl}
-                          poster={videoThumbnail || undefined}
-                          className="w-full h-full object-cover"
-                          muted
-                          playsInline
-                          // 🔁 REMOVED onClick → now clicks bubble to parent and navigate
-                          onError={(e) => e.target.style.display = 'none'}
-                        />
-                      ) : mediaUrl ? (
-                        <img
-                          src={mediaUrl}
-                          alt={post.title || 'Post'}
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          loading="lazy"
-                          onError={e => e.target.style.display = 'none'}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center p-2">
-                          <p className="text-[11px] text-center line-clamp-3" style={{ color: 'var(--text-secondary)' }}>
-                            {post.title || post.content || 'Untitled'}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Download button */}
-                      {downloadUrl && (
-                        <motion.button
-                          initial={{ opacity: 0, scale: 0.8 }}
-                          animate={{ opacity: 0, scale: 0.8 }}
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDownload(post._id, downloadUrl, downloadFilename)
-                          }}
-                          disabled={isDownloading}
-                          className="absolute bottom-1.5 right-1.5 z-10 p-1.5 rounded-full bg-white/80 backdrop-blur-sm text-gray-800 hover:bg-white shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100"
-                          aria-label="Download media"
-                        >
-                          {isDownloading ? (
-                            <FiLoader size={12} className="animate-spin" strokeWidth={2.5} />
-                          ) : (
-                            <FiDownload size={12} strokeWidth={2.5} />
-                          )}
-                        </motion.button>
-                      )}
-                    </motion.div>
-                  )
-                })}
-              </AnimatePresence>
-            </motion.div>
-          )}
-
-          {myPostsHasMore && userPosts.length > 0 && (
-            <div className="flex justify-center mt-6">
-              <motion.button
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={() => fetchMyPosts(false)}
-                disabled={isLoading}
-                className="px-5 py-2.5 rounded-full text-sm font-semibold disabled:opacity-50"
-                style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-              >
-                {isLoading ? 'Loading…' : 'Load more'}
-              </motion.button>
+          {featuredCards.length > 0 && (
+            <div className="h-[170px] w-[170px] self-start">
+              <Stack cards={featuredCards} randomRotation sendToBackOnClick mobileClickOnly />
             </div>
           )}
-        </div>
-      </div>
+        </section>
+
+        {memoryMedia.length > 0 && (
+          <section className="mt-10 overflow-hidden border-y py-6" style={{ borderColor: 'var(--border)' }}>
+            <div className="mb-2 flex items-center justify-between">
+              <div>
+              </div>
+              <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{userPosts.length} posts</span>
+            </div>
+            <BounceCards images={memoryMedia.slice(0, 5)} containerHeight={230} className="mt-3" />
+          </section>
+        )}
+
+        {memoryMedia.length > 0 && <DomeGallery images={memoryMedia} />}
+
+        {myPostsHasMore && userPosts.length > 0 && (
+          <div className="flex justify-center py-8">
+            <button onClick={() => fetchMyPosts(false)} disabled={isLoading} className="rounded-full px-5 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+              {isLoading ? 'Loading…' : 'Load more memories'}
+            </button>
+          </div>
+        )}
+      </main>
     </div>
   )
 }

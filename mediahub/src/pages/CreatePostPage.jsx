@@ -8,6 +8,7 @@ import {
 } from 'react-icons/fi'
 import { postsAPI, uploadAPI, uploadMediaDirect } from '../api'
 import toast from 'react-hot-toast'
+import SlingButton from '../components/ui/SlingButton'
 
 /**
  * CreatePostPage
@@ -735,228 +736,115 @@ function CreatePostPage() {
    * reservation for the nav — it simply covers the entire viewport.
    * ------------------------------------------------------------------ */
   const renderCaptureOverlay = () => (
-    <div className="relative w-full h-full flex flex-col" style={{ background: '#000' }}>
-      <div className="relative flex-1 min-h-0 overflow-hidden">
+    <div className="relative flex h-full w-full flex-col overflow-hidden" style={{ background: '#09090b' }}>
+      <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 pb-4 pt-16 sm:px-8">
         {!camError ? (
-          <video
-            ref={camVideoRef}
-            playsInline
-            muted
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{
-              opacity: camReady ? 1 : 0,
-              transition: 'opacity .4s ease',
-              transform: camFacing === 'user' ? 'scaleX(-1)' : 'none',
-            }}
-          />
+          <div className="relative h-[min(52vh,440px)] w-[min(78vw,330px)] max-w-full shrink-0 overflow-hidden rounded-[64px] border-[5px] border-black bg-[#151518] shadow-[0_24px_80px_rgba(0,0,0,0.65)]">
+            <video
+              ref={camVideoRef}
+              playsInline
+              muted
+              className="absolute inset-0 h-full w-full object-cover"
+              style={{
+                opacity: camReady ? 1 : 0,
+                transition: 'opacity .4s ease',
+                transform: camFacing === 'user' ? 'scaleX(-1)' : 'none',
+              }}
+            />
+
+            <AnimatePresence>
+              {capturedShot && (
+                capturedShot.kind === 'video' ? (
+                  <motion.video
+                    key="review-video"
+                    src={capturedShot.previewUrl}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                ) : (
+                  <motion.img
+                    key="review-photo"
+                    src={capturedShot.previewUrl}
+                    alt="Captured preview"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                )
+              )}
+            </AnimatePresence>
+
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,transparent_48%,rgba(0,0,0,0.12)_72%,rgba(0,0,0,0.62)_100%)]" />
+            <div className="pointer-events-none absolute inset-x-[18%] top-[8%] h-[20%] rounded-full bg-white/10 blur-2xl" />
+
+            {!camReady && !camError && !capturedShot && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }} className="block h-8 w-8 rounded-full border-2" style={{ borderColor: 'rgba(255,255,255,0.22)', borderTopColor: ACCENT }} />
+              </div>
+            )}
+
+            <AnimatePresence>
+              {shutterFlash && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.08 }} className="absolute inset-0 rounded-full bg-white" />
+              )}
+            </AnimatePresence>
+          </div>
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-center px-8" style={{ background: '#0a0a0a' }}>
-            <FiCamera size={24} color="rgba(255,255,255,0.5)" />
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>
-              Couldn't access the camera. You can still add photos another way.
-            </p>
-            <div className="flex flex-col gap-2 w-full max-w-[220px]">
-              <motion.button
-                whileTap={{ scale: 0.96 }}
-                onClick={() => cameraFallbackRef.current?.click()}
-                className="px-4 py-2.5 rounded-full text-xs font-bold"
-                style={{ background: ACCENT, color: '#171717' }}
-              >
-                Open camera app
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.96 }}
-                onClick={() => fileRef.current?.click()}
-                className="px-4 py-2.5 rounded-full text-xs font-bold border backdrop-blur-xl"
-                style={{ ...scrimControl, color: 'white' }}
-              >
-                Choose from gallery
-              </motion.button>
+          <div className="flex w-full max-w-sm flex-col items-center justify-center gap-4 rounded-[32px] border p-8 text-center" style={{ background: SURFACE, borderColor: BORDER }}>
+            <FiCamera size={28} color="rgba(255,255,255,0.5)" />
+            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>Couldn’t access the camera. You can still add photos another way.</p>
+            <div className="flex w-full flex-col gap-2">
+              <motion.button whileTap={{ scale: 0.96 }} onClick={() => cameraFallbackRef.current?.click()} className="rounded-full px-4 py-2.5 text-xs font-bold" style={{ background: ACCENT, color: '#171717' }}>Open camera app</motion.button>
+              <motion.button whileTap={{ scale: 0.96 }} onClick={() => fileRef.current?.click()} className="rounded-full border px-4 py-2.5 text-xs font-bold backdrop-blur-xl" style={{ ...scrimControl, color: 'white' }}>Choose from gallery</motion.button>
             </div>
           </div>
         )}
 
-        <AnimatePresence>
-          {capturedShot && (
-            capturedShot.kind === 'video' ? (
-              <motion.video
-                key="review-video"
-                src={capturedShot.previewUrl}
-                autoPlay
-                loop
-                muted
-                playsInline
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            ) : (
-              <motion.img
-                key="review-photo"
-                src={capturedShot.previewUrl}
-                alt="Captured preview"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            )
-          )}
-        </AnimatePresence>
-
-        {!camReady && !camError && !capturedShot && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <motion.span
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-              className="rounded-full h-6 w-6 border-2 block"
-              style={{ borderColor: 'rgba(255,255,255,0.25)', borderTopColor: ACCENT }}
-            />
-          </div>
-        )}
-
-        <AnimatePresence>
-          {shutterFlash && (
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              transition={{ duration: 0.08 }}
-              className="absolute inset-0 pointer-events-none"
-              style={{ background: '#fff' }}
-            />
-          )}
-        </AnimatePresence>
+        <div className="absolute inset-x-0 top-0 flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top,0px)+14px)] sm:px-8">
+          <button onClick={closeCameraModal} aria-label="Close camera" className="flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-xl" style={scrimControl}>
+            <FiX size={18} color="white" />
+          </button>
+          <div className="rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-white/70 backdrop-blur-xl" style={scrimControl}>Instant lens</div>
+          {!camError ? (
+            <button onClick={flipCamera} aria-label="Flip camera" className="flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-xl" style={scrimControl} disabled={isRecording}>
+              <FiRotateCw size={17} color="white" />
+            </button>
+          ) : <div className="h-10 w-10" />}
+        </div>
 
         <AnimatePresence>
           {isRecording && (
-            <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-xl border"
-              style={{
-                top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
-                background: 'rgba(20,20,22,0.5)',
-                borderColor: 'rgba(255,255,255,0.2)',
-              }}
-            >
-              <motion.span
-                animate={{ opacity: [1, 0.3, 1] }}
-                transition={{ repeat: Infinity, duration: 1 }}
-                className="w-2 h-2 rounded-full block"
-                style={{ background: '#ef4444' }}
-              />
-              <span className="text-xs font-bold tabular-nums" style={{ color: 'white' }}>
-                {recordLabel(recordSeconds)}
-              </span>
+            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="absolute left-1/2 top-[calc(env(safe-area-inset-top,0px)+72px)] flex -translate-x-1/2 items-center gap-1.5 rounded-full border px-3 py-1.5 backdrop-blur-xl" style={{ background: 'rgba(20,20,22,0.58)', borderColor: 'rgba(255,255,255,0.2)' }}>
+              <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="block h-2 w-2 rounded-full" style={{ background: '#ef4444' }} />
+              <span className="text-xs font-bold tabular-nums text-white">{recordLabel(recordSeconds)}</span>
             </motion.div>
           )}
         </AnimatePresence>
-
-        {!capturedShot && !isRecording && (
-          <>
-            <button
-              onClick={closeCameraModal}
-              aria-label="Close camera"
-              className="absolute w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
-              style={{ ...scrimControl, top: 'calc(env(safe-area-inset-top, 0px) + 12px)', left: 12 }}
-            >
-              <FiX size={18} color="white" />
-            </button>
-            {!camError && (
-              <button
-                onClick={flipCamera}
-                aria-label="Flip camera"
-                className="absolute w-9 h-9 rounded-full flex items-center justify-center border backdrop-blur-xl"
-                style={{ ...scrimControl, top: 'calc(env(safe-area-inset-top, 0px) + 12px)', right: 12 }}
-              >
-                <FiRotateCw size={16} color="white" />
-              </button>
-            )}
-          </>
-        )}
       </div>
 
       {!camError && (
-        <div
-          className="flex-none flex items-center justify-center px-8 pt-4"
-          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)', background: '#000' }}
-        >
+        <div className="relative z-10 flex flex-none items-center justify-center px-6 pt-2" style={{ paddingBottom: `calc(${BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px) + 24px)`, background: '#09090b' }}>
           {capturedShot ? (
             <div className="flex items-center gap-3">
-              <motion.button
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={retakeCapture}
-                className="px-5 h-11 rounded-full text-sm font-bold border backdrop-blur-xl"
-                style={{ ...scrimControl, color: 'white' }}
-              >
-                Retake
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={useCapturedShot}
-                className="flex items-center gap-1.5 px-6 h-11 rounded-full text-sm font-bold"
-                style={{ background: ACCENT, color: '#171717' }}
-              >
-                <FiCheck size={15} strokeWidth={3} /> {capturedShot.kind === 'video' ? 'Use Video' : 'Use Photo'}
-              </motion.button>
+              <motion.button whileTap={{ scale: 0.96 }} onClick={retakeCapture} className="h-11 rounded-full border px-5 text-sm font-bold text-white" style={scrimControl}>Retake</motion.button>
+              <motion.button whileTap={{ scale: 0.96 }} onClick={useCapturedShot} className="flex h-11 items-center gap-1.5 rounded-full px-6 text-sm font-bold" style={{ background: ACCENT, color: '#171717' }}><FiCheck size={15} strokeWidth={3} /> {capturedShot.kind === 'video' ? 'Use Video' : 'Use Photo'}</motion.button>
             </div>
           ) : (
-            <div className="flex items-center justify-between w-full">
-              <motion.button
-                whileHover={{ scale: 1.06 }}
-                whileTap={{ scale: 0.94 }}
-                onClick={() => fileRef.current?.click()}
-                aria-label="Choose from gallery"
-                className="w-12 h-12 rounded-2xl overflow-hidden border backdrop-blur-xl flex items-center justify-center"
-                style={scrimControl}
-                disabled={isRecording}
-              >
-                {lastShotPreview ? (
-                  <img src={lastShotPreview} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <FiImage size={18} color="white" />
-                )}
+            <div className="flex w-full max-w-[420px] items-center justify-between">
+              <motion.button whileTap={{ scale: 0.94 }} onClick={() => fileRef.current?.click()} aria-label="Choose from gallery" className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border backdrop-blur-xl" style={scrimControl} disabled={isRecording}>
+                {lastShotPreview ? <img src={lastShotPreview} alt="" className="h-full w-full object-cover" /> : <FiImage size={18} color="white" />}
               </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.94 }}
-                onPointerDown={handleShutterDown}
-                onPointerUp={handleShutterUp}
-                onPointerLeave={handleShutterCancel}
-                onPointerCancel={handleShutterCancel}
-                onContextMenu={(e) => e.preventDefault()}
-                disabled={!camReady}
-                aria-label="Hold to record, tap for photo"
-                className="rounded-full disabled:opacity-40 select-none flex-none"
-                style={{
-                  width: 68,
-                  height: 68,
-                  touchAction: 'none',
-                  background: 'rgba(255,255,255,0.14)',
-                  backdropFilter: 'blur(12px)',
-                  boxShadow: isRecording
-                    ? '0 0 0 2px rgba(239,68,68,0.95), 0 0 0 6px rgba(239,68,68,0.2), inset 0 1px 0 rgba(255,255,255,0.5)'
-                    : `0 0 0 2px ${ACCENT}, 0 0 0 6px rgba(255,198,41,0.18), inset 0 1px 0 rgba(255,255,255,0.5)`,
-                }}
-              >
-                <motion.span
-                  animate={isRecording ? { borderRadius: '10px', width: 26, height: 26 } : { borderRadius: '999px', width: 54, height: 54 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-                  className="block"
-                  style={{ margin: '0 auto', background: isRecording ? '#ef4444' : '#fff' }}
-                />
+              <motion.button whileTap={{ scale: 0.94 }} onPointerDown={handleShutterDown} onPointerUp={handleShutterUp} onPointerLeave={handleShutterCancel} onPointerCancel={handleShutterCancel} onContextMenu={(e) => e.preventDefault()} disabled={!camReady} aria-label="Hold to record, tap for photo" className="relative flex h-[86px] w-[86px] select-none items-center justify-center rounded-full disabled:opacity-40" style={{ touchAction: 'none', background: 'rgba(255,255,255,0.12)', boxShadow: isRecording ? '0 0 0 2px rgba(239,68,68,0.95), 0 0 0 8px rgba(239,68,68,0.2)' : '0 0 0 2px #737b86, 0 0 0 8px rgba(115,123,134,0.16)' }}>
+                <motion.span animate={isRecording ? { borderRadius: '12px', width: 30, height: 30 } : { borderRadius: '999px', width: 68, height: 68 }} transition={{ type: 'spring', stiffness: 300, damping: 22 }} className="block" style={{ background: isRecording ? '#ef4444' : '#fff' }} />
               </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.06 }}
-                whileTap={{ scale: 0.94 }}
-                onClick={flipCamera}
-                aria-label="Flip camera"
-                className="w-12 h-12 rounded-2xl flex items-center justify-center border backdrop-blur-xl"
-                style={scrimControl}
-                disabled={isRecording}
-              >
+              <motion.button whileTap={{ scale: 0.94 }} onClick={flipCamera} aria-label="Flip camera" className="flex h-12 w-12 items-center justify-center rounded-2xl border backdrop-blur-xl" style={scrimControl} disabled={isRecording}>
                 <FiRotateCw size={18} color="white" />
               </motion.button>
             </div>
@@ -1144,7 +1032,7 @@ function CreatePostPage() {
           </AnimatePresence>
         </section>
 
-        <section className="rounded-[24px] border px-5 py-4" style={{ background: SURFACE, borderColor: BORDER }}>
+        <section className="border-b px-1 py-4" style={{ borderColor: BORDER }}>
           <div className="flex items-baseline gap-3 mb-2">
             <span className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: ACCENT }}>
               Title
@@ -1182,7 +1070,7 @@ function CreatePostPage() {
           </div>
         </section>
 
-        <section className="mt-3 rounded-[24px] border px-5 py-4" style={{ background: SURFACE, borderColor: BORDER }}>
+        <section className="mt-3 border-b px-1 py-4" style={{ borderColor: BORDER }}>
           <div className="flex items-baseline gap-3 mb-2">
             <span className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: ACCENT }}>
               Story
@@ -1332,46 +1220,15 @@ function CreatePostPage() {
 // ---------- sub-components ------------------------------------------------
 function PostButton({ canPost, loading, uploadProgress, onClick }) {
   return (
-    <motion.button
-      whileHover={canPost ? { scale: 1.015 } : {}}
-      whileTap={canPost ? { scale: 0.98 } : {}}
-      onClick={onClick}
-      disabled={!canPost}
-      className="relative w-full h-14 rounded-full font-bold text-base disabled:opacity-40 disabled:cursor-not-allowed overflow-hidden"
-      style={{
-        background: canPost ? ACCENT : SURFACE,
-        color: canPost ? '#171717' : TEXT_MUTED,
-      }}
-    >
-      <AnimatePresence mode="wait" initial={false}>
-        {loading ? (
-          <motion.span
-            key="loading"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            className="relative flex items-center justify-center gap-2"
-          >
-            <motion.span
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 0.7, ease: 'linear' }}
-              className="rounded-full h-4 w-4 border-2 border-current border-t-transparent block"
-            />
-            {uploadProgress > 0 ? `${uploadProgress}%` : 'Posting'}
-          </motion.span>
-        ) : (
-          <motion.span
-            key="post"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            className="relative flex items-center justify-center gap-1.5"
-          >
-            <FiCheck size={16} strokeWidth={3} /> Post
-          </motion.span>
-        )}
-      </AnimatePresence>
-    </motion.button>
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-xs font-semibold" style={{ color: canPost ? TEXT_PRIMARY : TEXT_MUTED }}>
+          {loading ? (uploadProgress > 0 ? `Posting ${uploadProgress}%` : 'Posting…') : canPost ? 'Pull to post' : 'Add a memory or a few words'}
+        </p>
+        <p className="mt-0.5 text-[10px]" style={{ color: TEXT_FAINT }}>Tap or sling the button upward</p>
+      </div>
+      <SlingButton onSend={onClick} disabled={!canPost} loading={loading} ariaLabel="Post memory" />
+    </div>
   )
 }
 

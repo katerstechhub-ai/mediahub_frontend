@@ -6,6 +6,7 @@ import {
   FiLogOut, FiChevronRight, FiX, FiEye, FiEyeOff, FiCheck, FiShield
 } from 'react-icons/fi'
 import { useAuthStore, useThemeStore } from '../store'
+import ThemeOverlay from '../components/ui/ThemeOverlay'
 import { authAPI } from '../api'
 import toast from 'react-hot-toast'
 
@@ -361,29 +362,41 @@ export default function SettingsPage() {
 
   return (
     <>
+      <ThemeOverlay className="fixed bottom-20 right-4 z-40 sm:bottom-6 sm:right-6" />
       <div className="min-h-screen pb-16" style={{ background: 'var(--bg-primary)' }}>
         {/* Header — soft tinted band */}
         <header
-          className="px-4 pt-5 pb-8"
-          style={{ background: 'color-mix(in oklab, #f59e0b 8%, var(--bg-primary))' }}
+          className="relative overflow-hidden px-5 pb-12 pt-6 sm:px-6"
+          style={{
+            background: 'linear-gradient(145deg, color-mix(in oklab, #f59e0b 14%, var(--bg-primary)), var(--bg-primary) 72%)',
+          }}
         >
-          <button
-            onClick={() => navigate(-1)}
-            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors -ml-1"
-            style={{ color: 'var(--text-primary)' }}
-            aria-label="Go back"
-          >
-            <FiArrowLeft size={20} strokeWidth={2} />
-          </button>
-          <h1
-            className="text-[28px] font-bold leading-tight mt-2"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            Settings
-          </h1>
+          <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-amber-400/15 blur-3xl" />
+          <div className="relative z-10 mx-auto max-w-md">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex h-9 w-9 items-center justify-center rounded-full border transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+              style={{ color: 'var(--text-primary)', borderColor: 'var(--border)' }}
+              aria-label="Go back"
+            >
+              <FiArrowLeft size={20} strokeWidth={2} />
+            </button>
+            <p className="mt-7 text-[10px] font-bold uppercase tracking-[0.3em] text-amber-600">
+              Personalize your space
+            </p>
+            <h1
+              className="mt-2 font-display text-4xl font-extrabold tracking-tight sm:text-5xl"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              Settings
+            </h1>
+            <p className="mt-2 max-w-xs text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              Tune your account, appearance, and privacy preferences.
+            </p>
+          </div>
         </header>
 
-        <main className="max-w-md mx-auto -mt-2">
+        <main className="relative z-10 mx-auto -mt-5 max-w-md">
 
           <SectionLabel>General</SectionLabel>
           <Group>
