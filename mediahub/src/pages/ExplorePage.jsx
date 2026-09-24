@@ -5,6 +5,7 @@ import { FiSearch, FiX, FiGrid, FiLayers, FiBell, FiPlus, FiPlay } from 'react-i
 import { useAuthStore } from '../store'
 import { EmptyState, Avatar } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
+import ReelGallery from '../components/ui/reel-gallery'
 import { postsAPI, notificationsAPI } from '../api'
 
 /* ─────────── Boomerang video: plays forward, then reverses back to start, on loop ─────────── */
@@ -81,6 +82,13 @@ export default function ExplorePage() {
   const navigate = useNavigate()
   const inputRef = useRef()
   const { user } = useAuthStore()
+
+  // Keep the reel curated and lightweight: it is a featured strip, not one
+  // animated gallery per post card.
+  const reelImages = filtered
+    .flatMap((post) => getImageUrls(post))
+    .filter(Boolean)
+    .slice(0, 18)
 
   const fetchPosts = async () => {
     try {
@@ -240,6 +248,39 @@ export default function ExplorePage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-4">
+        {reelImages.length > 0 && !query.trim() && (
+          <section className="relative mb-8 overflow-hidden px-0 py-2 sm:py-4">
+            <div className="relative z-10 h-[300px] w-full sm:h-[380px]">
+              <ReelGallery
+                images={reelImages}
+                rows={4}
+                rowHeight={74}
+                rowGap={15}
+                itemGap={14}
+                tilt={5}
+                arch={34}
+                speed={0.8}
+                speedVariance={0.45}
+                alternate
+                autoScroll={18}
+                inertia={0.92}
+                damping={0.12}
+                radius={12}
+                grayscale={0.35}
+                focusRadius={190}
+                focusStrength={0.9}
+                brightness={1}
+                fade={0.16}
+                dim={0.28}
+                taper={0.1}
+                backgroundColor="transparent"
+                interactive
+                className="h-full w-full"
+              />
+            </div>
+          </section>
+        )}
+
         {filtered.length === 0 ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="pt-20">
             <EmptyState

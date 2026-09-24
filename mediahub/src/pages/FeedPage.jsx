@@ -13,6 +13,7 @@ import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'
 import { useAuthStore } from '../store'
 import { Avatar } from '../components/ui'
 import { getMediaItems, MediaSlider, useMediaAspect } from '../components/PostMedia'
+import CardSpread from '../components/ui/card-spread'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -159,6 +160,57 @@ function WeddingHero() {
         <div
           className="absolute inset-x-0 bottom-0 h-1/2 pointer-events-none z-[5]"
           style={{ background: 'linear-gradient(to bottom, transparent 0%, var(--bg-primary) 100%)' }}
+        />
+      </div>
+    </section>
+  )
+}
+
+
+/* ─────────── Card Spread — keeps the wedding memories tactile and playful ─────────── */
+const MEMORY_CARDS = [
+  { src: gallery1, alt: 'Paloma and Kenneth celebrating together', id: 'celebration' },
+  { src: gallery2, alt: 'A quiet moment between Paloma and Kenneth', id: 'together' },
+  { src: gallery4, alt: 'Dancing into forever', id: 'dancing' },
+  { src: gallery5, alt: 'A joyful wedding memory', id: 'joy' },
+  { src: pamsSolo, alt: 'Portrait of the bride', id: 'bride' },
+  { src: bizzerSolo, alt: 'Portrait of the groom', id: 'groom' },
+]
+
+function MemoryCardSpread() {
+  return (
+    <section
+      className="relative overflow-hidden px-2 py-4 sm:px-4 sm:py-6"
+    >
+      <span
+        className="absolute right-3 top-2 z-20 text-[10px] font-bold uppercase tracking-[0.24em] text-amber-600/80 sm:right-5 sm:top-3"
+      >
+        Memories
+      </span>
+
+      <div className="relative z-10 mx-auto mt-8 h-[280px] w-full max-w-5xl sm:mt-10 sm:h-[340px]">
+        <CardSpread
+          cards={MEMORY_CARDS}
+          cardWidth={150}
+          cardHeight={225}
+          cardRadius={14}
+          radius={390}
+          arc={76}
+          cardColor="#fffdf8"
+          cardPadding={5}
+          borderColor="rgba(245, 158, 11, 0.22)"
+          shadow={0.24}
+          lift={30}
+          push={4}
+          pushReach={2}
+          restOpacity={0.96}
+          stiffness={170}
+          damping={18}
+          stagger={0.07}
+          fit
+          maxScale={1}
+          interactive
+          className="h-full w-full"
         />
       </div>
     </section>
@@ -443,16 +495,45 @@ function PhotoLightbox({ post, onClose, navigate }) {
 
           {isMulti ? (
             <motion.div
-              key={`scrapbook-${post._id}`}
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              transition={{ duration: 0.18 }}
-              className="relative z-0 rounded-2xl overflow-hidden shadow-2xl"
-              style={{ width: 'min(92vw, 480px, 62vh)', aspectRatio: '4 / 5' }}
+              key={`card-spread-modal-${post._id}`}
+              initial={{ opacity: 0, scale: 0.92, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 16 }}
+              transition={{ type: 'spring', stiffness: 220, damping: 22 }}
+              className="relative z-0 overflow-hidden border border-amber-200/60 bg-[#fdfaf3] shadow-2xl"
+              style={{ width: 'min(94vw, 760px)', height: 'min(78vh, 560px)' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <ScrapbookCollage post={post} items={items} />
+              <span className="absolute right-4 top-3 z-20 text-[10px] font-bold uppercase tracking-[0.24em] text-amber-700/75">
+                Memory
+              </span>
+              <CardSpread
+                cards={items.map((media, index) => ({
+                  src: isVideoItem(media) ? (media.thumbnail || media.url) : media.url,
+                  alt: post.title ? `${post.title} — memory ${index + 1}` : `Memory ${index + 1}`,
+                  id: media.id || media.url || index,
+                })).filter((card) => card.src)}
+                cardWidth={156}
+                cardHeight={234}
+                cardRadius={14}
+                radius={420}
+                arc={82}
+                cardColor="#fffdf8"
+                cardPadding={5}
+                borderColor="rgba(245, 158, 11, 0.24)"
+                shadow={0.28}
+                lift={34}
+                push={4}
+                pushReach={2}
+                restOpacity={0.96}
+                stiffness={170}
+                damping={18}
+                stagger={0.06}
+                fit
+                maxScale={1}
+                interactive
+                className="h-full w-full"
+              />
             </motion.div>
           ) : (
             <AnimatePresence mode="wait">
@@ -1254,7 +1335,11 @@ export default function FeedPage() {
           </div>
         </div>
 
-        <WeddingHero />
+        <div className="pt-24 sm:pt-28" />
+
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-2 sm:pt-4">
+          <MemoryCardSpread />
+        </div>
 
         <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-3">
           {monthGroups.length === 0 ? (
