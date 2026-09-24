@@ -125,7 +125,9 @@ export default function ReelGallery({
                 height: rowHeight,
                 gap: itemGap,
                 transform: `translateX(${rowOffset}px) translateY(${archOffset}px) rotate(${direction * tilt * 0.18}deg)`,
-                transition: dragRef.current ? 'none' : `transform ${Math.max(0.05, damping)}s linear`,
+                // The position is updated every animation frame. A CSS transition here
+                // makes mobile browsers chase stale frames, which looks like vibration.
+                transition: 'none',
               }}
             >
               {rowImages.map((src, imageIndex) => {

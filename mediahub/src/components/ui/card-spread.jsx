@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 
 function clamp(value, min, max) {
@@ -31,14 +31,26 @@ export default function CardSpread({
   style,
 }) {
   const [activeIndex, setActiveIndex] = useState(null)
+  const [isMobile, setIsMobile] = useState(false)
   const safeCards = useMemo(() => cards.filter((card) => card?.src), [cards])
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 640px)')
+    const update = () => setIsMobile(media.matches)
+    update()
+    media.addEventListener?.('change', update)
+    return () => media.removeEventListener?.('change', update)
+  }, [])
 
   if (!safeCards.length) return null
 
   const count = safeCards.length
   const centerIndex = (count - 1) / 2
   const angleStep = count > 1 ? arc / (count - 1) : 0
-  const responsiveScale = fit ? clamp(1, 0.58, maxScale) : 1
+  // Keep the deck comfortably inside narrow phone screens.
+  const responsiveScale = fit
+    ? Math.min(maxScale, isMobile ? 0.66 : 1)
+    : 1
 
   const clearActive = () => {
     if (interactive) setActiveIndex(null)

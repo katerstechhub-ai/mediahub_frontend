@@ -180,15 +180,15 @@ const MEMORY_CARDS = [
 function MemoryCardSpread() {
   return (
     <section
-      className="relative overflow-hidden px-2 py-4 sm:px-4 sm:py-6"
+      className="relative overflow-visible px-2 py-4 sm:px-4 sm:py-6"
     >
-      <span
-        className="absolute right-3 top-2 z-20 text-[10px] font-bold uppercase tracking-[0.24em] text-amber-600/80 sm:right-5 sm:top-3"
-      >
-        Memories
-      </span>
+      <div className="relative z-30 mb-1 flex justify-end px-2 sm:px-4">
+        <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-amber-600/90">
+          Memories
+        </span>
+      </div>
 
-      <div className="relative z-10 mx-auto mt-8 h-[280px] w-full max-w-5xl sm:mt-10 sm:h-[340px]">
+      <div className="relative z-10 mx-auto h-[280px] w-full max-w-5xl sm:h-[340px]">
         <CardSpread
           cards={MEMORY_CARDS}
           cardWidth={150}
