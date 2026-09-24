@@ -106,8 +106,8 @@ export default function ProfilePage() {
     return userPosts.flatMap((post) => {
       const { images, videos } = getPostMedia(post)
       return [
-        ...images.map((src) => ({ type: 'image', src })),
-        ...videos.map((video) => ({ type: 'video', src: video.url, poster: video.thumbnail })),
+        ...images.map((src) => ({ type: 'image', src, postId: post._id || post.id })),
+        ...videos.map((video) => ({ type: 'video', src: video.url, poster: video.thumbnail, postId: post._id || post.id })),
       ]
     }).filter((item) => item.src).sort(() => Math.random() - 0.5).slice(0, 10)
   }, [userPosts])
@@ -204,7 +204,7 @@ export default function ProfilePage() {
           </section>
         )}
 
-        {memoryMedia.length > 0 && <DomeGallery images={memoryMedia} />}
+        {memoryMedia.length > 0 && <DomeGallery images={memoryMedia} onPostSelect={(item) => item.postId && navigate(`/posts/${item.postId}`)} />}
 
         {myPostsHasMore && userPosts.length > 0 && (
           <div className="flex justify-center py-8">

@@ -1,10 +1,18 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import MemoryVideo from './MemoryVideo'
 
-export default function DomeGallery({ images = [], onSelect, grayscale = false }) {
+export default function DomeGallery({ images = [], onPostSelect, grayscale = false }) {
   const [opened, setOpened] = useState(null)
   const [failed, setFailed] = useState(() => new Set())
   const items = useMemo(() => images.filter((item) => item?.src && !failed.has(item.src)), [images, failed])
+
+  useEffect(() => {
+    if (!opened) return undefined
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = previousOverflow }
+  }, [opened])
 
   const removeFailed = (src) => {
     setFailed((current) => {
@@ -30,7 +38,6 @@ export default function DomeGallery({ images = [], onSelect, grayscale = false }
                 type="button"
                 onClick={() => {
                   setOpened(item)
-                  onSelect?.(item)
                 }}
                 className="group relative aspect-square overflow-hidden rounded-[18px] border-2 border-white/80 bg-white shadow-[0_10px_22px_rgba(50,35,20,0.16)] transition duration-300 hover:z-10 hover:scale-105 hover:!rotate-0"
                 style={{ transform: `translateY(${lift}px) rotate(${tilt}deg)` }}
@@ -48,17 +55,31 @@ export default function DomeGallery({ images = [], onSelect, grayscale = false }
         </div>
       </div>
 
-      {opened && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-5 backdrop-blur-md" onClick={() => setOpened(null)} role="dialog" aria-modal="true">
-          <div className="relative max-h-[86vh] max-w-[min(88vw,720px)] overflow-hidden rounded-[26px] border-4 border-white bg-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
+      {opened && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[120] flex h-[100dvh] w-full flex-col overflow-hidden overscroll-none bg-black/85 p-4 backdrop-blur-md sm:p-6" onClick={() => setOpened(null)} role="dialog" aria-modal="true">
+          <button type="button" onClick={() => setOpened(null)} className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-xl text-white" aria-label="Close image">×</button>
+          <div className="flex min-h-0 flex-1 items-center justify-center pb-16" onClick={(event) => event.stopPropagation()}>
+            <div className="relative max-h-full max-w-[min(88vw,720px)] overflow-hidden rounded-[26px] border-4 border-white bg-black shadow-2xl">
             {opened.type === 'video' ? (
               <MemoryVideo src={opened.src} poster={opened.poster} className="max-h-[82vh] max-w-full object-contain" />
             ) : (
               <img src={opened.src} alt={opened.alt || 'Memory'} className="max-h-[82vh] max-w-full object-contain" />
             )}
-            <button type="button" onClick={() => setOpened(null)} className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-xl text-white" aria-label="Close image">×</button>
+            </div>
           </div>
-        </div>
+          {opened.postId && onPostSelect && (
+            <div className="absolute inset-x-0 bottom-0 flex justify-center pb-[calc(env(safe-area-inset-bottom,0px)+20px)]">
+              <button
+                type="button"
+                onClick={() => { onPostSelect(opened); setOpened(null) }}
+                className="rounded-full bg-white px-5 py-3 text-sm font-bold text-black shadow-lg"
+              >
+                View post
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body
       )}
     </>
   )
