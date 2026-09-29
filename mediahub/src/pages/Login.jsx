@@ -4,6 +4,7 @@ import { FiEye, FiEyeOff } from 'react-icons/fi'
 import { authAPI } from '../api'
 import { useAuthStore } from '../store'
 import toast from 'react-hot-toast'
+import africanMemoriesHero from '../assets/african-memories-login.jpg'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -67,21 +68,21 @@ export default function LoginPage() {
         className="absolute inset-0 bg-cover bg-center"
         style={{
           backgroundImage:
-            "url('https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1600&auto=format&fit=crop')",
+            `url(${africanMemoriesHero})`,
         }}
       />
       {/* Dark overlay so the form stays readable everywhere on the image */}
-      <div className="absolute inset-0" style={{ background: 'rgba(10, 16, 12, 0.55)' }} />
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(18, 11, 7, 0.20), rgba(18, 11, 7, 0.58))' }} />
       <div
         className="absolute inset-0"
-        style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(8,12,9,0.35) 55%, rgba(8,12,9,0.55) 100%)' }}
+        style={{ background: 'linear-gradient(90deg, rgba(28, 16, 9, 0.04) 0%, rgba(28, 16, 9, 0.20) 45%, rgba(8, 8, 9, 0.72) 100%)' }}
       />
 
       {/* Transparent glass form panel — spans full height, flush to the right edge */}
       <div
         className="relative z-10 w-full md:w-[560px] min-h-screen flex items-center justify-center px-6 sm:px-10 md:px-14"
         style={{
-          background: 'rgba(20, 28, 22, 0.35)',
+          background: 'rgba(20, 16, 14, 0.42)',
           backdropFilter: 'blur(18px)',
           WebkitBackdropFilter: 'blur(18px)',
           borderLeft: '1px solid rgba(255,255,255,0.08)',
@@ -106,7 +107,7 @@ export default function LoginPage() {
               />
             </svg>
             <span className="text-sm font-extrabold font-display tracking-wide text-white/90">
-              Eventpulse
+              Memories
             </span>
           </div>
 

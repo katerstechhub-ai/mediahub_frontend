@@ -5,6 +5,7 @@ import { FiBell, FiArrowLeft, FiHeart, FiMessageCircle, FiUserPlus, FiThumbsDown
 import { notificationsAPI, postsAPI } from '../api'
 import { Avatar } from '../components/ui'
 import AnimatedContent from '../components/ui/AnimatedContent'
+import ThemeOverlay from '../components/ui/ThemeOverlay'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
@@ -279,12 +280,13 @@ export default function Notifications() {
   const unreadCount = notifications.filter((n) => !n.read).length
 
   return (
-    <div className="min-h-screen fade-in" style={{ background: 'var(--bg-primary)' }}>
-      <div className="sticky top-0 z-10 px-4 sm:px-6 py-3" style={{ background: 'var(--bg-primary)' }}>
+    <div className="min-h-screen fade-in pb-[calc(5rem+env(safe-area-inset-bottom))]" style={{ background: 'var(--bg-primary)' }}>
+      <ThemeOverlay className="fixed right-4 top-20 z-40 sm:right-6 sm:top-6" />
+      <div className="sticky top-0 z-10 px-4 sm:px-6 py-3 backdrop-blur-xl" style={{ background: 'color-mix(in srgb, var(--bg-primary) 84%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--border) 72%, transparent)', boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)', WebkitBackdropFilter: 'saturate(150%) blur(18px)' }}>
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
-            className="w-9 h-9 flex items-center justify-center rounded-full flex-shrink-0 hover:bg-[var(--bg-secondary)] transition-colors"
+            className="w-11 h-11 flex items-center justify-center rounded-full flex-shrink-0 hover:bg-[var(--bg-secondary)] transition-colors"
             style={{ color: 'var(--text-primary)' }}
           >
             <FiArrowLeft size={19} />
@@ -295,7 +297,7 @@ export default function Notifications() {
           {unreadCount > 0 && (
             <button
               onClick={handleMarkAllAsRead}
-              className="ml-auto text-xs font-semibold px-3 py-1.5 rounded-full transition-colors hover:bg-[var(--bg-secondary)]"
+              className="ml-auto min-h-[44px] text-xs font-semibold px-3 py-1.5 rounded-full transition-colors hover:bg-[var(--bg-secondary)]"
               style={{ color: 'var(--text-muted)' }}
             >
               Mark all read · {unreadCount}
@@ -378,7 +380,7 @@ export default function Notifications() {
                       handleMarkAsRead(notification._id)
                       if (post?._id) navigate(`/posts/${post._id}`)
                     }}
-                    className="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
+                    className="flex items-center gap-3 px-3 py-3 rounded-3xl border border-black/[0.05] hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer shadow-[0_8px_22px_rgba(15,23,42,0.05)]"
                     style={{ background: !notification.read ? 'rgba(245,158,11,0.07)' : 'var(--bg-primary)' }}
                   >
                     <div className="relative flex-shrink-0">

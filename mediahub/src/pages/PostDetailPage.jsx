@@ -9,6 +9,7 @@ import { FaHeart } from 'react-icons/fa'
 import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'
 import { useAuthStore } from '../store'
 import { Avatar } from '../components/ui'
+import ThemeOverlay from '../components/ui/ThemeOverlay'
 import { getMediaItems, MediaSlider, useMediaAspect, InstagramVideo } from '../components/PostMedia'
 import CommentsSheet from './_CommentsSheet'
 import toast from 'react-hot-toast'
@@ -193,6 +194,7 @@ export default function PostDetailPage() {
 
   return (
     <>
+      <ThemeOverlay className="fixed bottom-20 right-4 z-40 sm:bottom-6 sm:right-6" />
       <AnimatePresence onExitComplete={() => { if (!postVisible) navigate('/') }}>
         {postVisible && (
           <motion.div
@@ -210,7 +212,8 @@ export default function PostDetailPage() {
               <div
                 className="sticky top-0 z-20 px-4 py-2.5 flex items-center justify-between"
                 style={{
-                  background: 'color-mix(in oklab, var(--bg-primary) 82%, transparent)',
+                  background: 'color-mix(in srgb, var(--bg-primary) 86%, transparent)',
+                  boxShadow: '0 8px 24px rgba(15,23,42,0.06)',
                   backdropFilter: 'blur(14px) saturate(140%)',
                   borderBottom: '1px solid var(--border)',
                 }}
@@ -218,7 +221,7 @@ export default function PostDetailPage() {
                 <button
                   onClick={() => navigate(-1)}
                   aria-label="Go back"
-                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] active:scale-90 transition"
+                  className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] active:scale-90 transition"
                 >
                   <FiArrowLeft size={20} strokeWidth={2.5} style={{ color: 'var(--text-primary)' }} />
                 </button>
@@ -231,7 +234,7 @@ export default function PostDetailPage() {
                   <button
                     onClick={handleShare}
                     aria-label="Share"
-                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] active:scale-90 transition"
+                    className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] active:scale-90 transition"
                   >
                     <FiShare2 size={18} style={{ color: 'var(--text-primary)' }} />
                   </button>
@@ -241,7 +244,7 @@ export default function PostDetailPage() {
                         onClick={() => setShowMenu(v => !v)}
                         disabled={isDeleting}
                         aria-label="Post options"
-                        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] active:scale-90 transition"
+                        className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] active:scale-90 transition"
                       >
                         <FiMoreHorizontal size={18} style={{ color: 'var(--text-primary)' }} />
                       </button>
@@ -328,7 +331,7 @@ export default function PostDetailPage() {
                         handleDownload(firstMediaUrl, downloadFilename)
                       }}
                       disabled={downloading}
-                      className="absolute top-3 right-3 z-10 h-9 w-9 rounded-full flex items-center justify-center bg-white/85 backdrop-blur-sm text-gray-900 hover:bg-white shadow-md transition disabled:opacity-50"
+                      className="absolute top-3 right-3 z-10 h-11 w-11 rounded-full flex items-center justify-center bg-white/85 backdrop-blur-sm text-gray-900 hover:bg-white shadow-md transition disabled:opacity-50"
                       aria-label="Download media"
                     >
                       {downloading ? (
@@ -419,7 +422,7 @@ export default function PostDetailPage() {
                   <motion.button
                     onClick={handleLike}
                     whileTap={{ scale: 0.92 }}
-                    className="flex items-center gap-2 px-4 h-10 rounded-full hover:bg-[var(--bg-secondary)] transition"
+                    className="flex min-h-[44px] items-center gap-2 px-4 rounded-full hover:bg-[var(--bg-secondary)] transition"
                     style={{
                       background: liked ? 'rgba(239,68,68,0.10)' : 'transparent',
                     }}
@@ -454,7 +457,7 @@ export default function PostDetailPage() {
                   <motion.button
                     onClick={() => setShowComments(true)}
                     whileTap={{ scale: 0.92 }}
-                    className="flex items-center gap-2 px-4 h-10 rounded-full hover:bg-[var(--bg-secondary)] transition"
+                    className="flex min-h-[44px] items-center gap-2 px-4 rounded-full hover:bg-[var(--bg-secondary)] transition"
                   >
                     <FiMessageCircle size={20} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
                     <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
@@ -467,7 +470,7 @@ export default function PostDetailPage() {
                   <button
                     onClick={handleShare}
                     aria-label="Share"
-                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition"
+                    className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition"
                   >
                     <FiShare2 size={18} style={{ color: 'var(--text-muted)' }} />
                   </button>
@@ -522,7 +525,7 @@ export default function PostDetailPage() {
                 onClick={() => !isDeleting && setConfirmDeletePost(false)}
                 disabled={isDeleting}
                 aria-label="Close"
-                className="absolute top-3 right-3 w-9 h-9 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition disabled:opacity-50"
+                className="absolute top-3 right-3 w-11 h-11 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] transition disabled:opacity-50"
                 style={{ color: 'var(--text-muted)' }}
               >
                 <FiX size={18} strokeWidth={2.5} />

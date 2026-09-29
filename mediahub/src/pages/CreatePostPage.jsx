@@ -9,6 +9,7 @@ import {
 import { postsAPI, uploadAPI, uploadMediaDirect } from '../api'
 import toast from 'react-hot-toast'
 import SlingButton from '../components/ui/SlingButton'
+import ThemeOverlay from '../components/ui/ThemeOverlay'
 
 /**
  * CreatePostPage
@@ -53,13 +54,13 @@ const OVERLAY_Z = 2147483000
 
 const ACCENT = '#FFC629'
 const ACCENT_STRONG = '#F5B700'
-const INK = '#141416'
-const SURFACE = '#1D1D20'
-const SURFACE_SOFT = '#232326'
-const BORDER = 'rgba(255,255,255,0.09)'
-const TEXT_PRIMARY = '#F5F5F3'
-const TEXT_MUTED = 'rgba(245,245,243,0.55)'
-const TEXT_FAINT = 'rgba(245,245,243,0.38)'
+const INK = 'var(--bg-primary)'
+const SURFACE = 'var(--bg-secondary)'
+const SURFACE_SOFT = 'color-mix(in srgb, var(--bg-secondary) 78%, var(--bg-primary))'
+const BORDER = 'var(--border)'
+const TEXT_PRIMARY = 'var(--text-primary)'
+const TEXT_MUTED = 'var(--text-secondary)'
+const TEXT_FAINT = 'var(--text-muted)'
 
 const scrimControl = {
   background: 'rgba(20,20,22,0.5)',
@@ -739,7 +740,7 @@ function CreatePostPage() {
     <div className="relative flex h-full w-full flex-col overflow-hidden" style={{ background: '#09090b' }}>
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 pb-4 pt-16 sm:px-8">
         {!camError ? (
-          <div className="relative h-[min(52vh,440px)] w-[min(78vw,330px)] max-w-full shrink-0 overflow-hidden rounded-[64px] border-[5px] border-black bg-[#151518] shadow-[0_24px_80px_rgba(0,0,0,0.65)]">
+          <div className="relative h-[min(52vh,440px)] w-[min(78vw,330px)] max-w-full shrink-0 overflow-hidden rounded-[64px] bg-[#151518] shadow-[0_24px_80px_rgba(0,0,0,0.65)]">
             <video
               ref={camVideoRef}
               playsInline
@@ -857,6 +858,7 @@ function CreatePostPage() {
   // ---- render ------------------------------------------------------
   return (
     <div className="min-h-screen relative" style={{ background: INK }}>
+      <ThemeOverlay className="fixed right-4 top-20 z-40 sm:right-6 sm:top-6" />
       <canvas ref={camCanvasRef} className="hidden" />
       <input
         ref={fileRef}
@@ -876,8 +878,8 @@ function CreatePostPage() {
       />
 
       <header
-        className="sticky top-0 z-30 px-4 pt-4 pb-3"
-        style={{ background: INK, paddingTop: TOP_CLEARANCE }}
+        className="sticky top-0 z-30 px-4 pt-4 pb-3 backdrop-blur-xl"
+        style={{ background: 'color-mix(in srgb, var(--bg-primary) 88%, transparent)', borderBottom: `1px solid ${BORDER}`, paddingTop: TOP_CLEARANCE, WebkitBackdropFilter: 'saturate(150%) blur(18px)' }}
       >
         <div className="flex items-center justify-between mb-3">
           <motion.button
@@ -1049,7 +1051,7 @@ function CreatePostPage() {
               if (errors.title) setErrors(p => ({ ...p, title: '' }))
             }}
             maxLength={100}
-            className="w-full bg-transparent outline-none text-2xl sm:text-3xl font-extrabold tracking-tight"
+            className="w-full bg-transparent outline-none text-2xl sm:text-3xl font-extrabold tracking-tight placeholder:text-[var(--text-muted)]"
             style={{ color: TEXT_PRIMARY }}
           />
           <div className="flex justify-between items-center mt-1.5 min-h-[18px]">
@@ -1085,8 +1087,8 @@ function CreatePostPage() {
               if (errors.content) setErrors(p => ({ ...p, content: '' }))
             }}
             rows={6}
-            className="w-full bg-transparent outline-none text-[16px] resize-none leading-[1.7]"
-            style={{ color: TEXT_MUTED }}
+            className="w-full bg-transparent outline-none text-[16px] resize-none leading-[1.7] placeholder:text-[var(--text-muted)]"
+            style={{ color: TEXT_PRIMARY }}
           />
           <AnimatePresence>
             {errors.content && (

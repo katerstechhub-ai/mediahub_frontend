@@ -164,14 +164,16 @@ export default function ExplorePage() {
   }
 
   return (
-    <div className="relative min-h-full pb-24 fade-in" style={{ background: 'var(--bg-primary)' }}>
+    <div className="relative min-h-full pb-[calc(6rem+env(safe-area-inset-bottom))] fade-in" style={{ background: 'var(--bg-primary)' }}>
       <ThemeOverlay className="fixed bottom-20 right-4 z-40 sm:bottom-6 sm:right-6" />
       {/* Sticky header — Pinterest style */}
       <div
         className="sticky top-0 z-40 pointer-events-auto px-3 py-3 sm:px-6 backdrop-blur-xl"
         style={{
-          background: 'color-mix(in srgb, var(--bg-primary) 94%, transparent)',
-          borderBottom: '1px solid var(--border)',
+          background: 'color-mix(in srgb, var(--bg-primary) 82%, transparent)',
+          borderBottom: '1px solid color-mix(in srgb, var(--border) 72%, transparent)',
+          boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)',
+          WebkitBackdropFilter: 'saturate(150%) blur(18px)',
         }}
       >
         <div className="max-w-7xl mx-auto flex items-center gap-3">
@@ -191,7 +193,7 @@ export default function ExplorePage() {
               placeholder="Search ideas"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-full rounded-full text-sm outline-none border-0 transition-all focus:ring-2 focus:ring-amber-500/40"
+              className="w-full min-h-[44px] rounded-full text-sm outline-none border-0 transition-all focus:ring-2 focus:ring-amber-500/40"
               style={{
                 background: 'var(--bg-secondary)',
                 color: 'var(--text-primary)',
@@ -222,7 +224,7 @@ export default function ExplorePage() {
               onClick={(event) => { event.preventDefault(); navigate('/create') }}
               whileTap={{ scale: 0.9 }}
               aria-label="Create"
-              className="flex items-center justify-center h-10 w-10 rounded-full hover:bg-[var(--bg-secondary)] transition-colors"
+              className="flex items-center justify-center h-11 w-11 rounded-full hover:bg-[var(--bg-secondary)] transition-colors"
               style={{ color: 'var(--text-primary)' }}
             >
               <FiPlus size={22} strokeWidth={2.25} />
@@ -232,7 +234,7 @@ export default function ExplorePage() {
               onClick={(event) => { event.preventDefault(); navigate('/notifications') }}
               whileTap={{ scale: 0.9 }}
               aria-label="Notifications"
-              className="relative flex items-center justify-center h-10 w-10 rounded-full hover:bg-[var(--bg-secondary)] transition-colors"
+              className="relative flex items-center justify-center h-11 w-11 rounded-full hover:bg-[var(--bg-secondary)] transition-colors"
               style={{ color: 'var(--text-primary)' }}
             >
               <FiBell size={20} strokeWidth={2.25} />
@@ -256,9 +258,9 @@ export default function ExplorePage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-4">
+      <main className="max-w-7xl mx-auto px-3 sm:px-5 pt-4">
         {reelItems.length > 0 && !query.trim() && (
-          <section className="relative mb-8 overflow-hidden px-0 py-2 sm:py-4">
+          <section className="relative mb-8 overflow-hidden rounded-[28px] border border-black/[0.06] bg-[var(--bg-secondary)] px-0 py-2 shadow-[0_12px_30px_rgba(15,23,42,0.08)] sm:py-4">
             <TiltedMediaReel
               items={reelItems}
               rows={2}
@@ -336,7 +338,7 @@ export default function ExplorePage() {
                   >
                     {thumbnailUrl ? (
                       <div
-                        className="relative rounded-2xl overflow-hidden transition-all duration-300 group-hover:brightness-90"
+                        className="relative rounded-3xl overflow-hidden border border-black/[0.06] transition-all duration-300 group-hover:brightness-90 shadow-[0_8px_22px_rgba(15,23,42,0.06)]"
                         style={{ background: 'var(--bg-secondary)' }}
                       >
                         {hasMultiple && !isVideo && (
@@ -377,7 +379,7 @@ export default function ExplorePage() {
                       </div>
                     ) : (
                       <div
-                        className="p-4 min-h-[140px] rounded-2xl flex items-center justify-center"
+                        className="p-4 min-h-[140px] rounded-3xl border border-black/[0.06] flex items-center justify-center shadow-[0_8px_22px_rgba(15,23,42,0.06)]"
                         style={{ background: 'var(--bg-secondary)' }}
                       >
                         <p
@@ -418,7 +420,7 @@ export default function ExplorePage() {
             </AnimatePresence>
           </motion.div>
         )}
-      </div>
+      </main>
     </div>
   )
 }

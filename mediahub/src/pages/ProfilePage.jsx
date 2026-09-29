@@ -11,6 +11,7 @@ import Stack from '../components/ui/Stack'
 import BounceCards from '../components/ui/BounceCards'
 import MemoryVideo from '../components/ui/MemoryVideo'
 import DomeGallery from '../components/ui/DomeGallery'
+import ThemeOverlay from '../components/ui/ThemeOverlay'
 import AvatarCropper from '../components/ui/AvatarCropper'
 
 function getPostMedia(post) {
@@ -136,14 +137,15 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-dvh pb-24 fade-in" style={{ background: 'var(--bg-primary)' }}>
+    <div className="min-h-dvh pb-[calc(6rem+env(safe-area-inset-bottom))] fade-in" style={{ background: 'var(--bg-primary)' }}>
+      <ThemeOverlay className="fixed right-4 top-20 z-40 sm:right-6 sm:top-6" />
       <main className="mx-auto max-w-5xl px-4 sm:px-6" style={{ paddingTop: 'max(env(safe-area-inset-top), 24px)' }}>
         <div className="flex items-center justify-between">
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => navigate(-1)}
             aria-label="Go back"
-            className="flex h-10 w-10 items-center justify-center rounded-full"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-black/[0.05] shadow-[0_6px_18px_rgba(15,23,42,0.06)]"
             style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
           >
             <FiArrowLeft size={20} />
@@ -153,7 +155,7 @@ export default function ProfilePage() {
               whileTap={{ scale: 0.92 }}
               onClick={handleShareProfile}
               aria-label="Share profile"
-              className="flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-semibold"
+              className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-black/[0.05] px-4 text-sm font-semibold shadow-[0_6px_18px_rgba(15,23,42,0.06)]"
               style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
             >
               <FiShare2 size={15} /> Share
@@ -162,7 +164,7 @@ export default function ProfilePage() {
               whileTap={{ scale: 0.9 }}
               onClick={() => navigate('/settings')}
               aria-label="Settings"
-              className="flex h-10 w-10 items-center justify-center rounded-full"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-black/[0.05] shadow-[0_6px_18px_rgba(15,23,42,0.06)]"
               style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
             >
               <FiSettings size={19} />
@@ -201,7 +203,7 @@ export default function ProfilePage() {
         </section>
 
         {memoryMedia.length > 0 && (
-          <section className="mt-10 overflow-hidden border-y py-6" style={{ borderColor: 'var(--border)' }}>
+          <section className="mt-10 overflow-hidden rounded-3xl border-y py-6" style={{ borderColor: 'var(--border)' }}>
             <div className="mb-2 flex items-center justify-between">
               <div>
               </div>
@@ -215,17 +217,17 @@ export default function ProfilePage() {
 
         {myPostsHasMore && userPosts.length > 0 && (
           <div className="flex justify-center py-8">
-            <button onClick={() => fetchMyPosts(false)} disabled={isLoading} className="rounded-full px-5 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+            <button onClick={() => fetchMyPosts(false)} disabled={isLoading} className="min-h-[44px] rounded-full px-5 py-2.5 text-sm font-semibold shadow-sm disabled:opacity-50" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
               {isLoading ? 'Loading…' : 'Load more memories'}
             </button>
           </div>
         )}
 
         {userPosts.length === 0 && (
-          <div className="mt-10 flex flex-col items-start gap-3 border-y py-8">
+          <div className="mt-10 flex flex-col items-start gap-3 rounded-3xl border-y py-8">
             <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Your memory wall is empty.</p>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Capture a photo or video to start collecting memories.</p>
-            <button type="button" onClick={() => navigate('/create')} className="rounded-full bg-amber-500 px-5 py-2.5 text-sm font-bold text-white">Create your first memory</button>
+            <button type="button" onClick={() => navigate('/create')} className="min-h-[44px] rounded-full bg-amber-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm">Create your first memory</button>
           </div>
         )}
       </main>

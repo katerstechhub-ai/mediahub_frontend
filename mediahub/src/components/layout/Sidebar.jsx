@@ -53,87 +53,19 @@ export default function Sidebar() {
       style={{
         width: '84px',
         zIndex: 100,
-        background: 'var(--glass-surface-2, var(--bg-primary))',
-        backdropFilter: 'var(--glass-blur-lg, saturate(180%) blur(28px))',
-        WebkitBackdropFilter: 'var(--glass-blur-lg, saturate(180%) blur(28px))',
-        borderRight: '1px solid var(--glass-border, var(--border))',
-        boxShadow: 'var(--glass-shadow, 4px 0 30px rgba(0,0,0,0.1))',
+        background: 'color-mix(in srgb, var(--bg-primary) 94%, transparent)',
+        backdropFilter: 'saturate(140%) blur(18px)',
+        WebkitBackdropFilter: 'saturate(140%) blur(18px)',
+        borderRight: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
+        boxShadow: '4px 0 24px rgba(15,23,42,0.05)',
       }}
     >
-      {/* Logo */}
-      <div
-        className="h-20 flex items-center justify-center border-b"
-        style={{ borderColor: 'var(--glass-border, var(--border))' }}
-      >
-        <motion.div
-          initial={{ scale: 0, rotate: -15 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-          whileHover={{ scale: 1.08, rotate: 4 }}
-          className="w-12 h-12 rounded-full overflow-hidden"
-          style={{ boxShadow: '0 6px 20px rgba(245,158,11,0.28), inset 0 1px 0 rgba(255,255,255,0.25)' }}
-          title="EventPulse"
-        >
-          <svg viewBox="330 300 590 590" width="48" height="48" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="epSidebarRibbonE" x1="300" y1="380" x2="620" y2="820" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#f3e6d8" />
-                <stop offset="55%" stopColor="#f3e6d8" />
-                <stop offset="100%" stopColor="#8a6a4f" />
-              </linearGradient>
-              <linearGradient id="epSidebarRibbonP" x1="900" y1="380" x2="580" y2="820" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#f3e6d8" />
-                <stop offset="55%" stopColor="#f3e6d8" />
-                <stop offset="100%" stopColor="#8a6a4f" />
-              </linearGradient>
-            </defs>
-
-            <rect x="330" y="300" width="590" height="590" fill="#3c2f27" />
-
-            <path
-              d="M600 320
-                 C 470 320, 355 400, 355 500
-                 C 355 545, 385 575, 430 590
-                 C 385 605, 355 635, 355 680
-                 C 355 780, 470 860, 600 860
-                 L 600 790
-                 C 500 790, 425 740, 425 685
-                 C 425 655, 460 630, 520 615
-                 L 520 565
-                 C 460 550, 425 525, 425 495
-                 C 425 440, 500 390, 600 390
-                 Z"
-              fill="url(#epSidebarRibbonE)"
-            />
-
-            <path
-              d="M600 320
-                 C 600 320, 600 460, 600 490
-                 C 600 545, 645 585, 715 590
-                 C 645 595, 600 620, 600 665
-                 C 600 700, 600 860, 600 860
-                 L 670 860
-                 C 670 860, 670 710, 670 680
-                 C 670 650, 700 630, 760 625
-                 C 830 620, 890 585, 890 530
-                 C 890 470, 820 425, 730 415
-                 C 700 411, 670 405, 670 380
-                 C 670 350, 670 320, 670 320
-                 Z"
-              fill="url(#epSidebarRibbonP)"
-            />
-
-            <path
-              d="M520 605 L555 605 L568 585 L582 625 L596 605 L640 605"
-              fill="none"
-              stroke="#3c2f27"
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity="0.55"
-            />
-          </svg>
-        </motion.div>
+      {/* Minimal Apple-style rail identity — no logo artwork */}
+      <div className="flex h-20 items-center justify-center border-b" style={{ borderColor: 'color-mix(in srgb, var(--border) 82%, transparent)' }}>
+        <div className="flex flex-col items-center gap-1.5" aria-label="Memories">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+          <span className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: 'var(--text-muted)', writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Memories</span>
+        </div>
       </div>
 
       {/* Navigation */}
@@ -144,7 +76,7 @@ export default function Sidebar() {
           hidden: {},
           show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } },
         }}
-        className="flex-1 px-3 py-5 space-y-3 overflow-y-auto"
+        className="flex-1 space-y-2 overflow-y-auto px-3 py-6"
       >
         {visibleNavItems.map(({ to, icon: Icon, label }) => {
           const active = isActiveTab(to)
@@ -160,21 +92,22 @@ export default function Sidebar() {
                 to={to}
                 end={to === '/'}
                 title={label}
-                className="relative flex items-center justify-center w-14 h-14 mx-auto rounded-full"
+                className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-2xl"
                 style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
               >
                 <motion.div
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.88 }}
-                  className="relative flex items-center justify-center w-14 h-14 rounded-full"
+                  className="relative flex h-14 w-14 items-center justify-center rounded-2xl"
                 >
                   {active && (
                     <motion.div
                       layoutId="sidebarActivePill"
                       className="pointer-events-none absolute inset-0 rounded-full"
                       style={{
-                        background: '#f59e0b',
-                        boxShadow: '0 4px 14px rgba(245,158,11,0.35), inset 0 1px 0 rgba(255,255,255,0.3)',
+                        background: 'color-mix(in srgb, #f59e0b 16%, var(--bg-secondary))',
+                        border: '1px solid color-mix(in srgb, #f59e0b 38%, transparent)',
+                        boxShadow: '0 6px 16px rgba(15,23,42,0.08)',
                       }}
                       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                     />
@@ -183,7 +116,7 @@ export default function Sidebar() {
                     size={26}
                     strokeWidth={2.5}
                     className="pointer-events-none relative z-10"
-                    color={active ? '#ffffff' : 'var(--text-secondary)'}
+                    color={active ? '#d97706' : 'var(--text-secondary)'}
                   />
                   <AnimatePresence>
                     {to === '/notifications' && unreadCount > 0 && (
@@ -209,14 +142,14 @@ export default function Sidebar() {
 
       {/* Bottom actions */}
       <div
-        className="px-3 py-5 border-t space-y-3"
+        className="mx-2 mb-3 space-y-1 rounded-3xl border p-2"
         style={{ borderColor: 'var(--glass-border, var(--border))' }}
       >
         <motion.button
           onClick={toggleTheme}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.88 }}
-          className="w-14 h-14 mx-auto flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)]"
+          className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-primary)]"
           title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
         >
           <AnimatePresence mode="wait" initial={false}>
@@ -238,7 +171,7 @@ export default function Sidebar() {
             onClick={() => navigate('/profile')}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.88 }}
-            className="w-14 h-14 mx-auto flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)]"
+            className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl transition-colors hover:bg-[var(--bg-primary)]"
             title="Profile"
           >
             {user.avatar ? (
@@ -264,7 +197,7 @@ export default function Sidebar() {
             onClick={handleLogout}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.88 }}
-            className="w-14 h-14 mx-auto flex items-center justify-center rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+            className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
             title="Logout"
           >
             <FiLogOut size={24} strokeWidth={2.5} />
@@ -274,7 +207,7 @@ export default function Sidebar() {
             onClick={() => navigate('/login')}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.88 }}
-            className="w-14 h-14 mx-auto flex items-center justify-center rounded-full text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+            className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl text-amber-500 transition-colors hover:bg-amber-50 dark:hover:bg-amber-900/20"
             title="Login"
           >
             <FiLogIn size={24} strokeWidth={2.5} />

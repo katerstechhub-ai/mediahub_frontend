@@ -11,6 +11,7 @@ import Stack from '../components/ui/Stack'
 import BounceCards from '../components/ui/BounceCards'
 import MemoryVideo from '../components/ui/MemoryVideo'
 import DomeGallery from '../components/ui/DomeGallery'
+import ThemeOverlay from '../components/ui/ThemeOverlay'
 
 function getPostMedia(post) {
   const images = getImageUrls(post).filter(Boolean)
@@ -108,13 +109,14 @@ export default function UserProfilePage() {
   }
 
   return (
-    <div className="min-h-dvh pb-24 fade-in" style={{ background: 'var(--bg-primary)' }}>
+    <div className="min-h-dvh pb-[calc(6rem+env(safe-area-inset-bottom))] fade-in" style={{ background: 'var(--bg-primary)' }}>
+      <ThemeOverlay className="fixed right-4 top-20 z-40 sm:right-6 sm:top-6" />
       <main className="mx-auto max-w-5xl px-4 sm:px-6" style={{ paddingTop: 'max(env(safe-area-inset-top), 24px)' }}>
         <div className="flex items-center justify-between">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} aria-label="Go back" className="flex h-10 w-10 items-center justify-center rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} aria-label="Go back" className="flex h-11 w-11 items-center justify-center rounded-full border border-black/[0.05] shadow-[0_6px_18px_rgba(15,23,42,0.06)]" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
             <FiArrowLeft size={20} />
           </motion.button>
-          <motion.button whileTap={{ scale: 0.92 }} onClick={handleShareProfile} aria-label="Share profile" className="flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-semibold" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+          <motion.button whileTap={{ scale: 0.92 }} onClick={handleShareProfile} aria-label="Share profile" className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-black/[0.05] px-4 text-sm font-semibold shadow-[0_6px_18px_rgba(15,23,42,0.06)]" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
             <FiShare2 size={15} /> Share
           </motion.button>
         </div>
@@ -131,7 +133,7 @@ export default function UserProfilePage() {
         </section>
 
         {memoryMedia.length > 0 && (
-          <section className="mt-10 overflow-hidden border-y py-6" style={{ borderColor: 'var(--border)' }}>
+          <section className="mt-10 overflow-hidden rounded-3xl border-y py-6" style={{ borderColor: 'var(--border)' }}>
             <BounceCards images={memoryMedia.slice(0, 5)} containerHeight={230} className="mt-3" />
           </section>
         )}
@@ -140,7 +142,7 @@ export default function UserProfilePage() {
 
         {authorPostsHasMore && userPosts.length > 0 && (
           <div className="flex justify-center py-8">
-            <button onClick={() => fetchAuthorPosts(userId, false)} disabled={isLoading} className="rounded-full px-5 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+            <button onClick={() => fetchAuthorPosts(userId, false)} disabled={isLoading} className="min-h-[44px] rounded-full px-5 py-2.5 text-sm font-semibold shadow-sm disabled:opacity-50" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
               {isLoading ? 'Loading…' : 'Load more memories'}
             </button>
           </div>

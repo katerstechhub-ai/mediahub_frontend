@@ -18,11 +18,22 @@ import CardSpread from '../components/ui/card-spread'
 import MonthFilter from '../components/ui/MonthFilter'
 import Stack from '../components/ui/Stack'
 import BounceCards from '../components/ui/BounceCards'
+import DepthCarousel from '../components/ui/DepthCarousel'
 import MemoryVideo from '../components/ui/MemoryVideo'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
+
+const APPLE_GLASS = {
+  background: 'color-mix(in srgb, var(--bg-primary) 78%, transparent)',
+  border: '1px solid color-mix(in srgb, var(--border) 76%, transparent)',
+  boxShadow: '0 10px 30px rgba(15, 23, 42, 0.08)',
+  backdropFilter: 'saturate(150%) blur(18px)',
+  WebkitBackdropFilter: 'saturate(150%) blur(18px)',
+}
+
+const APPLE_TOUCH = 'min-h-[44px] min-w-[44px]'
 
 import gallery1 from '../assets/gallery-1.jpeg'
 import gallery2 from '../assets/gallery-2.jpeg'
@@ -248,40 +259,37 @@ function isVideoMedia(item) {
 }
 
 function MultiMediaShowcase({ items, postId, onOpen, compact = false }) {
-  const [mode] = useState(() => (Math.random() > 0.5 ? 'stack' : 'bounce'))
-  const visibleItems = items.slice(0, 5).map((item) => ({
+  const visibleItems = items.slice(0, 6).map((item) => ({
     type: isVideoMedia(item) ? 'video' : 'image',
     src: item.url,
     poster: item.thumbnail || item.url,
+    alt: 'Memory',
   }))
-
-  const cards = visibleItems.map((item, index) => (
-    item.type === 'video' ? (
-      <MemoryVideo key={`${postId}-video-${index}`} src={item.src} poster={item.poster} className="h-full w-full object-cover" />
-    ) : (
-      <img key={`${postId}-image-${index}`} src={item.src} alt="Memory" className="h-full w-full object-cover" draggable={false} />
-    )
-  ))
 
   return (
     <button
       type="button"
       onClick={onOpen}
-      className={`relative block w-full overflow-hidden bg-[#fdfaf3] text-left ${compact ? 'h-full min-h-[190px]' : 'h-[360px] sm:h-[440px]'}`}
+      className={`relative block w-full overflow-hidden rounded-3xl border border-black/[0.06] bg-[var(--bg-secondary)] p-0 text-left shadow-[0_12px_30px_rgba(15,23,42,0.08)] ${compact ? 'h-full min-h-[190px]' : 'h-[360px] sm:h-[440px]'}`}
       aria-label="Open multiple memories"
     >
-      <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
-        {mode === 'stack' ? (
-          <div className="h-[220px] w-[220px] sm:h-[300px] sm:w-[300px]">
-            <Stack cards={cards} randomRotation sendToBackOnClick mobileClickOnly />
-          </div>
-        ) : (
-          <div className="w-full max-w-[520px]">
-            <BounceCards images={visibleItems} containerHeight={compact ? 180 : 260} enableHover={!compact} />
-          </div>
-        )}
-      </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/20 to-transparent" />
+      <DepthCarousel
+        items={visibleItems}
+        cardWidth={compact ? 250 : 360}
+        cardHeight={compact ? 300 : 430}
+        radius={22}
+        depth={compact ? 150 : 220}
+        spread={compact ? 48 : 72}
+        tilt={18}
+        visibleCards={4}
+        autoplay
+        autoplayDelay={3500}
+        loop
+        showControls={false}
+        fill
+        className="h-full w-full"
+      />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[125] h-20 bg-gradient-to-t from-black/25 to-transparent" />
       <MultiImageBadge count={items.length} />
     </button>
   )
@@ -551,7 +559,7 @@ function PhotoLightbox({ post, onClose, navigate }) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 16 }}
               transition={{ type: 'spring', stiffness: 220, damping: 22 }}
-              className="relative z-0 overflow-hidden border border-amber-200/60 bg-[#fdfaf3] shadow-2xl"
+              className="relative z-0 overflow-hidden rounded-3xl border border-amber-200/60 bg-[#fdfaf3] shadow-2xl"
               style={{ width: 'min(94vw, 760px)', height: 'min(78vh, 560px)' }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -906,21 +914,22 @@ function PostListItem({
     <motion.article
       layoutId={`post-${post._id}`}
       variants={gridItem}
-      className="group relative"
+      className="group relative overflow-hidden rounded-3xl border"
       style={{
-        borderBottom: '1px solid var(--border)',
-        paddingBottom: '2.5rem',
+        borderColor: 'var(--border)',
+        background: 'var(--bg-secondary)',
+        boxShadow: '0 10px 28px rgba(15, 23, 42, 0.06)',
       }}
     >
       {mediaItems.length > 0 && (
         <div className="relative w-full cursor-pointer overflow-hidden"
-          style={{ background: '#000', aspectRatio: mediaRatio, maxHeight: 560 }}>
+          style={{ background: 'var(--bg-secondary)', aspectRatio: mediaRatio, maxHeight: 560 }}>
           {mediaItems.length > 1 ? (
-            <MultiMediaShowcase
-              items={mediaItems}
-              postId={post._id}
-              onOpen={() => navigate(`/posts/${post._id}`)}
-            />
+              <MultiMediaShowcase
+                items={mediaItems}
+                postId={post._id}
+                onOpen={() => navigate(`/posts/${post._id}`)}
+              />
           ) : (
             <MediaSlider
               items={mediaItems}
@@ -1286,7 +1295,7 @@ export default function FeedPage() {
         variants={gridItem}
         whileHover={{ scale: 1.02 }}
         transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}
-        className="relative group cursor-pointer rounded-[20%] overflow-hidden aspect-[4/5] shadow-sm"
+        className="relative group cursor-pointer rounded-3xl overflow-hidden aspect-[4/5] shadow-sm border border-black/[0.06]"
         style={{ background: 'var(--bg-secondary)' }}
       >
         {mediaItems.length > 0 ? (
@@ -1332,36 +1341,35 @@ export default function FeedPage() {
   return (
     <>
       <ThemeOverlay className="fixed bottom-20 right-4 z-40 sm:bottom-6 sm:right-6" />
-      <div className="min-h-screen pb-10" style={{ background: 'var(--bg-primary)' }}>
+      <div className="min-h-screen pb-[calc(5rem+env(safe-area-inset-bottom))]" style={{ background: 'var(--bg-primary)', fontFamily: '-apple-system, BlinkMacSystemFont, Inter, system-ui, sans-serif' }}>
 
         {/* Floating header */}
         <div
-          className="fixed top-0 inset-x-0 z-30 px-3 sm:px-6 py-3 transition-all duration-300"
+          className="fixed top-0 inset-x-0 z-30 px-3 sm:px-6 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 transition-all duration-300"
           style={{
-            background: scrolled ? 'var(--bg-primary)' : 'transparent',
-            boxShadow: scrolled ? '0 1px 0 rgba(0,0,0,0.06)' : 'none',
-            backdropFilter: scrolled ? 'saturate(180%) blur(12px)' : 'none',
+            background: scrolled ? 'color-mix(in srgb, var(--bg-primary) 84%, transparent)' : 'transparent',
+            borderBottom: scrolled ? '1px solid color-mix(in srgb, var(--border) 74%, transparent)' : '1px solid transparent',
+            boxShadow: scrolled ? '0 8px 24px rgba(15, 23, 42, 0.06)' : 'none',
+            backdropFilter: scrolled ? 'saturate(150%) blur(18px)' : 'none',
+            WebkitBackdropFilter: scrolled ? 'saturate(150%) blur(18px)' : 'none',
           }}
         >
           <div className="max-w-7xl mx-auto flex items-center gap-2 sm:gap-3">
             <div
-              className="relative grid grid-cols-2 rounded-full p-1 w-[84px] flex-shrink-0"
-              style={{
-                background: scrolled ? 'var(--bg-secondary)' : 'rgba(255,255,255,0.18)',
-                backdropFilter: 'blur(8px)',
-              }}
+              className="relative grid grid-cols-2 rounded-full p-1 w-[92px] flex-shrink-0"
+              style={APPLE_GLASS}
             >
               <motion.div className="absolute top-1 bottom-1 rounded-full bg-amber-500"
                 style={{ left: 4, width: 'calc(50% - 4px)' }}
                 animate={{ x: viewMode === 'grid' ? 0 : '100%' }}
                 transition={{ type: 'spring', stiffness: 400, damping: 28 }} />
               <button onClick={() => setViewMode('grid')} aria-label="Grid view"
-                className="relative z-10 h-9 flex items-center justify-center rounded-full"
+                className={`relative z-10 ${APPLE_TOUCH} h-11 flex items-center justify-center rounded-full`}
                 style={{ color: viewMode === 'grid' ? '#fff' : 'var(--text-muted)' }}>
                 <FiGrid size={18} strokeWidth={2.5} />
               </button>
               <button onClick={() => setViewMode('list')} aria-label="List view"
-                className="relative z-10 h-9 flex items-center justify-center rounded-full"
+                className={`relative z-10 ${APPLE_TOUCH} h-11 flex items-center justify-center rounded-full`}
                 style={{ color: viewMode === 'list' ? '#fff' : 'var(--text-muted)' }}>
                 <FiList size={18} strokeWidth={2.5} />
               </button>
@@ -1379,7 +1387,7 @@ export default function FeedPage() {
                 placeholder="Search posts"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="w-full rounded-full text-sm outline-none border-0 transition-all focus:ring-2 focus:ring-amber-500/40 placeholder:opacity-80"
+                className="w-full min-h-[44px] rounded-full text-sm outline-none border-0 transition-all focus:ring-2 focus:ring-amber-500/40 placeholder:opacity-80"
                 style={{
                   background: 'var(--bg-secondary)',
                   color: 'var(--text-primary)',
@@ -1398,7 +1406,7 @@ export default function FeedPage() {
                     exit={{ scale: 0, opacity: 0 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 min-h-[36px] min-w-[36px] rounded-full flex items-center justify-center"
                     style={{
                       color: scrolled ? 'var(--text-primary)' : '#fff',
                       background: scrolled ? 'var(--bg-input)' : 'rgba(255,255,255,0.25)',
@@ -1412,19 +1420,18 @@ export default function FeedPage() {
             </div>
 
             <button onClick={() => navigate('/create')} aria-label="Create post"
-              className="flex items-center justify-center h-10 w-10 rounded-full bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-500/30 transition-colors flex-shrink-0">
+              className={`flex ${APPLE_TOUCH} items-center justify-center rounded-full bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-500/25 transition-colors flex-shrink-0`}>
               <FiPlusSquare size={20} strokeWidth={2.5} />
             </button>
           </div>
         </div>
 
-        <div className="pt-24 sm:pt-28" />
+        <div className="pt-28 sm:pt-32" />
 
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-2 sm:pt-4">
+        <main className="max-w-7xl mx-auto px-3 sm:px-5 pt-2 sm:pt-4">
           <MemoryCardSpread />
-        </div>
 
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 pt-3">
+        <div className="max-w-7xl mx-auto px-3 sm:px-5 pt-4">
           <div className="mb-4">
             <MonthFilter
               items={monthOptions}
@@ -1445,8 +1452,8 @@ export default function FeedPage() {
             <LayoutGroup>
               {monthGroups.map((group) => (
                 <div key={group.key} className="mb-10">
-                  <div className="flex items-center gap-3 mb-4 px-1">
-                    <h2 className="text-lg font-extrabold font-display tracking-tight"
+                  <div className="flex items-center gap-3 mb-5 px-1">
+                    <h2 className="text-base sm:text-lg font-extrabold font-display tracking-tight"
                       style={{ color: 'var(--text-primary)' }}>
                       {group.label}
                     </h2>
@@ -1500,6 +1507,7 @@ export default function FeedPage() {
             </div>
           )}
         </div>
+        </main>
       </div>
 
       <CommentsSheet

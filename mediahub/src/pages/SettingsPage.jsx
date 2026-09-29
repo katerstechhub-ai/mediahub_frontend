@@ -362,53 +362,64 @@ export default function SettingsPage() {
 
   return (
     <>
-      <ThemeOverlay className="fixed bottom-20 right-4 z-40 sm:bottom-6 sm:right-6" />
-      <div className="min-h-screen pb-16" style={{ background: 'var(--bg-primary)' }}>
-        {/* Header — soft tinted band */}
-        <header
-          className="relative overflow-hidden px-5 pb-12 pt-6 sm:px-6"
-          style={{
-            background: 'linear-gradient(145deg, color-mix(in oklab, #f59e0b 14%, var(--bg-primary)), var(--bg-primary) 72%)',
-          }}
-        >
-          <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-amber-400/15 blur-3xl" />
-          <div className="relative z-10 mx-auto max-w-md">
-            <button
-              onClick={() => navigate(-1)}
-              className="flex h-9 w-9 items-center justify-center rounded-full border transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-              style={{ color: 'var(--text-primary)', borderColor: 'var(--border)' }}
-              aria-label="Go back"
-            >
-              <FiArrowLeft size={20} strokeWidth={2} />
-            </button>
-            <p className="mt-7 text-[10px] font-bold uppercase tracking-[0.3em] text-amber-600">
-              Personalize your space
-            </p>
-            <h1
-              className="mt-2 font-display text-4xl font-extrabold tracking-tight sm:text-5xl"
-              style={{ color: 'var(--text-primary)' }}
-            >
-              Settings
-            </h1>
-            <p className="mt-2 max-w-xs text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              Tune your account, appearance, and privacy preferences.
-            </p>
+      <ThemeOverlay className="fixed bottom-20 right-4 z-50 sm:bottom-6 sm:right-6" />
+      <div className="min-h-screen pb-[calc(6rem+env(safe-area-inset-bottom))]" style={{ background: 'var(--bg-primary)' }}>
+        <header className="border-b" style={{ borderColor: 'var(--border)' }}>
+          <div className="mx-auto max-w-2xl px-4 pb-7 pt-5 sm:px-6 sm:pt-8">
+            <div className="flex items-center gap-3">
+              <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} aria-label="Go back" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-colors hover:bg-[var(--bg-secondary)]" style={{ color: 'var(--text-primary)', borderColor: 'var(--border)' }}>
+                <FiArrowLeft size={20} strokeWidth={2} />
+              </motion.button>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-amber-600">Personal settings</p>
+                <h1 className="mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: 'var(--text-primary)' }}>Settings</h1>
+              </div>
+            </div>
+            <p className="mt-5 max-w-md text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>Manage your profile, appearance, and account security.</p>
           </div>
         </header>
 
-        <main className="relative z-10 mx-auto -mt-5 max-w-md">
+        <main className="mx-auto max-w-2xl space-y-7 px-4 py-6 sm:px-6 sm:py-8">
+          <section className="rounded-3xl border p-5 sm:p-6" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-xl font-extrabold text-white">{(user?.name || 'M').slice(0, 1).toUpperCase()}</div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: 'var(--text-muted)' }}>Signed in as</p>
+                <h2 className="mt-1 truncate text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{user?.name || 'Your account'}</h2>
+              </div>
+              <button type="button" onClick={() => setOpenSheet('account')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border" style={{ color: 'var(--text-primary)', borderColor: 'var(--border)' }} aria-label="Edit account"><FiUser size={18} /></button>
+            </div>
+          </section>
 
-          <SectionLabel>General</SectionLabel>
-          <Group>
-            <Row icon={FiUser} label="Account" onClick={() => setOpenSheet('account')} />
-            <StaticRow icon={FiMoon} label="Appearance">
-              <AppearanceControl value={theme} onChange={setTheme} />
-            </StaticRow>
-            <Row icon={FiLock} label="Password" onClick={() => setOpenSheet('password')} />
-            <Row icon={FiLogOut} label="Logout" onClick={handleLogout} />
-            <Row icon={FiTrash2} label="Delete account" danger onClick={() => setOpenSheet('delete')} />
-          </Group>
+          <section>
+            <SectionLabel>Appearance</SectionLabel>
+            <div className="rounded-3xl border p-5 sm:p-6" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}><FiSun size={18} /></div>
+                <div><h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>Interface theme</h2><p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>Choose how the app looks across every page.</p></div>
+              </div>
+              <div className="mt-5 rounded-2xl border p-1.5" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}><AppearanceControl value={theme} onChange={setTheme} /></div>
+              <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>Current mode: <span className="font-semibold capitalize" style={{ color: 'var(--text-primary)' }}>{theme}</span></p>
+            </div>
+          </section>
 
+          <section>
+            <SectionLabel>Account & security</SectionLabel>
+            <div className="space-y-2 rounded-3xl border p-2" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+              <Row icon={FiUser} label="Account details" onClick={() => setOpenSheet('account')} />
+              <Row icon={FiLock} label="Change password" onClick={() => setOpenSheet('password')} />
+            </div>
+          </section>
+
+          <section>
+            <SectionLabel>Session & account</SectionLabel>
+            <div className="space-y-2 rounded-3xl border p-2" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+              <Row icon={FiLogOut} label="Log out" onClick={handleLogout} />
+              <Row icon={FiTrash2} label="Delete account" danger onClick={() => setOpenSheet('delete')} />
+            </div>
+          </section>
+
+          <p className="pb-4 text-center text-[11px]" style={{ color: 'var(--text-muted)' }}>Your memories, your rhythm.</p>
         </main>
       </div>
 
