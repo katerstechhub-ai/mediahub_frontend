@@ -281,8 +281,7 @@ export default function Notifications() {
 
   return (
     <div className="min-h-screen fade-in pb-[calc(5rem+env(safe-area-inset-bottom))]" style={{ background: 'var(--bg-primary)' }}>
-      <ThemeOverlay className="fixed right-4 top-20 z-40 sm:right-6 sm:top-6" />
-      <div className="sticky top-0 z-10 px-4 sm:px-6 py-3 backdrop-blur-xl" style={{ background: 'color-mix(in srgb, var(--bg-primary) 84%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--border) 72%, transparent)', boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)', WebkitBackdropFilter: 'saturate(150%) blur(18px)' }}>
+      <div className="sticky top-0 z-30 px-4 py-3 backdrop-blur-xl sm:px-6" style={{ background: 'color-mix(in srgb, var(--bg-primary) 94%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--border) 72%, transparent)', boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)', WebkitBackdropFilter: 'saturate(150%) blur(18px)' }}>
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
@@ -304,9 +303,12 @@ export default function Notifications() {
             </button>
           )}
         </div>
+        <div className="mx-auto mt-2 flex max-w-2xl justify-end">
+          <ThemeOverlay className="relative z-0" />
+        </div>
       </div>
 
-      <div className="max-w-2xl mx-auto">
+      <div className="relative z-0 max-w-2xl mx-auto pt-1">
         {notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-4 py-24 text-center">
             <AnimatedContent
