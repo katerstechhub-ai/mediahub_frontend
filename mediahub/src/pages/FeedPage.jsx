@@ -922,12 +922,20 @@ function PostListItem({
       }}
     >
       {mediaItems.length > 0 && (
-        <div className="relative w-full cursor-pointer overflow-hidden"
-          style={{ background: 'var(--bg-secondary)', aspectRatio: mediaRatio, maxHeight: 560 }}>
+        <div
+          className="relative w-full cursor-pointer overflow-hidden"
+          style={{
+            background: 'var(--bg-secondary)',
+            aspectRatio: mediaRatio,
+            maxHeight: mediaItems.length > 1 ? 360 : 560,
+            height: mediaItems.length > 1 ? 'clamp(240px, 62vw, 360px)' : undefined,
+          }}
+        >
           {mediaItems.length > 1 ? (
               <MultiMediaShowcase
                 items={mediaItems}
                 postId={post._id}
+                compact
                 onOpen={() => navigate(`/posts/${post._id}`)}
               />
           ) : (
