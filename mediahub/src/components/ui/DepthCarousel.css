@@ -10,6 +10,17 @@
 }
 
 .depth-carousel--fill { min-height: 0; }
+.depth-carousel--contain {
+  isolation: isolate;
+  contain: paint;
+  background: var(--bg-secondary, #f4f4f5);
+}
+.depth-carousel--contain .depth-carousel__stage {
+  background: var(--bg-secondary, #f4f4f5);
+}
+.depth-carousel--contain .depth-carousel__card {
+  background: var(--bg-secondary, #f4f4f5);
+}
 .depth-carousel--contain .depth-carousel__media { object-fit: contain; }
 
 .depth-carousel__stage {

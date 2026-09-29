@@ -275,13 +275,13 @@ function MultiMediaShowcase({ items, postId, onOpen, compact = false, contain = 
     >
       <DepthCarousel
         items={visibleItems}
-        cardWidth={compact ? 250 : 360}
-        cardHeight={compact ? 300 : 430}
+        cardWidth={contain ? 330 : compact ? 250 : 360}
+        cardHeight={contain ? 300 : compact ? 300 : 430}
         radius={22}
-        depth={compact ? 150 : 220}
-        spread={compact ? 48 : 72}
-        tilt={18}
-        visibleCards={4}
+        depth={contain ? 120 : compact ? 150 : 220}
+        spread={contain ? 42 : compact ? 48 : 72}
+        tilt={contain ? 12 : 18}
+        visibleCards={contain ? 3 : 4}
         autoplay
         autoplayDelay={3500}
         loop
@@ -928,8 +928,8 @@ function PostListItem({
           style={{
             background: 'var(--bg-secondary)',
             aspectRatio: mediaRatio,
-            maxHeight: mediaItems.length > 1 ? 360 : 560,
-            height: mediaItems.length > 1 ? 'clamp(240px, 62vw, 360px)' : undefined,
+            maxHeight: mediaItems.length > 1 ? 380 : 560,
+            height: mediaItems.length > 1 ? 'clamp(270px, 66vw, 380px)' : undefined,
           }}
         >
           {mediaItems.length > 1 ? (
