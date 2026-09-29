@@ -300,6 +300,8 @@ function CreatePostPage() {
   const [camFacing, setCamFacing] = useState('environment')
   const [camReady, setCamReady] = useState(false)
   const [camError, setCamError] = useState(false)
+  const [camZoom, setCamZoom] = useState(1)
+  const pinchRef = useRef(null)
   const [shutterFlash, setShutterFlash] = useState(false)
   const [capturedShot, setCapturedShot] = useState(null)
   const pressTimerRef = useRef(null)
@@ -541,6 +543,7 @@ function CreatePostPage() {
 
   useEffect(() => {
     if (!cameraOpen) return
+    setCamZoom(1)
     let cancelled = false
     setCamReady(false)
     setCamError(false)
@@ -604,11 +607,15 @@ function CreatePostPage() {
     if (!ctx) return
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
+    const sourceWidth = video.videoWidth / camZoom
+    const sourceHeight = video.videoHeight / camZoom
+    const sourceX = (video.videoWidth - sourceWidth) / 2
+    const sourceY = (video.videoHeight - sourceHeight) / 2
     if (camFacing === 'user') {
       ctx.translate(canvas.width, 0)
       ctx.scale(-1, 1)
     }
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    ctx.drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height)
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     setShutterFlash(true)
     setTimeout(() => setShutterFlash(false), 150)
@@ -726,6 +733,35 @@ function CreatePostPage() {
     setCamFacing(f => (f === 'user' ? 'environment' : 'user'))
   }
 
+  const setCameraZoom = (value) => {
+    setCamZoom(Math.min(3, Math.max(1, Number(value.toFixed(2)))))
+  }
+
+  const changeCameraZoom = (amount) => setCameraZoom(camZoom + amount)
+  const pinchDistance = (touches) => Math.hypot(
+    touches[0].clientX - touches[1].clientX,
+    touches[0].clientY - touches[1].clientY,
+  )
+  const handleCameraTouchStart = (event) => {
+    if (event.touches.length === 2) {
+      pinchRef.current = { distance: pinchDistance(event.touches), zoom: camZoom }
+    }
+  }
+  const handleCameraTouchMove = (event) => {
+    if (event.touches.length !== 2 || !pinchRef.current) return
+    event.preventDefault()
+    const ratio = pinchDistance(event.touches) / pinchRef.current.distance
+    setCameraZoom(pinchRef.current.zoom * ratio)
+  }
+  const handleCameraTouchEnd = () => {
+    if (pinchRef.current) pinchRef.current = null
+  }
+  const handleCameraWheel = (event) => {
+    if (event.deltaY === 0) return
+    event.preventDefault()
+    changeCameraZoom(event.deltaY < 0 ? 0.1 : -0.1)
+  }
+
   const recordLabel = (secs) => {
     const m = Math.floor(secs / 60).toString().padStart(2, '0')
     const s = (secs % 60).toString().padStart(2, '0')
@@ -740,7 +776,14 @@ function CreatePostPage() {
     <div className="relative flex h-full w-full flex-col overflow-hidden" style={{ background: '#09090b' }}>
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 pb-4 pt-16 sm:px-8">
         {!camError ? (
-          <div className="relative h-[min(52vh,440px)] w-[min(78vw,330px)] max-w-full shrink-0 overflow-hidden rounded-[64px] bg-[#151518] shadow-[0_24px_80px_rgba(0,0,0,0.65)]">
+          <div
+            className="relative h-[min(52vh,440px)] w-[min(78vw,330px)] max-w-full shrink-0 overflow-hidden rounded-[64px] bg-[#151518] shadow-[0_24px_80px_rgba(0,0,0,0.65)]"
+            onTouchStart={handleCameraTouchStart}
+            onTouchMove={handleCameraTouchMove}
+            onTouchEnd={handleCameraTouchEnd}
+            onWheel={handleCameraWheel}
+            style={{ touchAction: 'none' }}
+          >
             <video
               ref={camVideoRef}
               playsInline
@@ -749,7 +792,8 @@ function CreatePostPage() {
               style={{
                 opacity: camReady ? 1 : 0,
                 transition: 'opacity .4s ease',
-                transform: camFacing === 'user' ? 'scaleX(-1)' : 'none',
+                transform: camFacing === 'user' ? `scaleX(-1) scale(${camZoom})` : `scale(${camZoom})`,
+                transformOrigin: 'center',
               }}
             />
 
@@ -796,6 +840,14 @@ function CreatePostPage() {
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.08 }} className="absolute inset-0 rounded-full bg-white" />
               )}
             </AnimatePresence>
+
+            {!capturedShot && camReady && (
+              <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border px-1.5 py-1 backdrop-blur-xl" style={{ background: 'rgba(20,20,22,0.58)', borderColor: 'rgba(255,255,255,0.2)' }}>
+                <button type="button" onClick={() => changeCameraZoom(-0.25)} disabled={camZoom <= 1} aria-label="Zoom out" className="flex h-8 w-8 items-center justify-center rounded-full text-lg font-semibold text-white disabled:opacity-35">−</button>
+                <button type="button" onClick={() => setCameraZoom(1)} aria-label="Reset zoom" className="min-w-[48px] px-1 text-[11px] font-bold tabular-nums text-white/85">{camZoom.toFixed(1)}×</button>
+                <button type="button" onClick={() => changeCameraZoom(0.25)} disabled={camZoom >= 3} aria-label="Zoom in" className="flex h-8 w-8 items-center justify-center rounded-full text-lg font-semibold text-white disabled:opacity-35">+</button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex w-full max-w-sm flex-col items-center justify-center gap-4 rounded-[32px] border p-8 text-center" style={{ background: SURFACE, borderColor: BORDER }}>
