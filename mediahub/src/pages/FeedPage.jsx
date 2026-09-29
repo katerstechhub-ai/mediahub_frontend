@@ -258,7 +258,7 @@ function isVideoMedia(item) {
   return /\.(mp4|webm|mov|m4v|ogg)(\?|$)/i.test(item.url || '')
 }
 
-function MultiMediaShowcase({ items, postId, onOpen, compact = false }) {
+function MultiMediaShowcase({ items, postId, onOpen, compact = false, contain = false }) {
   const visibleItems = items.slice(0, 6).map((item) => ({
     type: isVideoMedia(item) ? 'video' : 'image',
     src: item.url,
@@ -287,6 +287,7 @@ function MultiMediaShowcase({ items, postId, onOpen, compact = false }) {
         loop
         showControls={false}
         fill
+        contain={contain}
         className="h-full w-full"
       />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[125] h-20 bg-gradient-to-t from-black/25 to-transparent" />
@@ -936,6 +937,7 @@ function PostListItem({
                 items={mediaItems}
                 postId={post._id}
                 compact
+                contain
                 onOpen={() => navigate(`/posts/${post._id}`)}
               />
           ) : (

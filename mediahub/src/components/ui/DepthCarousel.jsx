@@ -18,6 +18,7 @@ export default function DepthCarousel({
   loop = true,
   showControls = true,
   fill = false,
+  contain = false,
   className = '',
 }) {
   const data = useMemo(() => items.filter(Boolean), [items])
@@ -49,7 +50,7 @@ export default function DepthCarousel({
 
   return (
     <div
-      className={`depth-carousel ${fill ? 'depth-carousel--fill' : ''} ${className}`}
+      className={`depth-carousel ${fill ? 'depth-carousel--fill' : ''} ${contain ? 'depth-carousel--contain' : ''} ${className}`}
       style={{ '--depth-card-width': `${cardWidth}px`, '--depth-card-height': `${cardHeight}px`, '--depth-radius': `${radius}px`, '--depth-distance': `${depth}px`, '--depth-spread': `${spread}px`, '--depth-tilt': `${tilt}deg` }}
       aria-label="Memory carousel"
     >
@@ -66,19 +67,22 @@ export default function DepthCarousel({
           const src = item.src || item.image || item.url
           const poster = item.poster || item.thumbnail
           const side = direction * distance
-          const scale = fill ? Math.max(0.72, 1 - absDistance * 0.055) : Math.max(0.7, 1 - absDistance * 0.08)
-          const opacity = isVisible ? Math.max(0, 1 - absDistance * 0.16) : 0
-          const transform = `translate(-50%, -50%) translateX(${side * (fill ? 12 : spread)}px) translateZ(${-absDistance * depth}px) rotateY(${direction * Math.min(distance, 1) * tilt}deg) scale(${distance === 0 ? 1 : scale})`
+          const scale = fill ? Math.max(0.78, 1 - absDistance * 0.045) : Math.max(0.7, 1 - absDistance * 0.08)
+          const opacity = isVisible ? Math.max(0, 1 - absDistance * 0.18) : 0
+          const lateral = fill ? 22 : spread
+          const transform = `translate(-50%, -50%) translateX(${side * lateral}px) translateZ(${-absDistance * depth}px) rotateY(${direction * Math.min(distance, 1) * tilt}deg) scale(${distance === 0 ? 1 : scale})`
+          const cardWidthValue = fill ? (distance === 0 ? '100%' : '86%') : 'min(var(--depth-card-width), 86%)'
+          const cardHeightValue = fill ? (distance === 0 ? '100%' : '88%') : 'min(var(--depth-card-height), 88%)'
 
           return (
             <div
               key={`${src || 'memory'}-${index}`}
               className={`depth-carousel__card ${distance === 0 ? 'is-active' : ''}`}
-              style={{ width: fill ? '100%' : `min(var(--depth-card-width), 86%)`, height: fill ? '100%' : `min(var(--depth-card-height), 88%)`, borderRadius: 'var(--depth-radius)', opacity, zIndex: 100 - absDistance, transform, pointerEvents: isVisible ? 'auto' : 'none' }}
+              style={{ width: cardWidthValue, height: cardHeightValue, borderRadius: 'var(--depth-radius)', opacity, zIndex: 100 - absDistance, transform, pointerEvents: isVisible ? 'auto' : 'none' }}
               onClick={(event) => { if (distance !== 0) { event.stopPropagation(); setActive(index) } }}
             >
               {isVideo ? (
-                <video src={src} poster={poster || undefined} className="depth-carousel__media" muted playsInline autoPlay loop preload="metadata" />
+                <video src={src} poster={poster || undefined} className="depth-carousel__media" muted playsInline autoPlay={distance === 0} loop preload={distance === 0 ? 'auto' : 'metadata'} />
               ) : (
                 <img src={src} alt={item.alt || 'Memory'} className="depth-carousel__media" draggable={false} />
               )}
@@ -92,6 +96,14 @@ export default function DepthCarousel({
         <div className="depth-carousel__controls">
           <button type="button" onClick={(event) => { event.stopPropagation(); move(-1) }} aria-label="Previous memory">‹</button>
           <button type="button" onClick={(event) => { event.stopPropagation(); move(1) }} aria-label="Next memory">›</button>
+        </div>
+      )}
+
+      {fill && data.length > 1 && (
+        <div className="depth-carousel__indicators" aria-hidden="true">
+          {data.slice(0, 7).map((_, index) => (
+            <span key={index} className={index === active ? 'is-active' : ''} />
+          ))}
         </div>
       )}
     </div>
