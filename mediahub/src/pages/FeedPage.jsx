@@ -267,9 +267,16 @@ function MultiMediaShowcase({ items, postId, onOpen, compact = false, contain = 
   }))
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onOpen()
+        }
+      }}
       className={`relative block w-full overflow-hidden rounded-3xl border border-black/[0.06] bg-[var(--bg-secondary)] p-0 text-left shadow-[0_12px_30px_rgba(15,23,42,0.08)] ${compact ? 'h-full min-h-[190px]' : 'h-[360px] sm:h-[440px]'}`}
       aria-label="Open multiple memories"
     >
@@ -292,7 +299,7 @@ function MultiMediaShowcase({ items, postId, onOpen, compact = false, contain = 
       />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[125] h-20 bg-gradient-to-t from-black/25 to-transparent" />
       <MultiImageBadge count={items.length} />
-    </button>
+    </div>
   )
 }
 

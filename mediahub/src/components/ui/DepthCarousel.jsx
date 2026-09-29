@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './DepthCarousel.css'
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
@@ -23,6 +23,7 @@ export default function DepthCarousel({
 }) {
   const data = useMemo(() => items.filter(Boolean), [items])
   const [active, setActive] = useState(0)
+  const touchStartX = useRef(null)
   const direction = tiltDirection === 'left' ? -1 : 1
 
   useEffect(() => {
@@ -46,6 +47,21 @@ export default function DepthCarousel({
     })
   }
 
+  const handleTouchStart = (event) => {
+    touchStartX.current = event.touches[0]?.clientX ?? null
+  }
+
+  const handleTouchEnd = (event) => {
+    if (touchStartX.current == null) return
+    const endX = event.changedTouches[0]?.clientX ?? touchStartX.current
+    const delta = endX - touchStartX.current
+    touchStartX.current = null
+    if (Math.abs(delta) < 36 || data.length < 2) return
+    event.preventDefault()
+    event.stopPropagation()
+    move(delta < 0 ? 1 : -1)
+  }
+
   if (!data.length) return null
 
   return (
@@ -53,6 +69,8 @@ export default function DepthCarousel({
       className={`depth-carousel ${fill ? 'depth-carousel--fill' : ''} ${contain ? 'depth-carousel--contain' : ''} ${className}`}
       style={{ '--depth-card-width': `${cardWidth}px`, '--depth-card-height': `${cardHeight}px`, '--depth-radius': `${radius}px`, '--depth-distance': `${depth}px`, '--depth-spread': `${spread}px`, '--depth-tilt': `${tilt}deg` }}
       aria-label="Memory carousel"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
       <div className="depth-carousel__stage">
         {data.map((item, index) => {
