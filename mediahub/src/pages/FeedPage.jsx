@@ -19,6 +19,7 @@ import MonthFilter from '../components/ui/MonthFilter'
 import Stack from '../components/ui/Stack'
 import BounceCards from '../components/ui/BounceCards'
 import DepthCarousel from '../components/ui/DepthCarousel'
+import DollyGallery from '../components/ui/DollyGallery'
 import MemoryVideo from '../components/ui/MemoryVideo'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
@@ -229,6 +230,29 @@ function MemoryCardSpread() {
           className="h-full w-full"
         />
       </div>
+    </section>
+  )
+}
+
+function MemoryDollyGallery() {
+  return (
+    <section className="relative mt-8 overflow-hidden rounded-[30px] border" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--bg-secondary) 74%, transparent)' }}>
+      <div className="relative z-[200] flex justify-end px-5 pt-4 sm:px-7 sm:pt-5">
+        <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-amber-600/90">Memories</span>
+      </div>
+      <DollyGallery
+        images={MEMORY_CARDS}
+        itemWidth={250}
+        aspectRatio={0.78}
+        borderRadius={24}
+        spacing={520}
+        spread={0.42}
+        revealRange={2}
+        passRange={1}
+        grayscale={0.04}
+        autoScroll={2400}
+        className="mt-0"
+      />
     </section>
   )
 }
@@ -1362,13 +1386,13 @@ export default function FeedPage() {
 
         {/* Floating header */}
         <div
-          className="fixed top-0 inset-x-0 z-30 px-3 sm:px-6 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 transition-all duration-300"
+          className="relative z-30 px-3 sm:px-6 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 transition-all duration-300"
           style={{
-            background: scrolled ? 'color-mix(in srgb, var(--bg-primary) 84%, transparent)' : 'transparent',
-            borderBottom: scrolled ? '1px solid color-mix(in srgb, var(--border) 74%, transparent)' : '1px solid transparent',
-            boxShadow: scrolled ? '0 8px 24px rgba(15, 23, 42, 0.06)' : 'none',
-            backdropFilter: scrolled ? 'saturate(150%) blur(18px)' : 'none',
-            WebkitBackdropFilter: scrolled ? 'saturate(150%) blur(18px)' : 'none',
+            background: 'color-mix(in srgb, var(--bg-primary) 96%, transparent)',
+            borderBottom: '1px solid color-mix(in srgb, var(--border) 74%, transparent)',
+            boxShadow: scrolled ? '0 8px 24px rgba(15, 23, 42, 0.08)' : '0 4px 16px rgba(15, 23, 42, 0.04)',
+            backdropFilter: 'saturate(150%) blur(18px)',
+            WebkitBackdropFilter: 'saturate(150%) blur(18px)',
           }}
         >
           <div className="max-w-7xl mx-auto flex items-center gap-2 sm:gap-3">
@@ -1406,9 +1430,9 @@ export default function FeedPage() {
                 onChange={(e) => setQuery(e.target.value)}
                 className="w-full min-h-[44px] rounded-full text-sm outline-none border-0 transition-all focus:ring-2 focus:ring-amber-500/40 placeholder:opacity-80"
                 style={{
-                  background: 'var(--bg-secondary)',
+                  background: 'color-mix(in srgb, var(--bg-secondary) 62%, transparent)',
                   color: 'var(--text-primary)',
-                  border: '1px solid var(--border)',
+                  border: '1px solid color-mix(in srgb, var(--border) 70%, transparent)',
                   boxShadow: scrolled ? '0 6px 20px rgba(15, 23, 42, 0.08)' : '0 4px 16px rgba(15, 23, 42, 0.06)',
                   padding: '11px 40px 11px 42px',
                   fontWeight: 500,
@@ -1443,10 +1467,8 @@ export default function FeedPage() {
           </div>
         </div>
 
-        <div className="pt-28 sm:pt-32" />
-
         <main className="max-w-7xl mx-auto px-3 sm:px-5 pt-2 sm:pt-4">
-          <MemoryCardSpread />
+          <MemoryDollyGallery />
 
         <div className="max-w-7xl mx-auto px-3 sm:px-5 pt-4">
           <div className="mb-4">
