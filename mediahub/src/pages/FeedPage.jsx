@@ -238,7 +238,7 @@ function MemoryDollyGallery() {
   return (
     <section className="relative mt-8 overflow-hidden rounded-[30px] border" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--bg-secondary) 74%, transparent)' }}>
       <div className="relative z-[200] flex justify-end px-5 pt-4 sm:px-7 sm:pt-5">
-        <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-amber-600/90">Memories</span>
+        <span className="hidden text-[10px] font-bold uppercase tracking-[0.24em] text-amber-600/90 sm:inline">Memories</span>
       </div>
       <DollyGallery
         images={MEMORY_CARDS}

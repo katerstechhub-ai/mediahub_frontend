@@ -88,11 +88,13 @@
 
 @media (max-width: 640px) {
   .dolly-gallery {
-    min-height: 285px;
+    min-height: 320px;
   }
 
   .dolly-gallery__card {
     top: 45%;
+    width: min(210px, 70vw) !important;
+    aspect-ratio: 0.9 !important;
   }
 
   .dolly-gallery__caption {
