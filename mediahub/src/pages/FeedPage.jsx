@@ -815,7 +815,8 @@ function PostListItem({
 }) {
   const mediaItems = getMediaItems(post)
   const mediaRatio = useMediaAspect(mediaItems)
-  const isLiked = post.likes?.includes(user?._id)
+  const myId = user?._id || user?.id
+  const isLiked = !!myId && Array.isArray(post.likes) && post.likes.some((l) => String(l) === String(myId))
   const commentCount = post.commentCount ?? 0
   const isDownloading = downloadingMap[post._id] || false
   const downloadTarget = mediaItems[0]?.url
@@ -847,7 +848,7 @@ function PostListItem({
               postId={post._id}
               compact
               contain
-              onOpen={() => navigate(`/posts/${post._id}`)}
+              onOpen={(e) => handleDoubleTap(e || { stopPropagation() {} }, post._id, () => navigate(`/posts/${post._id}`))}
             />
           ) : (
             <MediaSlider
@@ -858,7 +859,6 @@ function PostListItem({
               rounded=""
               className="w-full h-full"
               hideDots
-              tapToNavigate
               fit="cover"
               renderVideo={(item, isActive) => (
                 <FeedVideo
@@ -1059,18 +1059,31 @@ export default function FeedPage() {
     }
   }
 
-  const handleLike = async (e, postId) => {
-    e?.stopPropagation()
+  // Optimistic: the UI updates instantly, the request runs in the background,
+  // and we roll back only if it fails. `onlyLike` (used by double-tap) never
+  // un-likes a post that's already liked.
+  const handleLike = async (e, postId, onlyLike = false) => {
+    e?.stopPropagation?.()
     if (!user) { toast.error('Log in to like posts'); navigate('/login'); return }
+    const myId = user._id || user.id
+    const current = posts.find((p) => p._id === postId)
+    const currentLikes = Array.isArray(current?.likes) ? current.likes : []
+    const alreadyLiked = currentLikes.some((l) => String(l) === String(myId))
+    if (onlyLike && alreadyLiked) return
+
+    const toggle = (p) => {
+      const likes = Array.isArray(p.likes) ? p.likes : []
+      const has = likes.some((l) => String(l) === String(myId))
+      return { ...p, likes: has ? likes.filter((l) => String(l) !== String(myId)) : [...likes, myId] }
+    }
+    setPosts((prev) => prev.map((p) => (p._id === postId ? toggle(p) : p)))
     try {
       await postsAPI.like(postId)
-      // Optimistic-ish local patch instead of refetching the whole feed —
-      // refetching from the top would also reset pagination back to page 1.
-      const { data } = await postsAPI.getOne(postId)
-      const updated = data?.data || data
-      setPosts(prev => prev.map(p => (p._id === postId ? { ...p, likes: updated?.likes ?? p.likes } : p)))
+    } catch (err) {
+      console.error('Like failed:', err)
+      setPosts((prev) => prev.map((p) => (p._id === postId ? toggle(p) : p)))
+      toast.error('Could not update like')
     }
-    catch (err) { console.error('Like failed:', err) }
   }
 
   const openLightbox = (post) => {
@@ -1082,7 +1095,7 @@ export default function FeedPage() {
     const now = Date.now()
     const lastTap = lastTapRef.current[postId] || 0
     if (now - lastTap < 300) {
-      handleLike(e, postId)
+      handleLike(e, postId, true)
       setShowHeartAnimation(postId)
       setTimeout(() => setShowHeartAnimation(null), 800)
       lastTapRef.current[postId] = 0
