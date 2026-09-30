@@ -352,7 +352,7 @@ function CreatePostPage() {
     const t = title.trim()
     if (t && t.length < 3) e.title = 'Title must be at least 3 characters'
     else if (t.length > 100) e.title = 'Title must be under 100 characters'
-    if (!content.trim() && mediaItems.length === 0) e.content = 'Add a photo/video or a few words'
+    if (mediaItems.length === 0) e.media = 'Add at least one photo or video to post'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -386,7 +386,7 @@ function CreatePostPage() {
     }
     if (!accepted.length) return
     if (mediaItems.length === 0) getCachedSignature()
-    setErrors(prev => ({ ...prev, content: '' }))
+    setErrors(prev => ({ ...prev, media: '' }))
     accepted.forEach((f) => {
       const id = nextId()
       const isVideo = f.type.startsWith('video/')
@@ -464,7 +464,7 @@ function CreatePostPage() {
   }, [])
 
   useEffect(() => () => abortControllerRef.current?.abort(), [])
-  const canPost = Boolean((title.trim() || content.trim() || mediaItems.length > 0) && !loading && !anyCompressing)
+  const canPost = Boolean(mediaItems.length > 0 && !loading && !anyCompressing)
 
   const handleCancel = () => {
     setUploadStage('cancelling')
@@ -472,7 +472,8 @@ function CreatePostPage() {
   }
 
   const handleSubmit = async () => {
-    if (!canPost || !validate()) return
+    if (loading || anyCompressing) return
+    if (!validate()) return
     setLoading(true)
     setUploadProgress(0)
     setUploadStage('uploading')
@@ -1084,6 +1085,18 @@ function CreatePostPage() {
               </motion.div>
             )}
           </AnimatePresence>
+          <AnimatePresence>
+            {errors.media && (
+              <motion.p
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                className="mt-2 text-xs text-red-400 font-medium"
+              >
+                {errors.media}
+              </motion.p>
+            )}
+          </AnimatePresence>
         </section>
 
         <section className="border-b px-1 py-4" style={{ borderColor: BORDER }}>
@@ -1277,7 +1290,7 @@ function PostButton({ canPost, loading, uploadProgress, onClick }) {
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
         <p className="text-xs font-semibold" style={{ color: canPost ? TEXT_PRIMARY : TEXT_MUTED }}>
-          {loading ? (uploadProgress > 0 ? `Posting ${uploadProgress}%` : 'Posting…') : canPost ? 'Pull to post' : 'Add a memory or a few words'}
+          {loading ? (uploadProgress > 0 ? `Posting ${uploadProgress}%` : 'Posting…') : canPost ? 'Pull to post' : 'Add a photo or video to post'}
         </p>
         <p className="mt-0.5 text-[10px]" style={{ color: TEXT_FAINT }}>Tap or sling the button upward</p>
       </div>

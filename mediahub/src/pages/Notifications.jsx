@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, useMotionValue, animate } from 'framer-motion'
 import { FiBell, FiArrowLeft, FiHeart, FiMessageCircle, FiUserPlus, FiThumbsDown, FiTrash2, FiLayers, FiPlay } from 'react-icons/fi'
 import { notificationsAPI, postsAPI } from '../api'
+import { onNotificationsChanged } from '../lib/notificationSocket'
 import { Avatar } from '../components/ui'
 import AnimatedContent from '../components/ui/AnimatedContent'
 import ThemeOverlay from '../components/ui/ThemeOverlay'
@@ -11,6 +12,7 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.extend(relativeTime)
 
 const DELETE_THRESHOLD = -80
+const EXPLORE_PATH = '/explore' // thoughts live on the Explore page
 
 function SwipeableRow({ notificationId, onDelete, children }) {
   const x = useMotionValue(0)
@@ -56,6 +58,25 @@ function SwipeableRow({ notificationId, onDelete, children }) {
   )
 }
 
+const isThoughtType = (type) => type === 'like_thought' || type === 'reply_thought'
+
+// Short preview text for a thought / reply doc ({ text, sticker })
+const thoughtPreview = (t) => {
+  if (!t) return ''
+  if (t.text) return t.text.length > 60 ? `${t.text.slice(0, 60)}…` : t.text
+  if (t.sticker?.kind === 'emoji') return t.sticker.value
+  if (t.sticker) return 'a sticker'
+  return ''
+}
+
+// What to show in the right-hand tile for a thought notification
+const thoughtTileContent = (notification) => {
+  const t = notification.thought
+  if (t?.sticker?.kind === 'emoji') return t.sticker.value
+  if (t?.text) return t.text[0].toUpperCase()
+  return '💭'
+}
+
 export default function Notifications() {
   const navigate = useNavigate()
   const [notifications, setNotifications] = useState([])
@@ -77,6 +98,9 @@ export default function Notifications() {
 
   useEffect(() => {
     fetchNotifications()
+    // Live updates: refetch whenever the server says notifications changed
+    const unsubscribe = onNotificationsChanged(fetchNotifications)
+    return unsubscribe
   }, [])
 
   const handleMarkAsRead = async (notificationId) => {
@@ -114,11 +138,13 @@ export default function Notifications() {
     switch (type) {
       case 'like_post':
       case 'like_comment':
+      case 'like_thought':
         return <FiHeart size={14} color="#ef4444" />
       case 'dislike_post':
         return <FiThumbsDown size={14} color="#64748b" />
       case 'comment':
       case 'reply':
+      case 'reply_thought':
         return <FiMessageCircle size={14} color="#3b82f6" />
       case 'follow':
         return <FiUserPlus size={14} color="#8b5cf6" />
@@ -128,7 +154,8 @@ export default function Notifications() {
   }
 
   const getNotificationMessage = (notification) => {
-    const userName = notification.sender?.name || 'Someone'
+    const isSelf = !!notification.isSelf
+    const userName = isSelf ? 'You' : notification.sender?.name || 'Someone'
     const postTitle = notification.post?.title || 'your post'
     switch (notification.type) {
       case 'like_post':
@@ -169,7 +196,7 @@ export default function Notifications() {
         return (
           <span>
             <span className="font-semibold">{userName}</span>
-            {' liked your comment'}
+            {isSelf ? ' liked your own comment' : ' liked your comment'}
           </span>
         )
       case 'follow':
@@ -179,6 +206,36 @@ export default function Notifications() {
             {' started following you'}
           </span>
         )
+      case 'like_thought': {
+        const preview = thoughtPreview(notification.thought)
+        return (
+          <span>
+            <span className="font-semibold">{userName}</span>
+            {isSelf ? ' liked your own thought' : ' liked your thought'}
+            {preview && (
+              <>
+                {': '}
+                <span className="font-medium">"{preview}"</span>
+              </>
+            )}
+          </span>
+        )
+      }
+      case 'reply_thought': {
+        const replyPreview = thoughtPreview(notification.thoughtReply)
+        return (
+          <span>
+            <span className="font-semibold">{userName}</span>
+            {isSelf ? ' replied to your own thought' : ' replied to your thought'}
+            {replyPreview && (
+              <>
+                {': '}
+                <span className="font-medium">"{replyPreview}"</span>
+              </>
+            )}
+          </span>
+        )
+      }
       default:
         return (
           <span>
@@ -347,7 +404,7 @@ export default function Notifications() {
               className="mt-2"
             >
               <p className="max-w-sm text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                Likes and comments on your posts will show up here when they happen.
+                Likes and comments on your posts and thoughts will show up here when they happen.
               </p>
             </AnimatedContent>
           </div>
@@ -355,6 +412,7 @@ export default function Notifications() {
           <div className="px-3 sm:px-4 py-3 flex flex-col gap-1.5">
             {notifications.map((notification) => {
               const post = notification.post
+              const isThought = isThoughtType(notification.type)
               // First, check if we have a cached thumbnail from a full fetch
               let thumbnail = post ? thumbnailsMap[post._id] || null : null
               // If not cached, try to extract from the current post object
@@ -368,8 +426,12 @@ export default function Notifications() {
 
               const fallbackColor = post?._id
                 ? `hsl(${parseInt(post._id.slice(-6), 16) % 360}, 70%, 55%)`
-                : 'var(--bg-secondary)'
-              const initial = post?.title?.[0]?.toUpperCase() || '📄'
+                : isThought && notification.thought?._id
+                  ? `hsl(${parseInt(notification.thought._id.slice(-6), 16) % 360}, 70%, 55%)`
+                  : 'var(--bg-secondary)'
+              const initial = isThought
+                ? thoughtTileContent(notification)
+                : post?.title?.[0]?.toUpperCase() || '📄'
 
               return (
                 <SwipeableRow
@@ -380,7 +442,16 @@ export default function Notifications() {
                   <div
                     onClick={() => {
                       handleMarkAsRead(notification._id)
-                      if (post?._id) navigate(`/posts/${post._id}`)
+                      if (isThought) {
+                        // Open the thought on Explore with its replies expanded
+                        navigate(
+                          notification.thought?._id
+                            ? `${EXPLORE_PATH}?thought=${notification.thought._id}`
+                            : EXPLORE_PATH
+                        )
+                      } else if (post?._id) {
+                        navigate(`/posts/${post._id}`)
+                      }
                     }}
                     className="flex items-center gap-3 px-3 py-3 rounded-3xl border border-black/[0.05] hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer shadow-[0_8px_22px_rgba(15,23,42,0.05)]"
                     style={{ background: !notification.read ? 'rgba(245,158,11,0.07)' : 'var(--bg-primary)' }}

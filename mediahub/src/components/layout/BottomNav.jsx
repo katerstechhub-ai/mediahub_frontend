@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { useAuthStore, useUIStore } from '../../store'
 import { notificationsAPI } from '../../api'
+import { onNotificationsChanged, disconnectSocket } from '../../lib/notificationSocket'
 
 const allTabs = [
   { to: '/', icon: FiHome, label: 'Feed' },
@@ -17,6 +18,7 @@ export default function BottomNav() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuthStore()
+  const userId = user?._id || user?.id
   const setBottomNavHeight = useUIStore((state) => state.setBottomNavHeight)
   const [unreadCount, setUnreadCount] = useState(0)
   const outerRef = useRef(null)
@@ -46,7 +48,11 @@ export default function BottomNav() {
   }, [setBottomNavHeight, visibleTabs.length])
 
   useEffect(() => {
-    if (!user) return undefined
+    if (!userId) {
+      setUnreadCount(0)
+      disconnectSocket()
+      return undefined
+    }
     const fetchUnread = async () => {
       try {
         const response = await notificationsAPI.getAll(1, 1)
@@ -56,9 +62,16 @@ export default function BottomNav() {
       }
     }
     fetchUnread()
-    const intervalId = window.setInterval(fetchUnread, 30000)
-    return () => window.clearInterval(intervalId)
-  }, [user])
+
+    // Instant updates via socket; polling stays as a slow fallback.
+    const unsubscribe = onNotificationsChanged(fetchUnread)
+    const intervalId = window.setInterval(fetchUnread, 60000)
+
+    return () => {
+      unsubscribe()
+      window.clearInterval(intervalId)
+    }
+  }, [userId])
 
   const isActiveTab = (to) => (to === '/' ? location.pathname === '/' : location.pathname.startsWith(to))
 
