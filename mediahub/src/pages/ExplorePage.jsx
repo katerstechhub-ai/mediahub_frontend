@@ -1186,23 +1186,32 @@ export default function ExplorePage() {
 
   return (
     <div
-      className="relative min-h-full pb-[calc(6rem+env(safe-area-inset-bottom))] fade-in"
-      style={{ background: 'var(--bg-primary)', position: 'relative', isolation: 'isolate' }}
+      className="relative min-h-full pb-[calc(6rem+env(safe-area-inset-bottom))]"
+      style={{ background: 'var(--bg-primary)', position: 'relative' }}
     >
       <div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none', background: AMBIENT_BG }} />
       <ThemeOverlay className="fixed bottom-20 right-4 z-40 sm:bottom-6 sm:right-6" />
 
       {/* Floating "write a thought" button — fixed to the viewport, so it stays visible however long the feed is */}
-      <motion.button
-        type="button"
-        whileHover={{ scale: 1.04 }}
-        whileTap={{ scale: 0.92 }}
-        onClick={() => setShowComposer((value) => !value)}
-        aria-label={showComposer ? 'Close thought composer' : 'Write a thought'}
-        className="fixed bottom-[calc(10.5rem+env(safe-area-inset-bottom))] right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500 text-white shadow-lg shadow-amber-500/30 sm:bottom-24 sm:right-8"
-      >
-        <FiPlus size={25} strokeWidth={2.5} style={{ transform: showComposer ? 'rotate(45deg)' : 'none', transition: 'transform 180ms ease' }} />
-      </motion.button>
+      {createPortal(
+        <motion.button
+          type="button"
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.92 }}
+          onClick={() => setShowComposer((value) => !value)}
+          aria-label={showComposer ? 'Close thought composer' : 'Write a thought'}
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-500 text-white shadow-lg shadow-amber-500/30"
+          style={{
+            position: 'fixed',
+            right: 20,
+            bottom: 'calc(10.5rem + env(safe-area-inset-bottom, 0px))',
+            zIndex: 50,
+          }}
+        >
+          <FiPlus size={25} strokeWidth={2.5} style={{ transform: showComposer ? 'rotate(45deg)' : 'none', transition: 'transform 180ms ease' }} />
+        </motion.button>,
+        document.body,
+      )}
 
       {/* New thought modal */}
       {showComposer && user && createPortal(
