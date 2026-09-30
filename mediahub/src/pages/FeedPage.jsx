@@ -4,12 +4,12 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import {
   FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList,
-  FiCopy, FiSend, FiSearch, FiX, FiDownload, FiLoader,
+  FiCopy, FiSearch, FiX, FiDownload, FiLoader,
   FiCalendar, FiMapPin, FiVolume2, FiVolumeX, FiPlay,
   FiChevronLeft, FiChevronRight, FiExternalLink
 } from 'react-icons/fi'
 import { FaHeart } from 'react-icons/fa'
-import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'
+import api, { postsAPI, getDownloadUrl } from '../api'
 import { useAuthStore } from '../store'
 import ThemeOverlay from '../components/ui/ThemeOverlay'
 import { Avatar } from '../components/ui'
@@ -43,8 +43,6 @@ import gallery4 from '../assets/gallery-4.jpeg'
 import gallery5 from '../assets/gallery-5.jpeg'
 import pamsSolo from '../assets/pams-solo.jpeg'
 import bizzerSolo from '../assets/bizzer-solo.jpeg'
-
-import CommentsSheet from './_CommentsSheet'
 
 /* ─────────── Global sound state (only one video audible at a time) ─────────── */
 
@@ -325,15 +323,6 @@ function MultiMediaShowcase({ items, postId, onOpen, compact = false, contain = 
       <MultiImageBadge count={items.length} />
     </div>
   )
-}
-
-function normalizeAuthor(u) {
-  if (!u) return null
-  return {
-    _id: u._id || u.id,
-    name: u.name || u.username || u.fullName || u.displayName || 'Unknown',
-    avatar: u.avatar || u.avatarUrl || u.profileImage || u.photo || null,
-  }
 }
 
 /* Deterministic rotation from post id so tiles don't jump on re-render */
@@ -795,117 +784,6 @@ function FeedVideo({ src, poster, postId, className, style, isActive = true }) {
   )
 }
 
-/* ─────────── Inline comments ─────────── */
-
-function InlineComments({ postId, user, onGoToProfile, onCountChange, onOpenAll }) {
-  const [comments, setComments] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [text, setText] = useState('')
-  const [posting, setPosting] = useState(false)
-  const navigate = useNavigate()
-
-  useEffect(() => {
-    let cancelled = false
-      ; (async () => {
-        try {
-          const res = await commentsAPI.getByPost(postId)
-          const data = res.data
-          const arr = data?.data?.comments || data?.comments || data?.data || data || []
-          if (!cancelled) setComments(Array.isArray(arr) ? arr : [])
-        } catch (err) {
-          console.error('Load comments failed:', err)
-        } finally {
-          if (!cancelled) setLoading(false)
-        }
-      })()
-    return () => { cancelled = true }
-  }, [postId])
-
-  const submit = async (e) => {
-    e.preventDefault()
-    const content = text.trim()
-    if (!content) return
-    if (!user) { toast.error('Log in to comment'); navigate('/login'); return }
-
-    const optimisticAuthor = normalizeAuthor(user)
-    const tempId = `temp-${Date.now()}`
-    setComments((prev) => [...prev, { _id: tempId, content, author: optimisticAuthor }])
-    setText('')
-    onCountChange?.(1)
-    setPosting(true)
-    try {
-      const res = await commentsAPI.create(postId, content)
-      const newC = res.data?.data?.comment || res.data?.comment || res.data?.data || res.data
-      if (newC && (newC._id || newC.id)) {
-        setComments((prev) => prev.map((c) => (
-          c._id === tempId
-            ? { ...newC, author: (newC.author && typeof newC.author === 'object' ? newC.author : optimisticAuthor) }
-            : c
-        )))
-      }
-    } catch (err) {
-      console.error('Comment failed:', err)
-      toast.error('Could not post comment')
-      setComments((prev) => prev.filter((c) => c._id !== tempId))
-      onCountChange?.(-1)
-    } finally {
-      setPosting(false)
-    }
-  }
-
-  const visible = comments.slice(-2)
-
-  return (
-    <div className="mt-2 px-3 md:px-0">
-      {loading ? (
-        <div className="text-xs py-2" style={{ color: 'var(--text-muted)' }}>Loading comments…</div>
-      ) : (
-        <>
-          {comments.length > 2 && (
-            <button onClick={() => onOpenAll?.(postId)}
-              className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
-              View all {comments.length} comments
-            </button>
-          )}
-          <ul className="space-y-1.5">
-            {visible.map((c) => (
-              <li key={c._id || c.id} className="flex items-start gap-2">
-                <div className="cursor-pointer flex-shrink-0 mt-0.5"
-                  onClick={(e) => onGoToProfile?.(e, c.author)}>
-                  <Avatar src={c.author?.avatar} name={c.author?.name} size={22} />
-                </div>
-                <p className="text-sm leading-snug" style={{ color: 'var(--text-primary)' }}>
-                  <span className="font-bold mr-1.5 cursor-pointer hover:underline"
-                    onClick={(e) => onGoToProfile?.(e, c.author)}>
-                    {c.author?.name || 'Unknown'}
-                  </span>
-                  <span style={{ color: 'var(--text-secondary)' }}>{c.content}</span>
-                </p>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      <form onSubmit={submit} className="flex items-center gap-2 mt-2.5 pt-2.5 border-t"
-        style={{ borderColor: 'var(--border)' }}>
-        <Avatar src={user?.avatar} name={user?.name} size={24} />
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Add a comment…"
-          className="flex-1 bg-transparent outline-none text-sm placeholder:opacity-60"
-          style={{ color: 'var(--text-primary)' }}
-        />
-        <button type="submit" disabled={!text.trim() || posting}
-          className="flex items-center justify-center h-8 w-8 rounded-full text-amber-500 disabled:opacity-40">
-          <FiSend size={16} strokeWidth={2.5} />
-        </button>
-      </form>
-    </div>
-  )
-}
-
 /* ─────────── Group posts by month ─────────── */
 
 function groupPostsByMonth(posts) {
@@ -926,19 +804,19 @@ function groupPostsByMonth(posts) {
   return Array.from(groups.values()).sort((a, b) => b.sortKey - a.sortKey)
 }
 
-/* ─────────── List-view post card ─────────── */
+/* ─────────── List-view post card ───────────
+   No inline comments and no modal: the comment pill takes you to the post
+   detail page. Like / Comment use the same pill style as the Explore page. */
 
 function PostListItem({
   post, user, gridItem, navigate,
   handleLike, handleDoubleTap, goToProfile, HeartAnimation,
   downloadingMap, handleDownload,
-  commentDeltas, setCommentDeltas, setActiveCommentPostId,
 }) {
   const mediaItems = getMediaItems(post)
   const mediaRatio = useMediaAspect(mediaItems)
   const isLiked = post.likes?.includes(user?._id)
-  const baseCount = post.commentCount ?? 0
-  const commentCount = baseCount + (commentDeltas[post._id] || 0)
+  const commentCount = post.commentCount ?? 0
   const isDownloading = downloadingMap[post._id] || false
   const downloadTarget = mediaItems[0]?.url
 
@@ -964,13 +842,13 @@ function PostListItem({
           }}
         >
           {mediaItems.length > 1 ? (
-              <MultiMediaShowcase
-                items={mediaItems}
-                postId={post._id}
-                compact
-                contain
-                onOpen={() => navigate(`/posts/${post._id}`)}
-              />
+            <MultiMediaShowcase
+              items={mediaItems}
+              postId={post._id}
+              compact
+              contain
+              onOpen={() => navigate(`/posts/${post._id}`)}
+            />
           ) : (
             <MediaSlider
               items={mediaItems}
@@ -1059,58 +937,49 @@ function PostListItem({
           </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-2">
+        <div className="mt-4 flex items-center gap-2.5">
           <motion.button
-            onClick={e => handleLike(e, post._id)}
-            whileTap={{ scale: 0.92 }}
-            className="flex items-center gap-2 px-4 h-10 rounded-full hover:bg-[var(--bg-secondary)] transition"
-            style={{ background: isLiked ? 'rgba(239,68,68,0.10)' : 'transparent' }}
+            type="button"
+            onClick={(e) => handleLike(e, post._id)}
+            whileTap={{ scale: 0.93 }}
+            aria-label={isLiked ? 'Unlike' : 'Like'}
+            className="flex items-center gap-2"
+            style={{
+              height: 42,
+              padding: '0 18px',
+              borderRadius: 999,
+              border: '1px solid var(--border)',
+              fontSize: 13,
+              fontWeight: 800,
+              background: isLiked ? 'rgba(239,68,68,0.16)' : 'var(--bg-secondary)',
+              color: isLiked ? '#ef4444' : 'var(--text-primary)',
+            }}
           >
-            <AnimatePresence mode="wait" initial={false}>
-              {isLiked ? (
-                <motion.span
-                  key="liked"
-                  initial={{ scale: 0.6 }} animate={{ scale: 1 }} exit={{ scale: 0.6, opacity: 0 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-                >
-                  <FaHeart size={20} color="#ef4444" />
-                </motion.span>
-              ) : (
-                <motion.span
-                  key="unliked"
-                  initial={{ scale: 0.6 }} animate={{ scale: 1 }} exit={{ scale: 0.6, opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                >
-                  <FiHeart size={20} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
-                </motion.span>
-              )}
-            </AnimatePresence>
-            <span className="text-sm font-bold" style={{ color: isLiked ? '#ef4444' : 'var(--text-primary)' }}>
-              {post.likes?.length || 0}
-            </span>
+            {isLiked ? <FaHeart size={17} color="#ef4444" /> : <FiHeart size={18} strokeWidth={2.5} />}
+            <span>{post.likes?.length || 0}</span>
           </motion.button>
 
           <motion.button
-            onClick={(e) => { e.stopPropagation(); setActiveCommentPostId(post._id) }}
-            whileTap={{ scale: 0.92 }}
-            className="flex items-center gap-2 px-4 h-10 rounded-full hover:bg-[var(--bg-secondary)] transition"
+            type="button"
+            onClick={(e) => { e.stopPropagation(); navigate(`/posts/${post._id}`) }}
+            whileTap={{ scale: 0.93 }}
+            aria-label="View comments"
+            className="flex items-center gap-2"
+            style={{
+              height: 42,
+              padding: '0 18px',
+              borderRadius: 999,
+              border: '1px solid var(--border)',
+              fontSize: 13,
+              fontWeight: 800,
+              background: 'var(--bg-secondary)',
+              color: 'var(--text-primary)',
+            }}
           >
-            <FiMessageCircle size={20} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
-            <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-              {commentCount}
-            </span>
+            <FiMessageCircle size={18} strokeWidth={2.5} />
+            <span>{commentCount}</span>
           </motion.button>
         </div>
-
-        <InlineComments
-          postId={post._id}
-          user={user}
-          onGoToProfile={(e, author) => goToProfile(e, author)}
-          onOpenAll={(id) => setActiveCommentPostId(id)}
-          onCountChange={(delta) =>
-            setCommentDeltas((s) => ({ ...s, [post._id]: (s[post._id] || 0) + delta }))
-          }
-        />
       </div>
     </motion.article>
   )
@@ -1127,9 +996,6 @@ export default function FeedPage() {
   const [viewMode, setViewMode] = useState('grid')
   const [query, setQuery] = useState('')
   const [selectedMonth, setSelectedMonth] = useState('all')
-  const [activeCommentPostId, setActiveCommentPostId] = useState(null)
-  const [commentDeltas, setCommentDeltas] = useState({})
-  const [gridCommentCounts, setGridCommentCounts] = useState({})
   const [showHeartAnimation, setShowHeartAnimation] = useState(null)
   const [downloadingMap, setDownloadingMap] = useState({})
   const [scrolled, setScrolled] = useState(false)
@@ -1524,9 +1390,6 @@ export default function FeedPage() {
                           HeartAnimation={HeartAnimation}
                           downloadingMap={downloadingMap}
                           handleDownload={handleDownload}
-                          commentDeltas={commentDeltas}
-                          setCommentDeltas={setCommentDeltas}
-                          setActiveCommentPostId={setActiveCommentPostId}
                         />
                       ))}
                     </motion.div>
@@ -1548,17 +1411,6 @@ export default function FeedPage() {
         </div>
         </main>
       </div>
-
-      <CommentsSheet
-        postId={activeCommentPostId}
-        open={!!activeCommentPostId}
-        onClose={() => setActiveCommentPostId(null)}
-        user={user}
-        onGoToProfile={(author) => goToProfile(null, author)}
-        onCountChange={(count) =>
-          setGridCommentCounts((s) => ({ ...s, [activeCommentPostId]: count }))
-        }
-      />
 
       <PhotoLightbox
         post={lightboxPost}

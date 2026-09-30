@@ -17,6 +17,8 @@
 html {
   font-family: var(--font-body);
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -85,14 +87,16 @@ body {
   animation: slideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Fade in */
+/* Fade in — opacity only. Animating transform on a page wrapper can break
+   position: fixed for everything inside it (floating buttons, etc.).
+   (This used to be defined twice; the duplicate is merged here.) */
 @keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.97); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .fade-in {
-  animation: fadeIn 0.25s ease;
+  animation: fadeIn 0.3s ease-out;
 }
 
 /* Like pulse */
@@ -102,15 +106,6 @@ body {
   100% { transform: scale(1); }
 }
 .heart-pop { animation: heartPop 0.3s ease; }
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.fade-in {
-  animation: fadeIn 0.3s ease-out;
-}
 
 /* BottomNav frosted panel — a plain themed fallback color declares first
    for browsers without color-mix() support (that whole declaration gets
@@ -133,4 +128,16 @@ body {
 body.composer-open [data-bottom-nav],
 body.composer-open .bottom-nav {
   display: none !important;
+}
+
+/* Mobile zoom fix — iOS Safari (and some Android browsers) zoom the whole
+   page when you focus an input whose font size is under 16px. Forcing 16px
+   on touch screens stops that everywhere (comments, search, forms) while
+   keeping pinch-zoom available. */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
