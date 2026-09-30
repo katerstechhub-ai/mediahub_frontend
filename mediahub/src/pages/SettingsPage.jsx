@@ -1,78 +1,62 @@
 import { useState, useEffect, useId } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiArrowLeft, FiUser, FiSun, FiMoon, FiMonitor, FiLock, FiTrash2,
-  FiLogOut, FiChevronRight, FiX, FiEye, FiEyeOff, FiCheck, FiShield
+  FiLogOut, FiChevronRight, FiX, FiEye, FiEyeOff, FiCheck, FiShield,
 } from 'react-icons/fi'
 import { useAuthStore, useThemeStore } from '../store'
 import ThemeOverlay from '../components/ui/ThemeOverlay'
+import { Avatar } from '../components/ui'
 import { authAPI } from '../api'
 import toast from 'react-hot-toast'
 
+/* ---------- Style presets (same family as ExplorePage) ---------- */
+
+const glassChip = {
+  background: 'var(--bg-secondary)',
+  border: '1px solid var(--border)',
+  boxShadow: 'none',
+}
+
+const glassAmber = {
+  background: 'linear-gradient(135deg, rgba(251,191,36,0.95), rgba(245,158,11,0.85))',
+  border: '1px solid #f59e0b',
+  boxShadow: 'none',
+}
+
+const Z_MODAL = 2147482990
+const Z_CONFIRM = 2147483000
+
 /* ---------- Primitives ---------- */
 
+// Label + hairline, like "Latest thoughts" on Explore
 function SectionLabel({ children }) {
   return (
-    <p
-      className="text-[11px] font-semibold tracking-[0.14em] uppercase px-5 pt-6 pb-2"
-      style={{ color: 'var(--text-muted)' }}
-    >
-      {children}
-    </p>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '0 6px', marginBottom: 6 }}>
+      <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.24em', textTransform: 'uppercase', color: '#d97706' }}>
+        {children}
+      </span>
+      <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+    </div>
   )
 }
 
-function Row({ icon: Icon, label, onClick, danger = false, trailing }) {
+// Flat row with a hairline under it
+function Row({ icon: Icon, label, onClick, danger = false, last = false }) {
+  const color = danger ? '#ef4444' : 'var(--text-primary)'
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
-      style={{ background: 'var(--bg-secondary)' }}
+      className="w-full flex items-center gap-4 px-1.5 py-4 text-left transition-opacity hover:opacity-70"
+      style={{ borderBottom: last ? 'none' : '1px solid var(--border)' }}
     >
-      <Icon
-        size={20}
-        strokeWidth={1.75}
-        style={{ color: danger ? '#ef4444' : 'var(--text-primary)' }}
-      />
-      <span
-        className="flex-1 text-left text-[15px] font-medium"
-        style={{ color: danger ? '#ef4444' : 'var(--text-primary)' }}
-      >
-        {label}
-      </span>
-      {trailing !== undefined ? trailing : (
-        <FiChevronRight size={18} style={{ color: 'var(--text-muted)' }} strokeWidth={1.75} />
-      )}
+      <Icon size={20} strokeWidth={2} style={{ color }} />
+      <span className="flex-1 text-[15px] font-semibold" style={{ color }}>{label}</span>
+      <FiChevronRight size={18} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
     </button>
-  )
-}
-
-// Non-button variant of the row shell, since this one wraps a segmented
-// control (which has its own buttons inside it) rather than being a
-// button itself — nesting <button> inside <button> is invalid HTML and
-// was silently breaking click targets on the individual segments.
-function StaticRow({ icon: Icon, label, children }) {
-  return (
-    <div
-      className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl"
-      style={{ background: 'var(--bg-secondary)' }}
-    >
-      <Icon size={20} strokeWidth={1.75} style={{ color: 'var(--text-primary)' }} />
-      <span className="flex-1 text-left text-[15px] font-medium" style={{ color: 'var(--text-primary)' }}>
-        {label}
-      </span>
-      {children}
-    </div>
-  )
-}
-
-function Group({ children }) {
-  return (
-    <div className="mx-4 flex flex-col gap-2.5">
-      {children}
-    </div>
   )
 }
 
@@ -89,8 +73,8 @@ function AppearanceControl({ value, onChange }) {
     <div
       role="radiogroup"
       aria-label="Appearance"
-      className="flex items-center gap-0.5 rounded-full p-0.5 flex-shrink-0"
-      style={{ background: 'var(--bg-input)' }}
+      className="flex items-center gap-1 rounded-full p-1 flex-shrink-0"
+      style={glassChip}
     >
       {APPEARANCE_OPTIONS.map(({ value: optionValue, label, icon: Icon }) => {
         const selected = value === optionValue
@@ -103,13 +87,14 @@ function AppearanceControl({ value, onChange }) {
             aria-label={label}
             title={label}
             onClick={() => onChange(optionValue)}
-            className="relative flex items-center justify-center w-8 h-8 rounded-full transition-colors"
+            className="flex items-center justify-center gap-1.5 h-9 px-3 rounded-full text-xs font-extrabold transition-colors"
             style={{
               background: selected ? '#f59e0b' : 'transparent',
               color: selected ? '#fff' : 'var(--text-muted)',
             }}
           >
             <Icon size={15} strokeWidth={2.25} />
+            <span>{label}</span>
           </button>
         )
       })}
@@ -117,7 +102,7 @@ function AppearanceControl({ value, onChange }) {
   )
 }
 
-/* ---------- Field primitives (used inside sheets) ---------- */
+/* ---------- Field primitives (used inside modals) ---------- */
 
 function FieldInput({ label, type = 'text', value, onChange, autoComplete, placeholder, trailing, id }) {
   const reactId = useId()
@@ -126,15 +111,12 @@ function FieldInput({ label, type = 'text', value, onChange, autoComplete, place
     <div className="flex flex-col gap-2">
       <label
         htmlFor={inputId}
-        className="text-[11px] font-semibold tracking-[0.14em] uppercase px-1"
+        className="text-[11px] font-extrabold tracking-[0.18em] uppercase px-1"
         style={{ color: 'var(--text-muted)' }}
       >
         {label}
       </label>
-      <div
-        className="flex items-center gap-2 rounded-full px-5"
-        style={{ background: 'var(--bg-input)', minHeight: 50 }}
-      >
+      <div className="flex items-center gap-2 rounded-full px-5" style={{ ...glassChip, minHeight: 50 }}>
         <input
           id={inputId}
           type={type}
@@ -142,7 +124,7 @@ function FieldInput({ label, type = 'text', value, onChange, autoComplete, place
           onChange={onChange}
           autoComplete={autoComplete}
           placeholder={placeholder}
-          className="w-full bg-transparent outline-none text-sm py-3"
+          className="w-full bg-transparent outline-none text-sm py-3 placeholder:opacity-70"
           style={{ color: 'var(--text-primary)' }}
         />
         {trailing}
@@ -162,7 +144,7 @@ function PasswordInput(props) {
           type="button"
           onClick={() => setShow((s) => !s)}
           tabIndex={-1}
-          className="flex-shrink-0 rounded-md p-1 transition-colors hover:bg-black/10 dark:hover:bg-white/10"
+          className="flex-shrink-0 rounded-full p-1.5"
           style={{ color: 'var(--text-muted)' }}
           aria-label={show ? 'Hide password' : 'Show password'}
         >
@@ -179,7 +161,7 @@ function Textarea({ label, value, onChange, rows = 3, placeholder }) {
     <div className="flex flex-col gap-2">
       <label
         htmlFor={reactId}
-        className="text-[11px] font-semibold tracking-[0.14em] uppercase px-1"
+        className="text-[11px] font-extrabold tracking-[0.18em] uppercase px-1"
         style={{ color: 'var(--text-muted)' }}
       >
         {label}
@@ -190,8 +172,8 @@ function Textarea({ label, value, onChange, rows = 3, placeholder }) {
         onChange={onChange}
         rows={rows}
         placeholder={placeholder}
-        className="w-full bg-transparent outline-none text-sm resize-none rounded-2xl px-5 py-3"
-        style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+        className="w-full outline-none text-sm resize-none rounded-3xl px-5 py-3 placeholder:opacity-70"
+        style={{ ...glassChip, color: 'var(--text-primary)', lineHeight: 1.6 }}
       />
     </div>
   )
@@ -199,58 +181,121 @@ function Textarea({ label, value, onChange, rows = 3, placeholder }) {
 
 function PrimaryButton({ children, loading, icon: Icon, ...rest }) {
   return (
-    <button
+    <motion.button
+      whileTap={{ scale: 0.95 }}
       {...rest}
       disabled={loading || rest.disabled}
-      className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm text-white bg-amber-500 hover:bg-amber-600 active:bg-amber-700 shadow-lg shadow-amber-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+      className="inline-flex items-center gap-2 font-extrabold text-sm text-white disabled:cursor-not-allowed"
+      style={{
+        ...glassAmber,
+        height: 42,
+        padding: '0 24px',
+        borderRadius: 999,
+        opacity: loading || rest.disabled ? 0.45 : 1,
+      }}
     >
       {Icon && <Icon size={16} strokeWidth={2.5} />}
       {loading ? 'Please wait…' : children}
-    </button>
+    </motion.button>
   )
 }
 
-/* ---------- Bottom sheet ---------- */
+/* ---------- Full-screen modal (same as Explore's "New thought" / thought modal) ---------- */
 
-function Sheet({ open, onClose, title, children }) {
-  return (
+function FullModal({ open, onClose, title, children }) {
+  // Esc closes, and the page behind stops scrolling
+  useEffect(() => {
+    if (!open) return undefined
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [open, onClose])
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 flex items-end sm:items-center justify-center"
-          style={{ zIndex: 10000, background: 'rgba(0,0,0,0.5)' }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          key="settings-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 16 }}
           transition={{ duration: 0.2 }}
-          onClick={onClose}
+          style={{ position: 'fixed', inset: 0, zIndex: Z_MODAL, overflowY: 'auto', background: 'var(--bg-primary)' }}
         >
-          <motion.div
-            className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6"
-            style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
-            initial={{ y: 40, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 40, opacity: 0 }}
-            transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
-                {title}
-              </h3>
+          <div className="mx-auto min-h-full w-full max-w-2xl px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-6">
+            <div
+              className="sticky top-0 z-10 flex items-center justify-between border-b py-4"
+              style={{ borderColor: 'var(--border)', background: 'var(--bg-primary)' }}
+            >
               <button
+                type="button"
                 onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                style={{ color: 'var(--text-muted)' }}
+                aria-label="Close"
+                className="flex h-10 w-10 items-center justify-center rounded-full"
+                style={{ color: 'var(--text-primary)' }}
               >
-                <FiX size={18} strokeWidth={2.5} />
+                <FiX size={20} />
               </button>
+              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{title}</span>
+              <span className="h-10 w-10" aria-hidden="true" />
             </div>
-            {children}
-          </motion.div>
+            <div className="pt-6">{children}</div>
+          </div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
+  )
+}
+
+/* ---------- Centered confirm dialog (same as Explore's delete dialog) ---------- */
+
+function ConfirmDialog({ open, title, body, confirmLabel, busyLabel, busy, onCancel, onConfirm }) {
+  if (!open) return null
+  return createPortal(
+    <div
+      role="presentation"
+      onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onCancel() }}
+      style={{ position: 'fixed', inset: 0, zIndex: Z_CONFIRM, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, background: 'rgba(0,0,0,0.46)' }}
+    >
+      <motion.div
+        role="alertdialog"
+        aria-modal="true"
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        style={{ width: 'min(100%, 390px)', padding: 24, borderRadius: 20, background: 'var(--bg-secondary)', border: '1px solid var(--border)', boxShadow: '0 24px 80px rgba(0,0,0,0.28)' }}
+      >
+        <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>{title}</h2>
+        <p style={{ marginTop: 8, fontSize: 14, lineHeight: 1.55, color: 'var(--text-muted)' }}>{body}</p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onCancel}
+            style={{ height: 42, padding: '0 18px', borderRadius: 999, border: '1px solid var(--border)', color: 'var(--text-primary)', background: 'transparent', fontWeight: 700 }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            style={{ height: 42, padding: '0 18px', borderRadius: 999, border: '1px solid #ef4444', color: '#fff', background: '#ef4444', fontWeight: 800, opacity: busy ? 0.65 : 1 }}
+          >
+            {busy ? busyLabel : confirmLabel}
+          </button>
+        </div>
+      </motion.div>
+    </div>,
+    document.body,
   )
 }
 
@@ -259,10 +304,7 @@ function Sheet({ open, onClose, title, children }) {
 export default function SettingsPage() {
   const navigate = useNavigate()
   const { user, updateUser, logout } = useAuthStore()
-  // `theme` is now 'light' | 'dark' | 'system' (system is the app default —
-  // see themeStore.js). setTheme sets it directly; unlike the old
-  // toggleTheme() this can't skip over 'system' since there's no cycling
-  // involved, each segment sets its own value explicitly.
+  // `theme` is 'light' | 'dark' | 'system'. setTheme sets it directly.
   const { theme, setTheme } = useThemeStore()
 
   const [openSheet, setOpenSheet] = useState(null) // 'account' | 'password' | 'delete'
@@ -278,36 +320,7 @@ export default function SettingsPage() {
 
   const [deleting, setDeleting] = useState(false)
 
-  // Hide the app's persistent bottom nav while any settings sheet is open.
-  // The sheet renders at a very high z-index, but if the bottom nav is its
-  // own fixed-position component elsewhere in the tree — possibly with its
-  // own z-index — stacking order alone isn't guaranteed to put the sheet on
-  // top of it. Same approach as the post composer: toggle a body class and
-  // inject a rule that targets common bottom-nav markup conventions while
-  // any sheet is open. If your nav still shows through, add its real
-  // class/id to the selector list below.
-  useEffect(() => {
-    if (!openSheet) return
-    const style = document.createElement('style')
-    style.setAttribute('data-settings-sheet-hide-nav', 'true')
-    style.textContent = `
-      body.settings-sheet-open nav,
-      body.settings-sheet-open [class*="bottom-nav" i],
-      body.settings-sheet-open [class*="bottomnav" i],
-      body.settings-sheet-open [class*="tab-bar" i],
-      body.settings-sheet-open [class*="tabbar" i],
-      body.settings-sheet-open [id*="bottom-nav" i],
-      body.settings-sheet-open [data-bottom-nav] {
-        display: none !important;
-      }
-    `
-    document.head.appendChild(style)
-    document.body.classList.add('settings-sheet-open')
-    return () => {
-      document.body.classList.remove('settings-sheet-open')
-      style.remove()
-    }
-  }, [openSheet])
+  const closeSheet = () => setOpenSheet(null)
 
   const handleSaveProfile = async (e) => {
     e.preventDefault()
@@ -363,59 +376,82 @@ export default function SettingsPage() {
   return (
     <>
       <ThemeOverlay className="fixed bottom-20 right-4 z-50 sm:bottom-6 sm:right-6" />
-      <div className="min-h-screen pb-[calc(6rem+env(safe-area-inset-bottom))]" style={{ background: 'var(--bg-primary)' }}>
-        <header className="border-b" style={{ borderColor: 'var(--border)' }}>
-          <div className="mx-auto max-w-2xl px-4 pb-7 pt-5 sm:px-6 sm:pt-8">
-            <div className="flex items-center gap-3">
-              <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} aria-label="Go back" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-colors hover:bg-[var(--bg-secondary)]" style={{ color: 'var(--text-primary)', borderColor: 'var(--border)' }}>
-                <FiArrowLeft size={20} strokeWidth={2} />
-              </motion.button>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-amber-600">Personal settings</p>
-                <h1 className="mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: 'var(--text-primary)' }}>Settings</h1>
-              </div>
-            </div>
-            <p className="mt-5 max-w-md text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>Manage your profile, appearance, and account security.</p>
+      <div className="min-h-screen pb-[calc(6rem+env(safe-area-inset-bottom))] fade-in" style={{ background: 'var(--bg-primary)' }}>
+        {/* Sticky flat header, like Explore */}
+        <header
+          className="sticky top-0 z-40 border-b px-3 py-3 sm:px-6"
+          style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
+        >
+          <div className="mx-auto flex max-w-2xl items-center gap-3">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => navigate(-1)}
+              aria-label="Go back"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+              style={{ ...glassChip, color: 'var(--text-primary)' }}
+            >
+              <FiArrowLeft size={20} strokeWidth={2.5} />
+            </motion.button>
+            <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl" style={{ color: 'var(--text-primary)' }}>
+              Settings
+            </h1>
           </div>
         </header>
 
-        <main className="mx-auto max-w-2xl space-y-7 px-4 py-6 sm:px-6 sm:py-8">
-          <section className="rounded-3xl border p-5 sm:p-6" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+        <main className="mx-auto max-w-2xl px-4 sm:px-6" style={{ paddingTop: 28, display: 'flex', flexDirection: 'column', gap: 32 }}>
+          {/* Signed-in summary */}
+          <section
+            style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '18px 0' }}
+          >
             <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-xl font-extrabold text-white">{(user?.name || 'M').slice(0, 1).toUpperCase()}</div>
+              <Avatar src={user?.avatar} name={user?.name} size={46} />
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: 'var(--text-muted)' }}>Signed in as</p>
-                <h2 className="mt-1 truncate text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{user?.name || 'Your account'}</h2>
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>Signed in as</p>
+                <h2 className="mt-1 truncate text-base font-extrabold" style={{ color: 'var(--text-primary)' }}>
+                  {user?.name || 'Your account'}
+                </h2>
               </div>
-              <button type="button" onClick={() => setOpenSheet('account')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border" style={{ color: 'var(--text-primary)', borderColor: 'var(--border)' }} aria-label="Edit account"><FiUser size={18} /></button>
+              <button
+                type="button"
+                onClick={() => setOpenSheet('account')}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+                style={{ ...glassChip, color: 'var(--text-primary)' }}
+                aria-label="Edit account"
+              >
+                <FiUser size={18} strokeWidth={2.5} />
+              </button>
             </div>
           </section>
 
           <section>
             <SectionLabel>Appearance</SectionLabel>
-            <div className="rounded-3xl border p-5 sm:p-6" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}><FiSun size={18} /></div>
-                <div><h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>Interface theme</h2><p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>Choose how the app looks across every page.</p></div>
+            <div style={{ padding: '16px 6px 0' }}>
+              <h2 className="text-base font-extrabold" style={{ color: 'var(--text-primary)' }}>Interface theme</h2>
+              <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                Choose how the app looks across every page.
+              </p>
+              <div className="mt-4">
+                <AppearanceControl value={theme} onChange={setTheme} />
               </div>
-              <div className="mt-5 rounded-2xl border p-1.5" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}><AppearanceControl value={theme} onChange={setTheme} /></div>
-              <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>Current mode: <span className="font-semibold capitalize" style={{ color: 'var(--text-primary)' }}>{theme}</span></p>
+              <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                Current mode: <span className="font-bold capitalize" style={{ color: 'var(--text-primary)' }}>{theme}</span>
+              </p>
             </div>
           </section>
 
           <section>
-            <SectionLabel>Account & security</SectionLabel>
-            <div className="space-y-2 rounded-3xl border p-2" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+            <SectionLabel>Account &amp; security</SectionLabel>
+            <div>
               <Row icon={FiUser} label="Account details" onClick={() => setOpenSheet('account')} />
-              <Row icon={FiLock} label="Change password" onClick={() => setOpenSheet('password')} />
+              <Row icon={FiLock} label="Change password" onClick={() => setOpenSheet('password')} last />
             </div>
           </section>
 
           <section>
-            <SectionLabel>Session & account</SectionLabel>
-            <div className="space-y-2 rounded-3xl border p-2" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+            <SectionLabel>Session &amp; account</SectionLabel>
+            <div>
               <Row icon={FiLogOut} label="Log out" onClick={handleLogout} />
-              <Row icon={FiTrash2} label="Delete account" danger onClick={() => setOpenSheet('delete')} />
+              <Row icon={FiTrash2} label="Delete account" danger onClick={() => setOpenSheet('delete')} last />
             </div>
           </section>
 
@@ -423,9 +459,9 @@ export default function SettingsPage() {
         </main>
       </div>
 
-      {/* Account sheet */}
-      <Sheet open={openSheet === 'account'} onClose={() => setOpenSheet(null)} title="Account">
-        <form onSubmit={handleSaveProfile} className="flex flex-col gap-3.5">
+      {/* Account modal */}
+      <FullModal open={openSheet === 'account'} onClose={closeSheet} title="Account">
+        <form onSubmit={handleSaveProfile} className="flex flex-col gap-5">
           <FieldInput
             label="Display name"
             value={name}
@@ -436,18 +472,21 @@ export default function SettingsPage() {
             label="Bio"
             value={bio}
             onChange={(e) => setBio(e.target.value)}
-            rows={3}
+            rows={4}
             placeholder="Tell people a bit about yourself"
           />
-          <div className="flex justify-end mt-2">
-            <PrimaryButton icon={FiCheck} loading={savingProfile}>Save changes</PrimaryButton>
+          <div
+            className="flex justify-end"
+            style={{ marginTop: 4, paddingTop: 16, borderTop: '1px solid var(--border)' }}
+          >
+            <PrimaryButton type="submit" icon={FiCheck} loading={savingProfile}>Save changes</PrimaryButton>
           </div>
         </form>
-      </Sheet>
+      </FullModal>
 
-      {/* Password sheet */}
-      <Sheet open={openSheet === 'password'} onClose={() => setOpenSheet(null)} title="Change password">
-        <form onSubmit={handleChangePassword} className="flex flex-col gap-3.5">
+      {/* Password modal */}
+      <FullModal open={openSheet === 'password'} onClose={closeSheet} title="Change password">
+        <form onSubmit={handleChangePassword} className="flex flex-col gap-5">
           <PasswordInput
             label="Current password"
             value={currentPassword}
@@ -466,46 +505,26 @@ export default function SettingsPage() {
             onChange={(e) => setConfirmPassword(e.target.value)}
             autoComplete="new-password"
           />
-          <div className="flex justify-end mt-2">
-            <PrimaryButton icon={FiShield} loading={savingPassword}>Update password</PrimaryButton>
+          <div
+            className="flex justify-end"
+            style={{ marginTop: 4, paddingTop: 16, borderTop: '1px solid var(--border)' }}
+          >
+            <PrimaryButton type="submit" icon={FiShield} loading={savingPassword}>Update password</PrimaryButton>
           </div>
         </form>
-      </Sheet>
+      </FullModal>
 
       {/* Delete confirmation */}
-      <Sheet open={openSheet === 'delete'} onClose={() => !deleting && setOpenSheet(null)} title="Delete account">
-        <div className="flex flex-col items-center text-center">
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
-            style={{ background: 'rgba(239,68,68,0.12)' }}
-          >
-            <FiTrash2 size={28} color="#ef4444" strokeWidth={2.5} />
-          </div>
-          <h3 className="text-base font-extrabold" style={{ color: 'var(--text-primary)' }}>
-            Delete your account?
-          </h3>
-          <p className="text-sm mt-2" style={{ color: 'var(--text-muted)' }}>
-            This permanently removes your profile and all your posts. This action cannot be undone.
-          </p>
-          <div className="flex items-center justify-center gap-3 mt-6">
-            <button
-              onClick={() => setOpenSheet(null)}
-              disabled={deleting}
-              className="px-6 py-2.5 rounded-full font-bold text-sm border transition-colors disabled:opacity-50"
-              style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleDeleteAccount}
-              disabled={deleting}
-              className="px-6 py-2.5 rounded-full font-bold text-sm text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/25 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {deleting ? 'Deleting…' : 'Yes, delete'}
-            </button>
-          </div>
-        </div>
-      </Sheet>
+      <ConfirmDialog
+        open={openSheet === 'delete'}
+        title="Delete your account?"
+        body="This permanently removes your profile and all your posts. This action cannot be undone."
+        confirmLabel="Delete account"
+        busyLabel="Deleting…"
+        busy={deleting}
+        onCancel={closeSheet}
+        onConfirm={handleDeleteAccount}
+      />
     </>
   )
 }
