@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiSearch, FiX, FiBell, FiPlus, FiHeart, FiMessageCircle,
@@ -29,9 +29,6 @@ const GIPHY_KEY = import.meta.env.VITE_GIPHY_KEY || ''
 
 /* ─────────── Liquid-glass presets (inline, same family as FeedPage) ─────────── */
 
-const GLASS_BLUR = 'none'
-const CHIP_BLUR = 'none'
-
 const glassSurface = {
   background: 'var(--bg-secondary)',
   backdropFilter: 'none',
@@ -40,8 +37,6 @@ const glassSurface = {
   boxShadow: 'none',
 }
 
-// Cards in a long list skip the blur (cheaper to scroll); header, composer,
-// sticker tray and pills keep the real backdrop blur.
 const glassCard = {
   background: 'var(--bg-secondary)',
   border: '1px solid var(--border)',
@@ -312,6 +307,21 @@ function toggleLikeIn(thought, myId) {
   return { ...thought, likes: next }
 }
 
+async function shareThought(thought) {
+  const body = thought.text || ''
+  const url = `${window.location.origin}/explore?thought=${thought._id}`
+  try {
+    if (navigator.share) {
+      await navigator.share({ text: body, url })
+    } else {
+      await navigator.clipboard.writeText(body ? `${body}\n${url}` : url)
+      toast.success('Copied')
+    }
+  } catch (err) {
+    // share sheet dismissed — nothing to do
+  }
+}
+
 // Readable text for the activity dropdown
 function notificationText(n) {
   switch (n.type) {
@@ -543,14 +553,15 @@ function Composer({ user, parentId = null, compact = false, placeholder, autoFoc
   )
 }
 
-/* ─────────── Thought card ─────────── */
+/* ─────────── Shared bits ─────────── */
 
 function ActionPill({ onClick, label, active, activeColor, children }) {
   return (
     <motion.button
       type="button"
       whileTap={{ scale: 0.93 }}
-      onClick={onClick}
+      // stopPropagation so pressing a pill inside a card doesn't also open the modal
+      onClick={(e) => { e.stopPropagation(); if (onClick) onClick(e) }}
       aria-label={label}
       style={{
         ...glassChip,
@@ -571,11 +582,40 @@ function ActionPill({ onClick, label, active, activeColor, children }) {
   )
 }
 
-function ThoughtCard({ thought, user, autoOpen = false, highlight = false, onLike, onDelete, onOpenProfile, onReplyAdded }) {
-  const [open, setOpen] = useState(false)
-  const [replies, setReplies] = useState([])
-  const [loadingReplies, setLoadingReplies] = useState(false)
-  const [loadedOnce, setLoadedOnce] = useState(false)
+function ConfirmDelete({ id, deleting, onCancel, onConfirm }) {
+  return createPortal(
+    <div
+      role="presentation"
+      onMouseDown={(e) => { if (e.target === e.currentTarget && !deleting) onCancel() }}
+      onClick={(e) => e.stopPropagation()}
+      style={{ position: 'fixed', inset: 0, zIndex: 2147483000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, background: 'rgba(0,0,0,0.46)' }}
+    >
+      <motion.div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={`delete-thought-title-${id}`}
+        aria-describedby={`delete-thought-copy-${id}`}
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        style={{ width: 'min(100%, 390px)', padding: 24, borderRadius: 20, background: 'var(--bg-secondary)', border: '1px solid var(--border)', boxShadow: '0 24px 80px rgba(0,0,0,0.28)' }}
+      >
+        <h2 id={`delete-thought-title-${id}`} style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>Delete this thought?</h2>
+        <p id={`delete-thought-copy-${id}`} style={{ marginTop: 8, fontSize: 14, lineHeight: 1.55, color: 'var(--text-muted)' }}>
+          This cannot be undone. The thought and its replies will be removed.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
+          <button type="button" disabled={deleting} onClick={onCancel} style={{ height: 42, padding: '0 18px', borderRadius: 999, border: '1px solid var(--border)', color: 'var(--text-primary)', background: 'transparent', fontWeight: 700 }}>Cancel</button>
+          <button type="button" disabled={deleting} onClick={onConfirm} style={{ height: 42, padding: '0 18px', borderRadius: 999, border: '1px solid #ef4444', color: '#fff', background: '#ef4444', fontWeight: 800, opacity: deleting ? 0.65 : 1 }}>{deleting ? 'Deleting…' : 'Delete thought'}</button>
+        </div>
+      </motion.div>
+    </div>,
+    document.body,
+  )
+}
+
+/* ─────────── Thought card (tap to open modal) ─────────── */
+
+function ThoughtCard({ thought, user, onOpen, onLike, onDelete, onOpenProfile }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -585,54 +625,6 @@ function ThoughtCard({ thought, user, autoOpen = false, highlight = false, onLik
   const isMine = Boolean(myId) && String(authorId) === String(myId)
   const likes = Array.isArray(thought.likes) ? thought.likes : []
   const liked = hasLiked(likes, myId)
-
-  const loadReplies = async () => {
-    setLoadingReplies(true)
-    try {
-      const res = await thoughtsAPI.replies(thought._id)
-      setReplies(pickList(res.data))
-      setLoadedOnce(true)
-    } catch (err) {
-      console.error('Load replies failed:', err)
-      toast.error('Could not load replies')
-    } finally {
-      setLoadingReplies(false)
-    }
-  }
-
-  const toggleReplies = async () => {
-    const next = !open
-    setOpen(next)
-    if (next && !loadedOnce) await loadReplies()
-  }
-
-  // Opened from a notification: expand replies automatically
-  useEffect(() => {
-    if (!autoOpen) return
-    setOpen(true)
-    if (!loadedOnce) loadReplies()
-  }, [autoOpen])
-
-  const handleReplyPosted = (created) => {
-    setReplies((prev) => [...prev, created])
-    setLoadedOnce(true)
-    onReplyAdded(thought._id)
-  }
-
-  const handleShare = async () => {
-    const body = thought.text || ''
-    const url = `${window.location.origin}/explore?thought=${thought._id}`
-    try {
-      if (navigator.share) {
-        await navigator.share({ text: body, url })
-      } else {
-        await navigator.clipboard.writeText(body ? `${body}\n${url}` : url)
-        toast.success('Copied')
-      }
-    } catch (err) {
-      // share sheet dismissed — nothing to do
-    }
-  }
 
   const confirmRemove = async () => {
     setDeleting(true)
@@ -647,168 +639,272 @@ function ThoughtCard({ thought, user, autoOpen = false, highlight = false, onLik
   return (
     <>
       <motion.article
-      id={`thought-${thought._id}`}
-      initial={{ opacity: 0, y: 14 }}
+        id={`thought-${thought._id}`}
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+        onClick={() => onOpen(thought._id)}
+        style={{
+          ...glassCard,
+          borderRadius: 0,
+          borderLeft: 'none',
+          borderRight: 'none',
+          padding: '22px 4px',
+          cursor: 'pointer',
+        }}
+      >
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+          <div style={{ flexShrink: 0, cursor: 'pointer' }} onClick={(e) => onOpenProfile(e, author)}>
+            <Avatar src={author.avatar} name={author.name} size={46} />
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 46 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <p
+                  onClick={(e) => onOpenProfile(e, author)}
+                  style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                >
+                  {author.name || 'Unknown'}
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{timeAgo(thought.createdAt)}</p>
+              </div>
+              {isMine && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setConfirmDelete(true) }}
+                  aria-label="Delete thought"
+                  style={{ width: 38, height: 38, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}
+                >
+                  <FiTrash2 size={16} strokeWidth={2.5} />
+                </button>
+              )}
+            </div>
+
+            {thought.text && (
+              <p
+                style={{
+                  marginTop: 14, fontSize: 17, lineHeight: 1.7, color: 'var(--text-primary)',
+                  whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                }}
+              >
+                {thought.text}
+              </p>
+            )}
+
+            {thought.sticker && (
+              <div style={{ marginTop: 18 }}>
+                <Sticker sticker={thought.sticker} size={104} />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 22 }}>
+              <ActionPill onClick={() => onOpen(thought._id)} label="Replies">
+                <FiMessageCircle size={18} strokeWidth={2.5} />
+                <span>{thought.replyCount || 0}</span>
+              </ActionPill>
+              <ActionPill onClick={() => onLike(thought._id)} label={liked ? 'Unlike' : 'Like'} active={liked} activeColor="#ef4444">
+                {liked ? <FaHeart size={17} color="#ef4444" /> : <FiHeart size={18} strokeWidth={2.5} />}
+                <span>{likes.length}</span>
+              </ActionPill>
+              <ActionPill onClick={() => shareThought(thought)} label="Share">
+                <FiShare2 size={17} strokeWidth={2.5} />
+              </ActionPill>
+            </div>
+          </div>
+        </div>
+      </motion.article>
+
+      {confirmDelete && (
+        <ConfirmDelete
+          id={thought._id}
+          deleting={deleting}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={confirmRemove}
+        />
+      )}
+    </>
+  )
+}
+
+/* ─────────── Thought modal (Twitter-style detail view) ─────────── */
+
+function ThoughtModal({ thought, user, onClose, onLike, onDelete, onOpenProfile, onReplyAdded }) {
+  const [replies, setReplies] = useState([])
+  const [loadingReplies, setLoadingReplies] = useState(true)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const myId = user && (user._id || user.id)
+  const author = thought.author || {}
+  const isMine = Boolean(myId) && String(author._id || author.id) === String(myId)
+  const likes = Array.isArray(thought.likes) ? thought.likes : []
+  const liked = hasLiked(likes, myId)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoadingReplies(true)
+    setReplies([])
+    thoughtsAPI.replies(thought._id)
+      .then((res) => { if (!cancelled) setReplies(pickList(res.data)) })
+      .catch((err) => { console.error('Load replies failed:', err); toast.error('Could not load replies') })
+      .finally(() => { if (!cancelled) setLoadingReplies(false) })
+    return () => { cancelled = true }
+  }, [thought._id])
+
+  // Esc closes, and the page behind stops scrolling
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape' && !confirmDelete) onClose() }
+    window.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [onClose, confirmDelete])
+
+  const handleReplyPosted = (created) => {
+    setReplies((prev) => [...prev, created])
+    onReplyAdded(thought._id)
+  }
+
+  const confirmRemove = async () => {
+    setDeleting(true)
+    const ok = await onDelete(thought._id)
+    setDeleting(false)
+    setConfirmDelete(false)
+    if (ok) onClose()
+  }
+
+  return createPortal(
+    <motion.div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Thought"
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-      style={{
-        ...glassCard,
-        borderRadius: 0,
-        borderLeft: 'none',
-        borderRight: 'none',
-        padding: '22px 4px',
-        ...(highlight ? { background: 'rgba(245,158,11,0.08)' } : {}),
-      }}
+      transition={{ duration: 0.2 }}
+      style={{ position: 'fixed', inset: 0, zIndex: 2147482990, overflowY: 'auto', background: 'var(--bg-primary)' }}
     >
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-        <div style={{ flexShrink: 0, cursor: 'pointer' }} onClick={(e) => onOpenProfile(e, author)}>
-          <Avatar src={author.avatar} name={author.name} size={46} />
+      <div className="mx-auto min-h-full w-full max-w-2xl px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-6">
+        <div
+          className="sticky top-0 z-10 flex items-center justify-between border-b py-4"
+          style={{ borderColor: 'var(--border)', background: 'var(--bg-primary)' }}
+        >
+          <button type="button" onClick={onClose} aria-label="Close" className="flex h-10 w-10 items-center justify-center rounded-full" style={{ color: 'var(--text-primary)' }}>
+            <FiX size={20} />
+          </button>
+          <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Thought</span>
+          {isMine ? (
+            <button type="button" onClick={() => setConfirmDelete(true)} aria-label="Delete thought" className="flex h-10 w-10 items-center justify-center rounded-full" style={{ color: 'var(--text-muted)' }}>
+              <FiTrash2 size={17} strokeWidth={2.5} />
+            </button>
+          ) : (
+            <span className="h-10 w-10" aria-hidden="true" />
+          )}
         </div>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 46 }}>
-            <div style={{ minWidth: 0, flex: 1 }}>
+        {/* The thought */}
+        <div style={{ padding: '22px 0' }}>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+            <div style={{ cursor: 'pointer' }} onClick={(e) => { onOpenProfile(e, author) }}>
+              <Avatar src={author.avatar} name={author.name} size={48} />
+            </div>
+            <div style={{ minWidth: 0 }}>
               <p
-                onClick={(e) => onOpenProfile(e, author)}
-                style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                onClick={(e) => { onOpenProfile(e, author) }}
+                style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', cursor: 'pointer' }}
               >
                 {author.name || 'Unknown'}
               </p>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{timeAgo(thought.createdAt)}</p>
             </div>
-            {isMine && (
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                aria-label="Delete thought"
-                style={{ width: 38, height: 38, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}
-              >
-                <FiTrash2 size={16} strokeWidth={2.5} />
-              </button>
-            )}
           </div>
 
           {thought.text && (
-            <p
-              style={{
-                marginTop: 14, fontSize: 17, lineHeight: 1.7, color: 'var(--text-primary)',
-                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-              }}
-            >
+            <p style={{ marginTop: 18, fontSize: 20, lineHeight: 1.65, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
               {thought.text}
             </p>
           )}
-
           {thought.sticker && (
             <div style={{ marginTop: 18 }}>
-              <Sticker sticker={thought.sticker} size={104} />
+              <Sticker sticker={thought.sticker} size={120} />
             </div>
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 22 }}>
-            <ActionPill onClick={toggleReplies} label="Replies" active={open} activeColor="#f59e0b">
+            <ActionPill label="Replies">
               <FiMessageCircle size={18} strokeWidth={2.5} />
-              <span>{thought.replyCount || 0}</span>
+              <span>{thought.replyCount || replies.length || 0}</span>
             </ActionPill>
             <ActionPill onClick={() => onLike(thought._id)} label={liked ? 'Unlike' : 'Like'} active={liked} activeColor="#ef4444">
               {liked ? <FaHeart size={17} color="#ef4444" /> : <FiHeart size={18} strokeWidth={2.5} />}
               <span>{likes.length}</span>
             </ActionPill>
-            <ActionPill onClick={handleShare} label="Share">
+            <ActionPill onClick={() => shareThought(thought)} label="Share">
               <FiShare2 size={17} strokeWidth={2.5} />
             </ActionPill>
           </div>
         </div>
+
+        {/* Reply box */}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 18 }}>
+          {user ? (
+            <Composer user={user} parentId={thought._id} compact placeholder="Post your reply" onPosted={handleReplyPosted} />
+          ) : (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Log in to reply.</p>
+          )}
+        </div>
+
+        {/* Replies */}
+        <div style={{ marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 22 }}>
+          {loadingReplies && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading replies…</p>}
+          {!loadingReplies && replies.length === 0 && (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No replies yet. Be the first to reply.</p>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {replies.map((r) => {
+              const ra = r.author || {}
+              return (
+                <div key={r._id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ flexShrink: 0, cursor: 'pointer' }} onClick={(e) => onOpenProfile(e, ra)}>
+                    <Avatar src={ra.avatar} name={ra.name} size={38} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                      <span style={{ fontWeight: 800, color: 'var(--text-primary)', marginRight: 8 }}>{ra.name || 'Unknown'}</span>
+                      {timeAgo(r.createdAt)}
+                    </p>
+                    {r.text && (
+                      <p style={{ marginTop: 6, fontSize: 15, lineHeight: 1.65, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                        {r.text}
+                      </p>
+                    )}
+                    {r.sticker && (
+                      <div style={{ marginTop: 10 }}>
+                        <Sticker sticker={r.sticker} size={64} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       </div>
 
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.2 }}
-            style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--border)' }}
-          >
-            {loadingReplies && (
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: '4px 0 16px' }}>Loading replies…</p>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-              {replies.map((r) => {
-                const ra = r.author || {}
-                return (
-                  <div key={r._id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                    <div style={{ flexShrink: 0, cursor: 'pointer' }} onClick={(e) => onOpenProfile(e, ra)}>
-                      <Avatar src={ra.avatar} name={ra.name} size={34} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                        <span style={{ fontWeight: 800, color: 'var(--text-primary)', marginRight: 8 }}>{ra.name || 'Unknown'}</span>
-                        {timeAgo(r.createdAt)}
-                      </p>
-                      {r.text && (
-                        <p style={{ marginTop: 6, fontSize: 15, lineHeight: 1.65, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                          {r.text}
-                        </p>
-                      )}
-                      {r.sticker && (
-                        <div style={{ marginTop: 10 }}>
-                          <Sticker sticker={r.sticker} size={64} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            <div style={{ marginTop: replies.length > 0 ? 28 : 4 }}>
-              {user ? (
-                <Composer
-                  user={user}
-                  parentId={thought._id}
-                  compact
-                  autoFocus={!autoOpen}
-                  placeholder="Write a reply…"
-                  onPosted={handleReplyPosted}
-                />
-              ) : (
-                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Log in to reply.</p>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      </motion.article>
-
-      {confirmDelete && createPortal(
-        <div
-          role="presentation"
-          onMouseDown={(event) => { if (event.target === event.currentTarget && !deleting) setConfirmDelete(false) }}
-          style={{ position: 'fixed', inset: 0, zIndex: 2147483000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, background: 'rgba(0,0,0,0.46)' }}
-        >
-          <motion.div
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby={`delete-thought-title-${thought._id}`}
-            aria-describedby={`delete-thought-copy-${thought._id}`}
-            initial={{ opacity: 0, scale: 0.96, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            onClick={(event) => event.stopPropagation()}
-            style={{ width: 'min(100%, 390px)', padding: 24, borderRadius: 20, background: 'var(--bg-secondary)', border: '1px solid var(--border)', boxShadow: '0 24px 80px rgba(0,0,0,0.28)' }}
-          >
-            <h2 id={`delete-thought-title-${thought._id}`} style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>Delete this thought?</h2>
-            <p id={`delete-thought-copy-${thought._id}`} style={{ marginTop: 8, fontSize: 14, lineHeight: 1.55, color: 'var(--text-muted)' }}>This cannot be undone. The thought and its replies will be removed.</p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
-              <button type="button" disabled={deleting} onClick={() => setConfirmDelete(false)} style={{ height: 42, padding: '0 18px', borderRadius: 999, border: '1px solid var(--border)', color: 'var(--text-primary)', background: 'transparent', fontWeight: 700 }}>Cancel</button>
-              <button type="button" disabled={deleting} onClick={confirmRemove} style={{ height: 42, padding: '0 18px', borderRadius: 999, border: '1px solid #ef4444', color: '#fff', background: '#ef4444', fontWeight: 800, opacity: deleting ? 0.65 : 1 }}>{deleting ? 'Deleting…' : 'Delete thought'}</button>
-            </div>
-          </motion.div>
-        </div>,
-        document.body,
+      {confirmDelete && (
+        <ConfirmDelete
+          id={thought._id}
+          deleting={deleting}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={confirmRemove}
+        />
       )}
-    </>
+    </motion.div>,
+    document.body,
   )
 }
 
@@ -826,14 +922,19 @@ export default function ExplorePage() {
   const [notifications, setNotifications] = useState([])
   const [showNotifications, setShowNotifications] = useState(false)
   const [showComposer, setShowComposer] = useState(false)
-  const [focusId, setFocusId] = useState(null)
+  // A thought opened by link/notification that isn't in the loaded feed yet
+  const [extraThought, setExtraThought] = useState(null)
   const sentinelRef = useRef(null)
   const inputRef = useRef(null)
+  const thoughtsRef = useRef([])
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const thoughtParam = searchParams.get('thought')
   const { user } = useAuthStore()
   const userId = user && (user._id || user.id)
+
+  thoughtsRef.current = thoughts
 
   // reset=true: first load (replaces list). reset=false: next page (appends).
   const fetchThoughts = async (reset) => {
@@ -859,35 +960,52 @@ export default function ExplorePage() {
 
   useEffect(() => { fetchThoughts(true) }, [])
 
-  // Opened from a notification (?thought=ID): make sure that thought is on the page,
-  // scroll to it and expand its replies.
+  // The modal is driven by ?thought=ID. If that thought isn't in the loaded feed
+  // (e.g. opened from a notification), fetch it on its own.
   useEffect(() => {
-    if (loading || !thoughtParam) return
+    if (!thoughtParam) { setExtraThought(null); return undefined }
+    if (loading) return undefined
+    const inList = thoughtsRef.current.some((t) => t._id === thoughtParam)
+    if (inList) { setExtraThought(null); return undefined }
     let cancelled = false
     ;(async () => {
       try {
         const res = await thoughtsAPI.getOne(thoughtParam)
         const found = pickOne(res.data)
         if (!found || cancelled) return
-        setQuery('')
-        setThoughts((prev) => {
-          for (let i = 0; i < prev.length; i++) {
-            if (prev[i]._id === found._id) return prev
-          }
-          return [found, ...prev]
+        setExtraThought({
+          ...found,
+          author: found.author && typeof found.author === 'object' ? found.author : null,
+          likes: Array.isArray(found.likes) ? found.likes : [],
         })
-        setFocusId(found._id)
-        setTimeout(() => {
-          const el = document.getElementById(`thought-${found._id}`)
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }, 300)
       } catch (err) {
         console.error('Open thought failed:', err)
         toast.error('That thought is no longer available')
+        navigate('/explore', { replace: true })
       }
     })()
     return () => { cancelled = true }
   }, [thoughtParam, loading])
+
+  // Which thought the modal should show
+  let activeThought = null
+  if (thoughtParam) {
+    for (let i = 0; i < thoughts.length; i++) {
+      if (thoughts[i]._id === thoughtParam) { activeThought = thoughts[i]; break }
+    }
+    if (!activeThought && extraThought && extraThought._id === thoughtParam) activeThought = extraThought
+  }
+
+  const openThought = (id) => {
+    navigate(`/explore?thought=${id}`, { state: { fromCard: true } })
+  }
+
+  // If the modal was opened from a card, going back returns to the feed exactly as it was.
+  // If it was opened from a notification/link, just swap the URL back to /explore.
+  const closeThought = () => {
+    if (location.state && location.state.fromCard) navigate(-1)
+    else navigate('/explore', { replace: true })
+  }
 
   // Top reel keeps using photo/video posts — it's the one place media stays on this page.
   useEffect(() => {
@@ -980,19 +1098,26 @@ export default function ExplorePage() {
     navigate(String(authorId) === String(myId) ? '/profile' : `/users/${authorId}`)
   }
 
+  // Patch a thought in both the feed list and the standalone (notification-opened) copy
+  const applyPatch = (id, patchFn) => {
+    setThoughts((prev) => patchThought(prev, id, patchFn))
+    setExtraThought((prev) => (prev && prev._id === id ? patchFn(prev) : prev))
+  }
+
   const handleLike = async (id) => {
     if (!user) { toast.error('Log in to like'); navigate('/login'); return }
     const myId = user._id || user.id
-    setThoughts((prev) => patchThought(prev, id, (t) => toggleLikeIn(t, myId)))
+    applyPatch(id, (t) => toggleLikeIn(t, myId))
     try {
       await thoughtsAPI.like(id)
     } catch (err) {
       console.error('Like failed:', err)
-      setThoughts((prev) => patchThought(prev, id, (t) => toggleLikeIn(t, myId)))
+      applyPatch(id, (t) => toggleLikeIn(t, myId))
       toast.error('Could not update like')
     }
   }
 
+  // Returns true when the delete succeeded
   const handleDelete = async (id) => {
     try {
       await thoughtsAPI.remove(id)
@@ -1003,15 +1128,18 @@ export default function ExplorePage() {
         }
         return next
       })
+      setExtraThought((prev) => (prev && prev._id === id ? null : prev))
       toast.success('Deleted')
+      return true
     } catch (err) {
       console.error('Delete failed:', err)
       toast.error('Could not delete')
+      return false
     }
   }
 
   const handleReplyAdded = (id) => {
-    setThoughts((prev) => patchThought(prev, id, (t) => ({ ...t, replyCount: (t.replyCount || 0) + 1 })))
+    applyPatch(id, (t) => ({ ...t, replyCount: (t.replyCount || 0) + 1 }))
   }
 
   const handlePosted = (created) => {
@@ -1064,6 +1192,7 @@ export default function ExplorePage() {
       <div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none', background: AMBIENT_BG }} />
       <ThemeOverlay className="fixed bottom-20 right-4 z-40 sm:bottom-6 sm:right-6" />
 
+      {/* Floating "write a thought" button — fixed to the viewport, so it stays visible however long the feed is */}
       <motion.button
         type="button"
         whileHover={{ scale: 1.04 }}
@@ -1075,6 +1204,7 @@ export default function ExplorePage() {
         <FiPlus size={25} strokeWidth={2.5} style={{ transform: showComposer ? 'rotate(45deg)' : 'none', transition: 'transform 180ms ease' }} />
       </motion.button>
 
+      {/* New thought modal */}
       {showComposer && user && createPortal(
         <div
           role="presentation"
@@ -1097,7 +1227,21 @@ export default function ExplorePage() {
         document.body,
       )}
 
-      {/* Sticky glass header */}
+      {/* Single thought modal — opened by tapping a thought or from a notification */}
+      {activeThought && (
+        <ThoughtModal
+          key={activeThought._id}
+          thought={activeThought}
+          user={user}
+          onClose={closeThought}
+          onLike={handleLike}
+          onDelete={handleDelete}
+          onOpenProfile={goToProfile}
+          onReplyAdded={handleReplyAdded}
+        />
+      )}
+
+      {/* Sticky header */}
       <div
         className="sticky top-0 z-40 pointer-events-auto border-b px-3 py-3 sm:px-6"
         style={{
@@ -1355,12 +1499,12 @@ export default function ExplorePage() {
         )}
 
         <div className="max-w-2xl mx-auto" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* Composer / guest prompt */}
+          {/* Guest prompt */}
           {!user ? (
-              <div style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '18px 0', textAlign: 'center' }}>
-                <p style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>Join the conversation</p>
-                <motion.button whileTap={{ scale: 0.96 }} onClick={() => navigate('/login')} style={{ marginTop: 12, height: 40, padding: '0 22px', borderRadius: 999, fontSize: 14, fontWeight: 800, color: '#fff', background: '#f59e0b' }}>Log in</motion.button>
-              </div>
+            <div style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '18px 0', textAlign: 'center' }}>
+              <p style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>Join the conversation</p>
+              <motion.button whileTap={{ scale: 0.96 }} onClick={() => navigate('/login')} style={{ marginTop: 12, height: 40, padding: '0 22px', borderRadius: 999, fontSize: 14, fontWeight: 800, color: '#fff', background: '#f59e0b' }}>Log in</motion.button>
+            </div>
           ) : null}
 
           {/* Label + hairline */}
@@ -1386,12 +1530,10 @@ export default function ExplorePage() {
                   key={t._id}
                   thought={t}
                   user={user}
-                  autoOpen={focusId === t._id}
-                  highlight={focusId === t._id}
+                  onOpen={openThought}
                   onLike={handleLike}
                   onDelete={handleDelete}
                   onOpenProfile={goToProfile}
-                  onReplyAdded={handleReplyAdded}
                 />
               ))}
             </div>
