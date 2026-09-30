@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useNavigationType } from 'react-router-dom'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import {
   FiImage, FiHeart, FiMessageCircle, FiPlusSquare, FiGrid, FiList,
@@ -985,17 +985,38 @@ function PostListItem({
   )
 }
 
+/* ─────────── Feed state cache ───────────
+   Lives at module level, so it survives the FeedPage unmounting when you
+   open a post / profile and come back with the Back button. We restore the
+   loaded posts, view mode, filters AND the scroll position, so nobody has
+   to scroll all the way down again. Tapping the Feed tab (a fresh PUSH
+   navigation) still loads a fresh feed from the top. */
+const feedCache = {
+  posts: null,
+  nextCursor: null,
+  hasMore: false,
+  viewMode: 'grid',
+  query: '',
+  selectedMonth: 'all',
+  scrollY: 0,
+}
+
 /* ─────────── Main FeedPage ─────────── */
 
 export default function FeedPage() {
-  const [posts, setPosts] = useState([])
-  const [loading, setLoading] = useState(true)
+  const navigationType = useNavigationType()
+  // Back/forward (POP) with a saved feed => restore it instead of refetching
+  const restoringRef = useRef(navigationType === 'POP' && Array.isArray(feedCache.posts) && feedCache.posts.length > 0)
+  const restoredFromCache = restoringRef.current
+
+  const [posts, setPosts] = useState(() => (restoredFromCache ? feedCache.posts : []))
+  const [loading, setLoading] = useState(!restoredFromCache)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [nextCursor, setNextCursor] = useState(null)
-  const [hasMore, setHasMore] = useState(false)
-  const [viewMode, setViewMode] = useState('grid')
-  const [query, setQuery] = useState('')
-  const [selectedMonth, setSelectedMonth] = useState('all')
+  const [nextCursor, setNextCursor] = useState(() => (restoredFromCache ? feedCache.nextCursor : null))
+  const [hasMore, setHasMore] = useState(() => (restoredFromCache ? feedCache.hasMore : false))
+  const [viewMode, setViewMode] = useState(() => (restoredFromCache ? feedCache.viewMode : 'grid'))
+  const [query, setQuery] = useState(() => (restoredFromCache ? feedCache.query : ''))
+  const [selectedMonth, setSelectedMonth] = useState(() => (restoredFromCache ? feedCache.selectedMonth : 'all'))
   const [showHeartAnimation, setShowHeartAnimation] = useState(null)
   const [downloadingMap, setDownloadingMap] = useState({})
   const [scrolled, setScrolled] = useState(false)
@@ -1005,10 +1026,48 @@ export default function FeedPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
-  useEffect(() => { fetchPosts(true) }, [])
+  useEffect(() => {
+    if (restoredFromCache) return
+    feedCache.scrollY = 0
+    fetchPosts(true)
+  }, [])
+
+  // Keep the cache in sync so it's ready when we leave the page
+  useEffect(() => {
+    if (loading) return
+    feedCache.posts = posts
+    feedCache.nextCursor = nextCursor
+    feedCache.hasMore = hasMore
+    feedCache.viewMode = viewMode
+    feedCache.query = query
+    feedCache.selectedMonth = selectedMonth
+  }, [loading, posts, nextCursor, hasMore, viewMode, query, selectedMonth])
+
+  // Put the scroll position back. Images/cards settle in after first paint,
+  // so retry a few times until the page is tall enough to reach the target.
+  useEffect(() => {
+    if (!restoringRef.current) return undefined
+    const target = feedCache.scrollY
+    let tries = 0
+    let timer = null
+    const tick = () => {
+      window.scrollTo(0, target)
+      if (Math.abs(window.scrollY - target) > 2 && tries < 20) {
+        tries += 1
+        timer = setTimeout(tick, 80)
+      } else {
+        restoringRef.current = false
+      }
+    }
+    tick()
+    return () => { if (timer) clearTimeout(timer) }
+  }, [])
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 60)
+    const onScroll = () => {
+      setScrolled(window.scrollY > 60)
+      if (!restoringRef.current) feedCache.scrollY = window.scrollY
+    }
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
