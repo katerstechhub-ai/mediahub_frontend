@@ -34,7 +34,7 @@ const Z_CONFIRM = 2147483000
 // Label + hairline, like "Latest thoughts" on Explore
 function SectionLabel({ children }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '0 6px', marginBottom: 6 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '0 6px', marginBottom: 12 }}>
       <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.24em', textTransform: 'uppercase', color: '#d97706' }}>
         {children}
       </span>
@@ -50,7 +50,7 @@ function Row({ icon: Icon, label, onClick, danger = false, last = false }) {
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center gap-4 px-1.5 py-4 text-left transition-opacity hover:opacity-70"
+      className="w-full flex items-center gap-4 px-1.5 py-5 text-left transition-opacity hover:opacity-70"
       style={{ borderBottom: last ? 'none' : '1px solid var(--border)' }}
     >
       <Icon size={20} strokeWidth={2} style={{ color }} />
@@ -398,10 +398,10 @@ export default function SettingsPage() {
           </div>
         </header>
 
-        <main className="mx-auto max-w-2xl px-4 sm:px-6" style={{ paddingTop: 28, display: 'flex', flexDirection: 'column', gap: 32 }}>
+        <main className="mx-auto max-w-2xl px-4 sm:px-6" style={{ paddingTop: 36, display: 'flex', flexDirection: 'column', gap: 44 }}>
           {/* Signed-in summary */}
           <section
-            style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '18px 0' }}
+            style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '24px 0' }}
           >
             <div className="flex items-center gap-4">
               <Avatar src={user?.avatar} name={user?.name} size={46} />
@@ -425,15 +425,15 @@ export default function SettingsPage() {
 
           <section>
             <SectionLabel>Appearance</SectionLabel>
-            <div style={{ padding: '16px 6px 0' }}>
+            <div style={{ padding: '22px 6px 0' }}>
               <h2 className="text-base font-extrabold" style={{ color: 'var(--text-primary)' }}>Interface theme</h2>
-              <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              <p className="mt-2 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                 Choose how the app looks across every page.
               </p>
-              <div className="mt-4">
+              <div className="mt-5">
                 <AppearanceControl value={theme} onChange={setTheme} />
               </div>
-              <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+              <p className="mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>
                 Current mode: <span className="font-bold capitalize" style={{ color: 'var(--text-primary)' }}>{theme}</span>
               </p>
             </div>

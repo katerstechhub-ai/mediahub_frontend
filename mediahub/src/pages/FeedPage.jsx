@@ -11,11 +11,10 @@ import {
 import { FaHeart } from 'react-icons/fa'
 import api, { postsAPI, getDownloadUrl } from '../api'
 import { useAuthStore } from '../store'
-import ThemeOverlay from '../components/ui/ThemeOverlay'
+import { feedCache } from '../lib/feedCache'
 import { Avatar } from '../components/ui'
 import { getMediaItems, MediaSlider, useMediaAspect } from '../components/PostMedia'
 import CardSpread from '../components/ui/card-spread'
-import MonthFilter from '../components/ui/MonthFilter'
 import Stack from '../components/ui/Stack'
 import BounceCards from '../components/ui/BounceCards'
 import DepthCarousel from '../components/ui/DepthCarousel'
@@ -234,7 +233,7 @@ function MemoryCardSpread() {
 
 function MemoryDollyGallery() {
   return (
-    <section className="relative mt-8 overflow-hidden rounded-[30px] border" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--bg-secondary) 74%, transparent)' }}>
+    <section className="relative mt-12 mb-16 overflow-hidden py-8 sm:mt-16 sm:mb-24 sm:py-12">
       <div className="relative z-[200] flex justify-end px-5 pt-4 sm:px-7 sm:pt-5">
         <span className="hidden text-[10px] font-bold uppercase tracking-[0.24em] text-amber-600/90 sm:inline">Memories</span>
       </div>
@@ -243,13 +242,13 @@ function MemoryDollyGallery() {
         itemWidth={250}
         aspectRatio={0.78}
         borderRadius={24}
-        spacing={520}
+        spacing={640}
         spread={0.42}
         revealRange={2}
         passRange={1}
         grayscale={0.04}
         autoScroll={2400}
-        className="mt-0"
+        className="mt-4 sm:mt-6 [&_*]:!border-0 [&_*]:!shadow-none"
       />
     </section>
   )
@@ -784,23 +783,54 @@ function FeedVideo({ src, poster, postId, className, style, isActive = true }) {
   )
 }
 
-/* ─────────── Group posts by month ─────────── */
+/* ─────────── Group posts: weekly for the current month, monthly for finished months ───────────
+   While a month is still running, its posts are split into weeks (Mon–Sun),
+   labelled "This week" / "Last week" / "Oct 5 – Oct 11". Once the month is over
+   (we're in a later month), those posts collapse into one "September 2026" group. */
 
 function groupPostsByMonth(posts) {
+  const now = new Date()
+  const currentMonthKey = now.getFullYear() * 12 + now.getMonth()
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
+  const weekStartOf = (date) => {
+    const s = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    s.setDate(s.getDate() - ((s.getDay() + 6) % 7)) // back to Monday
+    return s
+  }
+  const fmtDay = (date) => date.toLocaleString('en-US', { month: 'short', day: 'numeric' })
+  const thisWeekStart = weekStartOf(now).getTime()
+
   const groups = new Map()
-  posts.forEach((post) => {
+  for (let i = 0; i < posts.length; i++) {
+    const post = posts[i]
     const d = post.createdAt ? new Date(post.createdAt) : new Date()
-    const key = `${d.getFullYear()}-${d.getMonth()}`
-    if (!groups.has(key)) {
-      groups.set(key, {
-        key,
-        label: d.toLocaleString('en-US', { month: 'long', year: 'numeric' }),
-        sortKey: d.getFullYear() * 12 + d.getMonth(),
-        posts: [],
-      })
+    const monthKey = d.getFullYear() * 12 + d.getMonth()
+    let key
+    let label
+    let sortKey
+
+    if (monthKey >= currentMonthKey) {
+      // current (still running) month → weekly groups
+      const ws = weekStartOf(d)
+      const we = new Date(ws)
+      we.setDate(ws.getDate() + 6)
+      const diffWeeks = Math.round((thisWeekStart - ws.getTime()) / WEEK_MS)
+      key = `w-${ws.getTime()}`
+      sortKey = ws.getTime()
+      if (diffWeeks <= 0) label = 'This week'
+      else if (diffWeeks === 1) label = 'Last week'
+      else label = `${fmtDay(ws)} – ${fmtDay(we)}`
+    } else {
+      // finished month → one monthly group
+      key = `m-${d.getFullYear()}-${d.getMonth()}`
+      sortKey = new Date(d.getFullYear(), d.getMonth(), 1).getTime()
+      label = d.toLocaleString('en-US', { month: 'long', year: 'numeric' })
     }
+
+    if (!groups.has(key)) groups.set(key, { key, label, sortKey, posts: [] })
     groups.get(key).posts.push(post)
-  })
+  }
   return Array.from(groups.values()).sort((a, b) => b.sortKey - a.sortKey)
 }
 
@@ -829,7 +859,7 @@ function PostListItem({
       style={{
         borderColor: 'var(--border)',
         background: 'var(--bg-secondary)',
-        boxShadow: '0 10px 28px rgba(15, 23, 42, 0.06)',
+        boxShadow: 'none',
       }}
     >
       {mediaItems.length > 0 && (
@@ -905,7 +935,7 @@ function PostListItem({
         </div>
       )}
 
-      <div className="p-4 sm:p-5">
+      <div className="p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/posts/${post._id}`)}>
             {post.title && (
@@ -985,22 +1015,6 @@ function PostListItem({
   )
 }
 
-/* ─────────── Feed state cache ───────────
-   Lives at module level, so it survives the FeedPage unmounting when you
-   open a post / profile and come back with the Back button. We restore the
-   loaded posts, view mode, filters AND the scroll position, so nobody has
-   to scroll all the way down again. Tapping the Feed tab (a fresh PUSH
-   navigation) still loads a fresh feed from the top. */
-const feedCache = {
-  posts: null,
-  nextCursor: null,
-  hasMore: false,
-  viewMode: 'grid',
-  query: '',
-  selectedMonth: 'all',
-  scrollY: 0,
-}
-
 /* ─────────── Main FeedPage ─────────── */
 
 export default function FeedPage() {
@@ -1016,7 +1030,6 @@ export default function FeedPage() {
   const [hasMore, setHasMore] = useState(() => (restoredFromCache ? feedCache.hasMore : false))
   const [viewMode, setViewMode] = useState(() => (restoredFromCache ? feedCache.viewMode : 'grid'))
   const [query, setQuery] = useState(() => (restoredFromCache ? feedCache.query : ''))
-  const [selectedMonth, setSelectedMonth] = useState(() => (restoredFromCache ? feedCache.selectedMonth : 'all'))
   const [showHeartAnimation, setShowHeartAnimation] = useState(null)
   const [downloadingMap, setDownloadingMap] = useState({})
   const [scrolled, setScrolled] = useState(false)
@@ -1040,8 +1053,7 @@ export default function FeedPage() {
     feedCache.hasMore = hasMore
     feedCache.viewMode = viewMode
     feedCache.query = query
-    feedCache.selectedMonth = selectedMonth
-  }, [loading, posts, nextCursor, hasMore, viewMode, query, selectedMonth])
+  }, [loading, posts, nextCursor, hasMore, viewMode, query])
 
   // Put the scroll position back. Images/cards settle in after first paint,
   // so retry a few times until the page is tall enough to reach the target.
@@ -1250,16 +1262,7 @@ export default function FeedPage() {
     )
     : posts
 
-  const monthOptions = [
-    { value: 'all', label: 'All months' },
-    ...groupPostsByMonth(posts).map((group) => ({ value: group.key, label: group.label })),
-  ]
-  const visiblePosts = selectedMonth === 'all'
-    ? searchedPosts
-    : searchedPosts.filter((post) => {
-      const date = post.createdAt ? new Date(post.createdAt) : new Date()
-      return `${date.getFullYear()}-${date.getMonth()}` === selectedMonth
-    })
+  const visiblePosts = searchedPosts
 
   const gridContainer = { animate: { transition: { staggerChildren: 0.03 } } }
   const gridItem = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0, transition: { duration: 0.22 } } }
@@ -1274,7 +1277,7 @@ export default function FeedPage() {
         variants={gridItem}
         whileHover={{ scale: 1.02 }}
         transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}
-        className="relative group cursor-pointer rounded-3xl overflow-hidden aspect-[4/5] shadow-sm border border-black/[0.06]"
+        className="relative group cursor-pointer rounded-3xl overflow-hidden aspect-[10/11] shadow-none border border-black/[0.06]"
         style={{ background: 'var(--bg-secondary)' }}
       >
         {mediaItems.length > 0 ? (
@@ -1319,7 +1322,6 @@ export default function FeedPage() {
 
   return (
     <>
-      <ThemeOverlay className="fixed bottom-20 right-4 z-40 sm:bottom-6 sm:right-6" />
       <div className="min-h-screen pb-[calc(5rem+env(safe-area-inset-bottom))]" style={{ background: 'var(--bg-primary)', fontFamily: '-apple-system, BlinkMacSystemFont, Inter, system-ui, sans-serif' }}>
 
         {/* Floating header */}
@@ -1333,7 +1335,7 @@ export default function FeedPage() {
             WebkitBackdropFilter: 'saturate(150%) blur(18px)',
           }}
         >
-          <div className="max-w-7xl mx-auto flex items-center gap-2 sm:gap-3">
+          <div className="max-w-7xl mx-auto flex items-center gap-4 sm:gap-6">
             <div
               className="relative grid grid-cols-2 rounded-full p-1 w-[92px] flex-shrink-0"
               style={APPLE_GLASS}
@@ -1405,17 +1407,10 @@ export default function FeedPage() {
           </div>
         </div>
 
-        <main className="max-w-7xl mx-auto px-3 sm:px-5 pt-2 sm:pt-4">
+        <main className="max-w-7xl mx-auto px-3 sm:px-5 pt-8 sm:pt-10">
           <MemoryDollyGallery />
 
-        <div className="max-w-7xl mx-auto px-3 sm:px-5 pt-4">
-          <div className="mb-4">
-            <MonthFilter
-              items={monthOptions}
-              value={selectedMonth}
-              onChange={setSelectedMonth}
-            />
-          </div>
+        <div className="max-w-7xl mx-auto px-3 sm:px-5 pt-4 sm:pt-8">
           {monthGroups.length === 0 ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
               className="flex flex-col items-center justify-center text-center px-4 pt-20">
@@ -1427,26 +1422,33 @@ export default function FeedPage() {
             </motion.div>
           ) : (
             <LayoutGroup>
-              {monthGroups.map((group) => (
-                <div key={group.key} className="mb-10">
-                  <div className="flex items-center gap-3 mb-5 px-1">
-                    <h2 className="text-base sm:text-lg font-extrabold font-display tracking-tight"
-                      style={{ color: 'var(--text-primary)' }}>
+              {monthGroups.map((group, groupIndex) => (
+                <div
+                  key={group.key}
+                  className="relative flex flex-col"
+                  style={{
+                    // SPACING: marginTop = space between one month's last row and the next
+                    // month heading (24 = Tailwind 6). gap = heading-to-cards (12 = gap-3).
+                    marginTop: groupIndex > 0 ? 24 : 0,
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ position: 'relative', zIndex: 10, padding: '0 4px' }}>
+                    <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)', margin: 0 }}>
                       {group.label}
                     </h2>
-                    <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
                   </div>
 
                   {viewMode === 'grid' ? (
                     <motion.div
-                      className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3"
+                      className="relative z-0 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4 sm:gap-6"
                       variants={gridContainer} initial="initial" animate="animate"
                     >
                       {group.posts.map((post) => renderGridTile(post))}
                     </motion.div>
                   ) : (
                     <motion.div
-                      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-10"
+                      className="relative z-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-16 sm:gap-y-20"
                       variants={gridContainer} initial="initial" animate="animate"
                     >
                       {group.posts.map((post) => (

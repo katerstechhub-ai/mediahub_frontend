@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -8,6 +9,7 @@ import {
 import { FaHeart } from 'react-icons/fa'
 import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'
 import { useAuthStore } from '../store'
+import { removePostFromFeedCache } from '../lib/feedCache'
 import { Avatar } from '../components/ui'
 import ThemeOverlay from '../components/ui/ThemeOverlay'
 import { getMediaItems, MediaSlider, useMediaAspect, InstagramVideo } from '../components/PostMedia'
@@ -44,6 +46,15 @@ export default function PostDetailPage() {
     return String(currentUserId) === String(authorId)
   }
 
+  // Go back to wherever the user came from (feed, a profile, ...).
+  // Only fall back to the home feed if this page was opened directly
+  // (no earlier history entry inside the app).
+  const goBack = () => {
+    const idx = window.history.state?.idx
+    if (typeof idx === 'number' && idx > 0) navigate(-1)
+    else navigate('/', { replace: true })
+  }
+
   const goToProfile = (author) => {
     const authorId = author?._id || author?.id || author
     if (!authorId) return
@@ -65,7 +76,7 @@ export default function PostDetailPage() {
       } catch { setCommentCount(0) }
     } catch {
       toast.error('Post not found')
-      navigate('/')
+      goBack()
     } finally {
       setLoading(false)
     }
@@ -138,6 +149,8 @@ export default function PostDetailPage() {
     try {
       await postsAPI.delete(id)
       toast.success('Post deleted')
+      // Drop it from the saved feed so it doesn't reappear when we go back
+      removePostFromFeedCache(id)
       setConfirmDeletePost(false)
       setPostVisible(false)
     } catch (error) {
@@ -195,7 +208,7 @@ export default function PostDetailPage() {
   return (
     <>
       <ThemeOverlay className="fixed bottom-20 right-4 z-40 sm:bottom-6 sm:right-6" />
-      <AnimatePresence onExitComplete={() => { if (!postVisible) navigate('/') }}>
+      <AnimatePresence onExitComplete={() => { if (!postVisible) goBack() }}>
         {postVisible && (
           <motion.div
             key="post-detail"
@@ -210,7 +223,7 @@ export default function PostDetailPage() {
 
               {/* Header */}
               <div
-                className="sticky top-0 z-20 px-4 py-2.5 flex items-center justify-between"
+                className="sticky top-0 z-20 pl-3 pr-2 py-2.5 flex items-center justify-between"
                 style={{
                   background: 'color-mix(in srgb, var(--bg-primary) 86%, transparent)',
                   boxShadow: '0 8px 24px rgba(15,23,42,0.06)',
@@ -219,7 +232,7 @@ export default function PostDetailPage() {
                 }}
               >
                 <button
-                  onClick={() => navigate(-1)}
+                  onClick={goBack}
                   aria-label="Go back"
                   className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] active:scale-90 transition"
                 >
@@ -230,7 +243,8 @@ export default function PostDetailPage() {
                   Post
                 </span>
 
-                <div className="flex items-center gap-1">
+                {/* Share (and the owner menu) sit flush against the right edge */}
+                <div className="flex items-center justify-end gap-1">
                   <button
                     onClick={handleShare}
                     aria-label="Share"
@@ -238,7 +252,7 @@ export default function PostDetailPage() {
                   >
                     <FiShare2 size={18} style={{ color: 'var(--text-primary)' }} />
                   </button>
-                  {isOwner ? (
+                  {isOwner && (
                     <div className="relative" ref={menuRef}>
                       <button
                         onClick={() => setShowMenu(v => !v)}
@@ -268,8 +282,6 @@ export default function PostDetailPage() {
                         )}
                       </AnimatePresence>
                     </div>
-                  ) : (
-                    <div className="w-10" />
                   )}
                 </div>
               </div>
@@ -491,15 +503,22 @@ export default function PostDetailPage() {
         )}
       </AnimatePresence>
 
-      <CommentsSheet
-        postId={id}
-        open={showComments}
-        onClose={() => setShowComments(false)}
-        user={user}
-        onGoToProfile={goToProfile}
-        postOwnerId={post?.author?._id || post?.author?.id || post?.author}
-        onCountChange={setCommentCount}
-      />
+      {/* Rendered in its own top-level layer (above everything, including the
+          bottom nav) so the sheet fully covers the nav while it's open. */}
+      {createPortal(
+        <div style={{ position: 'relative', zIndex: 2147483000 }}>
+          <CommentsSheet
+            postId={id}
+            open={showComments}
+            onClose={() => setShowComments(false)}
+            user={user}
+            onGoToProfile={goToProfile}
+            postOwnerId={post?.author?._id || post?.author?.id || post?.author}
+            onCountChange={setCommentCount}
+          />
+        </div>,
+        document.body,
+      )}
 
       <AnimatePresence>
         {confirmDeletePost && (
