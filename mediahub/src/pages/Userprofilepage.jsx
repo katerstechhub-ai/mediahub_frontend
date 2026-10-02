@@ -135,15 +135,35 @@ export default function UserProfilePage() {
 
   return (
     <div className="min-h-dvh pb-[calc(6rem+env(safe-area-inset-bottom))] fade-in" style={{ background: 'var(--bg-primary)' }}>
-      <ThemeOverlay className="fixed right-4 top-20 z-40 sm:right-6 sm:top-6" />
-      <main className="mx-auto max-w-5xl px-4 sm:px-6" style={{ paddingTop: 'max(env(safe-area-inset-top), 24px)' }}>
-        <div className="flex items-center justify-between">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} aria-label="Go back" className="flex h-11 w-11 items-center justify-center rounded-full border border-black/[0.05] shadow-[0_6px_18px_rgba(15,23,42,0.06)]" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
-            <FiArrowLeft size={20} />
-          </motion.button>
-          <motion.button whileTap={{ scale: 0.92 }} onClick={handleShareProfile} aria-label="Share profile" className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-black/[0.05] px-4 text-sm font-semibold shadow-[0_6px_18px_rgba(15,23,42,0.06)]" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
-            <FiShare2 size={15} /> Share
-          </motion.button>
+      <main className="mx-auto max-w-5xl px-4 sm:px-6" style={{ paddingTop: 0 }}>
+        <div className="sticky top-0 z-30 -mx-4 px-3 pb-2 sm:-mx-6 sm:px-5" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
+          <div
+            className="relative mx-auto flex max-w-7xl items-center gap-2 sm:gap-3"
+            style={{
+              height: 58,
+              padding: 6,
+              borderRadius: 29,
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0) 60%), color-mix(in srgb, var(--bg-primary) 68%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)',
+              boxShadow: '0 10px 28px rgba(15,23,42,0.09), 0 1px 3px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.24)',
+              backdropFilter: 'saturate(180%) blur(24px)',
+              WebkitBackdropFilter: 'saturate(180%) blur(24px)',
+            }}
+          >
+            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} aria-label="Go back" className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border" style={{ color: 'var(--text-primary)', background: 'color-mix(in srgb, var(--bg-secondary) 72%, transparent)', borderColor: 'color-mix(in srgb, var(--border) 70%, transparent)' }}>
+              <FiArrowLeft size={19} />
+            </motion.button>
+            <div className="min-w-0 flex-1 text-center sm:text-left" style={{ lineHeight: 1.1 }}>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.24em]" style={{ color: '#d97706' }}>Memory wall</p>
+              <p className="mt-1 truncate font-display text-[16px] font-extrabold tracking-tight sm:text-[17px]" style={{ color: 'var(--text-primary)' }}>{profileUser?.name || 'Profile'}</p>
+            </div>
+            <div className="flex flex-shrink-0 items-center gap-2">
+              <motion.button whileTap={{ scale: 0.92 }} onClick={handleShareProfile} aria-label="Share profile" className="flex h-11 w-11 items-center justify-center rounded-full border sm:w-auto sm:gap-1.5 sm:px-4" style={{ color: 'var(--text-primary)', background: 'color-mix(in srgb, var(--bg-secondary) 72%, transparent)', borderColor: 'color-mix(in srgb, var(--border) 70%, transparent)' }}>
+                <FiShare2 size={15} /> <span className="hidden text-sm font-semibold sm:inline">Share</span>
+              </motion.button>
+              <ThemeOverlay className="relative flex h-11 w-11 items-center justify-center rounded-full" />
+            </div>
+          </div>
         </div>
 
         <section className="mt-6 flex flex-col items-start gap-5">
