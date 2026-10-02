@@ -1503,7 +1503,7 @@ export default function ExplorePage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6" style={{ paddingTop: 28 }}>
         {/* Top scrolling reel stays */}
         {reelItems.length > 0 && !query.trim() && (
-          <section style={{ ...glassSurface, borderRadius: 32, overflow: 'hidden', padding: '12px 0', marginBottom: 56 }}>
+          <section style={{ overflow: 'hidden', padding: '12px 0', marginBottom: 56 }}>
             <TiltedMediaReel items={reelItems} rows={2} tilt={3.5} className="touch-pan-y" />
           </section>
         )}
