@@ -590,23 +590,15 @@ function PhotoLightbox({ post, onClose, navigate }) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               transition={{ type: 'spring', stiffness: 220, damping: 24 }}
-              className="relative z-0 overflow-hidden rounded-[2rem] border border-white/20 bg-[#17130d] shadow-2xl"
-              style={{ width: 'min(94vw, 920px)', height: 'min(76vh, 660px)' }}
+              className="relative z-0 overflow-hidden rounded-[1.75rem]"
+              style={{ width: 'min(72vw, 620px)', height: 'min(70vh, 600px)' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between px-5 py-4">
-                <span className="rounded-full border border-white/15 bg-black/25 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.24em] text-amber-200/90 backdrop-blur-md">
-                  Memory circle
-                </span>
-                <span className="rounded-full border border-white/15 bg-black/25 px-3 py-1.5 text-xs font-semibold text-white/75 backdrop-blur-md">
-                  {items.length} memories
-                </span>
-              </div>
               <CircularCarousel
                 items={items.map((media, index) => ({
                   src: isVideoItem(media) ? (media.thumbnail || media.url) : media.url,
                   alt: post.title ? `${post.title} — memory ${index + 1}` : `Memory ${index + 1}`,
-                  title: post.title || 'Wedding memory',
+                  title: post.title || 'Memory',
                   subtitle: `Memory ${index + 1} of ${items.length}`,
                 })).filter((item) => item.src)}
                 preset="cylinder"
@@ -620,7 +612,7 @@ function PhotoLightbox({ post, onClose, navigate }) {
                 focusOnClick
                 captions
                 cornerRadius={18}
-                fadeColor="#17130d"
+                fadeColor="#000000"
                 innerShade={0.62}
                 className="h-full w-full"
               />
