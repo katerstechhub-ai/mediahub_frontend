@@ -35,6 +35,12 @@ const APPLE_GLASS = {
 
 const APPLE_TOUCH = 'min-h-[44px] min-w-[44px]'
 
+// Grid tiles are clipped to a curved shape (#feed-tile-clip, defined in the return of FeedPage),
+// which cuts the corners off. Corner overlays sit further in so they are never clipped.
+// Percentages are of the tile, so they scale with it. Raise a number to move the item further in.
+const TILE_AVATAR_POS = { top: '8%', left: '9%' }
+const TILE_BADGE_POS = { top: '10%', right: '11%' }
+
 import gallery1 from '../assets/gallery-1.jpeg'
 import gallery2 from '../assets/gallery-2.jpeg'
 // import gallery3 from '../assets/gallery-3.jpeg'
@@ -233,7 +239,7 @@ function MemoryCardSpread() {
 
 function MemoryDollyGallery() {
   return (
-    <section className="relative mt-12 mb-16 overflow-hidden py-8 sm:mt-16 sm:mb-24 sm:py-12">
+    <section className="relative isolate mt-12 mb-16 overflow-hidden py-8 sm:mt-16 sm:mb-24 sm:py-12">
       <div className="relative z-[200] flex justify-end px-5 pt-4 sm:px-7 sm:pt-5">
         <span className="hidden text-[10px] font-bold uppercase tracking-[0.24em] text-amber-600/90 sm:inline">Memories</span>
       </div>
@@ -263,10 +269,10 @@ function isVideoItem(item) {
   return /\.(mp4|webm|mov|m4v|ogg)(\?|$)/i.test(item.url || '')
 }
 
-function MultiImageBadge({ count }) {
+function MultiImageBadge({ count, style }) {
   if (!count || count < 2) return null
   return (
-    <div className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-black/55 backdrop-blur-sm text-white text-[10px] font-bold leading-none shadow">
+    <div style={style} className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-black/55 backdrop-blur-sm text-white text-[10px] font-bold leading-none shadow">
       <FiCopy size={11} strokeWidth={2.8} />
       {count}
     </div>
@@ -279,7 +285,7 @@ function isVideoMedia(item) {
   return /\.(mp4|webm|mov|m4v|ogg)(\?|$)/i.test(item.url || '')
 }
 
-function MultiMediaShowcase({ items, postId, onOpen, compact = false, contain = false }) {
+function MultiMediaShowcase({ items, postId, onOpen, compact = false, contain = false, bare = false, badgeStyle }) {
   const visibleItems = items.slice(0, 6).map((item) => ({
     type: isVideoMedia(item) ? 'video' : 'image',
     src: item.url,
@@ -298,7 +304,7 @@ function MultiMediaShowcase({ items, postId, onOpen, compact = false, contain = 
           onOpen()
         }
       }}
-      className={`relative block w-full overflow-hidden rounded-3xl border border-black/[0.06] bg-[var(--bg-secondary)] p-0 text-left shadow-[0_12px_30px_rgba(15,23,42,0.08)] ${compact ? 'h-full min-h-[190px]' : 'h-[360px] sm:h-[440px]'}`}
+      className={`relative block w-full overflow-hidden ${bare ? '' : 'rounded-3xl border border-black/[0.06] shadow-[0_12px_30px_rgba(15,23,42,0.08)]'} bg-[var(--bg-secondary)] p-0 text-left ${compact ? 'h-full min-h-[190px]' : 'h-[360px] sm:h-[440px]'}`}
       aria-label="Open multiple memories"
     >
       <DepthCarousel
@@ -314,12 +320,13 @@ function MultiMediaShowcase({ items, postId, onOpen, compact = false, contain = 
         autoplayDelay={3500}
         loop
         showControls={false}
+        showIndicators={false}
         fill
         contain={contain}
         className="h-full w-full"
       />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[125] h-20 bg-gradient-to-t from-black/25 to-transparent" />
-      <MultiImageBadge count={items.length} />
+      <MultiImageBadge count={items.length} style={badgeStyle} />
     </div>
   )
 }
@@ -1034,6 +1041,7 @@ export default function FeedPage() {
   const [downloadingMap, setDownloadingMap] = useState({})
   const [scrolled, setScrolled] = useState(false)
   const [lightboxPost, setLightboxPost] = useState(null)
+  const [searchFocused, setSearchFocused] = useState(false)
   const lastTapRef = useRef({})
   const sentinelRef = useRef(null)
   const navigate = useNavigate()
@@ -1267,6 +1275,10 @@ export default function FeedPage() {
   const gridContainer = { animate: { transition: { staggerChildren: 0.03 } } }
   const gridItem = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0, transition: { duration: 0.22 } } }
   const monthGroups = groupPostsByMonth(visiblePosts)
+  // "+" while more pages are still waiting to load
+  const countLabel = q
+    ? `${visiblePosts.length} found`
+    : `${visiblePosts.length}${hasMore ? '+' : ''} ${visiblePosts.length === 1 && !hasMore ? 'moment' : 'moments'}`
 
   const renderGridTile = (post) => {
     const mediaItems = getMediaItems(post)
@@ -1277,8 +1289,13 @@ export default function FeedPage() {
         variants={gridItem}
         whileHover={{ scale: 1.02 }}
         transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}
-        className="relative group cursor-pointer rounded-3xl overflow-hidden aspect-[10/11] shadow-none border border-black/[0.06]"
-        style={{ background: 'var(--bg-secondary)' }}
+        className="relative group cursor-pointer rounded-2xl overflow-hidden aspect-[11/11] shadow-none"
+        style={{
+          background: 'var(--bg-secondary)',
+          // CURVED SIDES: shape is defined once in the <svg> clipPath near the top of the return (#feed-tile-clip)
+          clipPath: 'url(#feed-tile-clip)',
+          WebkitClipPath: 'url(#feed-tile-clip)',
+        }}
       >
         {mediaItems.length > 0 ? (
           mediaItems.length > 1 ? (
@@ -1286,6 +1303,8 @@ export default function FeedPage() {
               items={mediaItems}
               postId={post._id}
               compact
+              bare
+              badgeStyle={TILE_BADGE_POS}
               onOpen={() => openLightbox(post)}
             />
           ) : (
@@ -1309,9 +1328,10 @@ export default function FeedPage() {
           </div>
         )}
 
-        <MultiImageBadge count={mediaItems.length} />
+        <MultiImageBadge count={mediaItems.length} style={TILE_BADGE_POS} />
 
-        <div onClick={(e) => goToProfile(e, post.author)} className="absolute top-1.5 left-1.5 cursor-pointer z-10">
+        {/* avatar position comes from TILE_AVATAR_POS (top of file) so the curved clip never hides it */}
+        <div onClick={(e) => goToProfile(e, post.author)} className="absolute cursor-pointer z-10" style={TILE_AVATAR_POS}>
           <Avatar src={post.author?.avatar} name={post.author?.name} size={22} className="ring-2 ring-white/70 shadow" />
         </div>
 
@@ -1322,61 +1342,101 @@ export default function FeedPage() {
 
   return (
     <>
+      {/* Clip shape for grid tiles (shape "D"): corners tucked in at top and bottom,
+          left/right sides bow outward, top/bottom edges arch gently.
+          Units are 0-1 of each tile, so it scales with any tile size.
+          Edge arch depth = the 0.03 / -0.03 (top) and 0.97 / 1.03 (bottom) numbers.
+          Corner tuck = 0.94 / 0.06 (how far the sides pull in at the corners) and 0.2 / 0.8 (where the flat part ends). */}
+      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false">
+        <defs>
+          <clipPath id="feed-tile-clip" clipPathUnits="objectBoundingBox">
+            <path d="M0.2,0.03 Q0.5,-0.03 0.8,0.03 Q0.9013,0.0503 0.94,0.16 Q1,0.33 1,0.5 Q1,0.67 0.94,0.84 Q0.9013,0.9497 0.8,0.97 Q0.5,1.03 0.2,0.97 Q0.0987,0.9497 0.06,0.84 Q0,0.67 0,0.5 Q0,0.33 0.06,0.16 Q0.0987,0.0503 0.2,0.03 Z" />
+          </clipPath>
+        </defs>
+      </svg>
       <div className="min-h-screen pb-[calc(5rem+env(safe-area-inset-bottom))]" style={{ background: 'var(--bg-primary)', fontFamily: '-apple-system, BlinkMacSystemFont, Inter, system-ui, sans-serif' }}>
 
-        {/* Floating header */}
+        {/* ─── Top nav ───────────────────────────────────────────────────────────
+            Sticky liquid-glass bar. Concentric geometry: every control inside is 44px tall with a
+            fully round 22px corner; bar radius 29 = 22 + 6 padding + 1 border, so the curves nest.
+            Order: title · search · grid/list toggle · New. Title hides on phones to give search room. */}
         <div
-          className="relative z-30 px-3 sm:px-6 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 transition-all duration-300"
-          style={{
-            background: 'color-mix(in srgb, var(--bg-primary) 96%, transparent)',
-            borderBottom: '1px solid color-mix(in srgb, var(--border) 74%, transparent)',
-            boxShadow: scrolled ? '0 8px 24px rgba(15, 23, 42, 0.08)' : '0 4px 16px rgba(15, 23, 42, 0.04)',
-            backdropFilter: 'saturate(150%) blur(18px)',
-            WebkitBackdropFilter: 'saturate(150%) blur(18px)',
-          }}
+          className="sticky top-0 z-30 px-3 sm:px-5 pb-2"
+          style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
         >
-          <div className="max-w-7xl mx-auto flex items-center gap-4 sm:gap-6">
-            <div
-              className="relative grid grid-cols-2 rounded-full p-1 w-[92px] flex-shrink-0"
-              style={APPLE_GLASS}
-            >
-              <motion.div className="absolute top-1 bottom-1 rounded-full bg-amber-500"
-                style={{ left: 4, width: 'calc(50% - 4px)' }}
-                animate={{ x: viewMode === 'grid' ? 0 : '100%' }}
-                transition={{ type: 'spring', stiffness: 400, damping: 28 }} />
-              <button onClick={() => setViewMode('grid')} aria-label="Grid view"
-                className={`relative z-10 ${APPLE_TOUCH} h-11 flex items-center justify-center rounded-full`}
-                style={{ color: viewMode === 'grid' ? '#fff' : 'var(--text-muted)' }}>
-                <FiGrid size={18} strokeWidth={2.5} />
-              </button>
-              <button onClick={() => setViewMode('list')} aria-label="List view"
-                className={`relative z-10 ${APPLE_TOUCH} h-11 flex items-center justify-center rounded-full`}
-                style={{ color: viewMode === 'list' ? '#fff' : 'var(--text-muted)' }}>
-                <FiList size={18} strokeWidth={2.5} />
-              </button>
+          <div
+            className="relative max-w-7xl mx-auto flex items-center gap-2 sm:gap-3"
+            style={{
+              height: 58,
+              padding: 6,
+              borderRadius: 29,
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0) 60%), color-mix(in srgb, var(--bg-primary) 68%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)',
+              boxShadow: scrolled
+                ? '0 20px 44px rgba(15,23,42,0.20), 0 2px 6px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.30)'
+                : '0 10px 28px rgba(15,23,42,0.09), 0 1px 3px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.24)',
+              backdropFilter: 'saturate(180%) blur(24px)',
+              WebkitBackdropFilter: 'saturate(180%) blur(24px)',
+              transition: 'box-shadow 0.3s ease',
+            }}
+          >
+            {/* soft amber glint along the bottom edge */}
+            <span
+              aria-hidden="true"
+              style={{
+                position: 'absolute', left: '18%', right: '18%', bottom: -1, height: 1, pointerEvents: 'none',
+                background: 'linear-gradient(90deg, transparent, rgba(245,158,11,0.6), transparent)',
+                opacity: scrolled ? 1 : 0.55, transition: 'opacity 0.3s ease',
+              }}
+            />
+
+            {/* Title */}
+            <div className="hidden sm:flex items-center gap-3 flex-shrink-0">
+              <div
+                style={{
+                  width: 44, height: 44, borderRadius: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff',
+                  background: 'linear-gradient(145deg, #fcd34d, #f59e0b 50%, #ea580c)',
+                  boxShadow: '0 6px 16px rgba(245,158,11,0.40), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -2px 4px rgba(0,0,0,0.12)',
+                }}
+              >
+                <FiImage size={20} strokeWidth={2.3} />
+              </div>
+              <div style={{ lineHeight: 1.15, paddingRight: 6 }}>
+                <p className="font-display" style={{ margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: '-0.022em', color: 'var(--text-primary)' }}>
+                  Memories
+                </p>
+                <p style={{ margin: 0, marginTop: 2, fontSize: 12, fontWeight: 500, color: 'var(--text-muted)' }}>
+                  {countLabel}
+                </p>
+              </div>
             </div>
 
+            {/* Search — inline styles so padding and icon clearance are exact */}
             <div className="relative flex-1 min-w-0 max-w-xl mx-auto">
               <FiSearch
                 size={16}
-                strokeWidth={2.25}
-                className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
-                style={{ color: 'var(--text-muted)' }}
+                strokeWidth={2.4}
+                style={{
+                  position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none',
+                  color: searchFocused ? '#f59e0b' : 'var(--text-muted)', transition: 'color 0.2s ease',
+                }}
               />
               <input
                 type="text"
-                placeholder="Search posts"
+                placeholder="Search memories"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="w-full min-h-[44px] rounded-full text-sm outline-none border-0 transition-all focus:ring-2 focus:ring-amber-500/40 placeholder:opacity-80"
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
                 style={{
-                  background: 'color-mix(in srgb, var(--bg-secondary) 62%, transparent)',
+                  width: '100%', height: 44, borderRadius: 22, outline: 'none',
+                  padding: '0 44px 0 44px', fontSize: 14, fontWeight: 500,
                   color: 'var(--text-primary)',
-                  border: '1px solid color-mix(in srgb, var(--border) 70%, transparent)',
-                  boxShadow: scrolled ? '0 6px 20px rgba(15, 23, 42, 0.08)' : '0 4px 16px rgba(15, 23, 42, 0.06)',
-                  padding: '11px 40px 11px 42px',
-                  fontWeight: 500,
-                  backdropFilter: 'blur(12px)',
+                  background: 'color-mix(in srgb, var(--bg-secondary) 70%, transparent)',
+                  border: searchFocused ? '1px solid rgba(245,158,11,0.65)' : '1px solid color-mix(in srgb, var(--border) 70%, transparent)',
+                  boxShadow: searchFocused ? '0 0 0 4px rgba(245,158,11,0.16)' : 'inset 0 1px 2px rgba(15,23,42,0.06)',
+                  transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
                 }}
               />
               <AnimatePresence>
@@ -1387,23 +1447,74 @@ export default function FeedPage() {
                     exit={{ scale: 0, opacity: 0 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 min-h-[36px] min-w-[36px] rounded-full flex items-center justify-center"
-                    style={{
-                      color: scrolled ? 'var(--text-primary)' : '#fff',
-                      background: scrolled ? 'var(--bg-input)' : 'rgba(255,255,255,0.25)',
-                    }}
                     aria-label="Clear search"
+                    style={{
+                      position: 'absolute', right: 6, top: '50%', marginTop: -16, width: 32, height: 32, borderRadius: 16,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'var(--text-primary)',
+                      background: 'color-mix(in srgb, var(--text-primary) 12%, transparent)',
+                    }}
                   >
-                    <FiX size={13} strokeWidth={2.5} />
+                    <FiX size={14} strokeWidth={2.5} />
                   </motion.button>
                 )}
               </AnimatePresence>
             </div>
 
-            <button onClick={() => navigate('/create')} aria-label="Create post"
-              className={`flex ${APPLE_TOUCH} items-center justify-center rounded-full bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-500/25 transition-colors flex-shrink-0`}>
-              <FiPlusSquare size={20} strokeWidth={2.5} />
-            </button>
+            {/* Grid / list toggle — track radius 22, 3px padding + 1px border, so the thumb is 36px / radius 18 */}
+            <div
+              className="relative grid grid-cols-2 flex-shrink-0"
+              style={{
+                width: 92, height: 44, padding: 3, borderRadius: 22,
+                background: 'color-mix(in srgb, var(--bg-secondary) 70%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--border) 70%, transparent)',
+                boxShadow: 'inset 0 1px 2px rgba(15,23,42,0.06)',
+              }}
+            >
+              <motion.div
+                className="absolute"
+                style={{
+                  top: 3, bottom: 3, left: 3, width: 'calc(50% - 3px)', borderRadius: 18,
+                  background: 'linear-gradient(145deg, #fcd34d, #f59e0b)',
+                  boxShadow: '0 4px 12px rgba(245,158,11,0.42), inset 0 1px 0 rgba(255,255,255,0.45)',
+                }}
+                animate={{ x: viewMode === 'grid' ? 0 : '100%' }}
+                transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+              />
+              <button
+                onClick={() => setViewMode('grid')}
+                aria-label="Grid view"
+                className="relative z-10 flex items-center justify-center"
+                style={{ height: 36, borderRadius: 18, color: viewMode === 'grid' ? '#fff' : 'var(--text-muted)', transition: 'color 0.2s ease' }}
+              >
+                <FiGrid size={17} strokeWidth={2.4} />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                aria-label="List view"
+                className="relative z-10 flex items-center justify-center"
+                style={{ height: 36, borderRadius: 18, color: viewMode === 'list' ? '#fff' : 'var(--text-muted)', transition: 'color 0.2s ease' }}
+              >
+                <FiList size={17} strokeWidth={2.4} />
+              </button>
+            </div>
+
+            {/* New */}
+            <motion.button
+              onClick={() => navigate('/create')}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
+              aria-label="Create post"
+              className="flex items-center justify-center gap-2 flex-shrink-0 text-white font-bold"
+              style={{
+                height: 44, minWidth: 44, padding: '0 16px', borderRadius: 22, fontSize: 14,
+                background: 'linear-gradient(145deg, #fcd34d, #f59e0b 50%, #ea580c)',
+                boxShadow: '0 8px 20px rgba(245,158,11,0.35), inset 0 1px 0 rgba(255,255,255,0.45)',
+              }}
+            >
+              <FiPlusSquare size={19} strokeWidth={2.5} />
+              <span className="hidden sm:inline">New</span>
+            </motion.button>
           </div>
         </div>
 

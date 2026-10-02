@@ -130,6 +130,9 @@ body.composer-open .bottom-nav {
   display: none !important;
 }
 
+
+
+
 /* Mobile zoom fix — iOS Safari (and some Android browsers) zoom the whole
    page when you focus an input whose font size is under 16px. Forcing 16px
    on touch screens stops that everywhere (comments, search, forms) while

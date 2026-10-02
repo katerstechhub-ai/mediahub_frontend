@@ -19,6 +19,7 @@ export default function DepthCarousel({
   showControls = true,
   fill = false,
   contain = false,
+  showIndicators = true,
   className = '',
 }) {
   const data = useMemo(() => items.filter(Boolean), [items])
@@ -117,7 +118,7 @@ export default function DepthCarousel({
         </div>
       )}
 
-      {fill && data.length > 1 && (
+      {fill && showIndicators && data.length > 1 && (
         <div className="depth-carousel__indicators" aria-hidden="true">
           {data.slice(0, 7).map((_, index) => (
             <span key={index} className={index === active ? 'is-active' : ''} />
