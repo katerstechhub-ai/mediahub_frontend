@@ -308,6 +308,7 @@ function CreatePostPage() {
   const [shutterFlash, setShutterFlash] = useState(false)
   const [capturedShot, setCapturedShot] = useState(null)
   const pressTimerRef = useRef(null)
+  const shutterGestureRef = useRef(null)
   const recordingRef = useRef(false)
   const mediaRecorderRef = useRef(null)
   const recordedChunksRef = useRef([])
@@ -706,12 +707,31 @@ function CreatePostPage() {
   const handleShutterDown = (e) => {
     e.preventDefault()
     if (!camReady || capturedShot) return
+    shutterGestureRef.current = { startY: e.clientY, startZoom: camZoom, zooming: false }
     pressTimerRef.current = setTimeout(() => {
       pressTimerRef.current = null
-      startRecording()
+      if (!shutterGestureRef.current?.zooming) startRecording()
     }, LONG_PRESS_MS)
   }
+
+  // Swipe the shutter vertically: up zooms in, down zooms out.
+  const handleShutterMove = (e) => {
+    const gesture = shutterGestureRef.current
+    if (!gesture || recordingRef.current) return
+    const distance = gesture.startY - e.clientY
+    if (Math.abs(distance) < 8) return
+    gesture.zooming = true
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current)
+      pressTimerRef.current = null
+    }
+    setCameraZoom(gesture.startZoom + distance * 0.012)
+  }
+
   const handleShutterUp = () => {
+    const gesture = shutterGestureRef.current
+    shutterGestureRef.current = null
+    if (gesture?.zooming) return
     if (pressTimerRef.current) {
       clearTimeout(pressTimerRef.current)
       pressTimerRef.current = null
@@ -720,7 +740,9 @@ function CreatePostPage() {
     }
     if (recordingRef.current) stopRecording()
   }
+
   const handleShutterCancel = () => {
+    shutterGestureRef.current = null
     if (pressTimerRef.current) { clearTimeout(pressTimerRef.current); pressTimerRef.current = null }
     if (recordingRef.current) stopRecording()
   }
@@ -827,12 +849,8 @@ function CreatePostPage() {
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 pb-4 pt-16 sm:px-8">
         {!camError ? (
           <div
-            className="relative h-[min(48vh,400px)] sm:h-[min(52vh,440px)] w-[min(78vw,330px)] max-w-full shrink-0 overflow-hidden bg-[#151518] shadow-[0_24px_80px_rgba(0,0,0,0.65)]"
+            className="relative h-[min(44vh,360px)] sm:h-[min(52vh,440px)] w-[min(78vw,330px)] max-w-full shrink-0 overflow-hidden bg-[#151518] shadow-[0_24px_80px_rgba(0,0,0,0.65)]"
             style={{ clipPath: 'url(#camera-lens-clip)', WebkitClipPath: 'url(#camera-lens-clip)', borderRadius: '28px', touchAction: 'none' }}
-            onTouchStart={handleCameraTouchStart}
-            onTouchMove={handleCameraTouchMove}
-            onTouchEnd={handleCameraTouchEnd}
-            onWheel={handleCameraWheel}
           >
             <video
               ref={camVideoRef}
@@ -942,7 +960,7 @@ function CreatePostPage() {
               <motion.button whileTap={{ scale: 0.94 }} onClick={() => fileRef.current?.click()} aria-label="Choose from gallery" className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border backdrop-blur-xl" style={scrimControl} disabled={isRecording}>
                 {lastShotPreview ? <img src={lastShotPreview} alt="" className="h-full w-full object-cover" /> : <FiImage size={18} color="white" />}
               </motion.button>
-              <motion.button whileTap={{ scale: 0.94 }} onPointerDown={handleShutterDown} onPointerUp={handleShutterUp} onPointerLeave={handleShutterCancel} onPointerCancel={handleShutterCancel} onContextMenu={(e) => e.preventDefault()} disabled={!camReady} aria-label="Hold to record, tap for photo" className="relative flex h-[86px] w-[86px] select-none items-center justify-center rounded-full disabled:opacity-40" style={{ touchAction: 'none', background: 'rgba(255,255,255,0.12)', boxShadow: isRecording ? '0 0 0 2px rgba(239,68,68,0.95), 0 0 0 8px rgba(239,68,68,0.2)' : '0 0 0 2px #737b86, 0 0 0 8px rgba(115,123,134,0.16)' }}>
+              <motion.button whileTap={{ scale: 0.94 }} onPointerDown={handleShutterDown} onPointerMove={handleShutterMove} onPointerUp={handleShutterUp} onPointerLeave={handleShutterCancel} onPointerCancel={handleShutterCancel} onContextMenu={(e) => e.preventDefault()} disabled={!camReady} aria-label="Swipe to zoom, hold to record, tap for photo" className="relative flex h-[86px] w-[86px] select-none items-center justify-center rounded-full disabled:opacity-40" style={{ touchAction: 'none', background: 'rgba(255,255,255,0.12)', boxShadow: isRecording ? '0 0 0 2px rgba(239,68,68,0.95), 0 0 0 8px rgba(239,68,68,0.2)' : '0 0 0 2px #737b86, 0 0 0 8px rgba(115,123,134,0.16)' }}>
                 <motion.span animate={isRecording ? { borderRadius: '12px', width: 30, height: 30 } : { borderRadius: '999px', width: 68, height: 68 }} transition={{ type: 'spring', stiffness: 300, damping: 22 }} className="block" style={{ background: isRecording ? '#ef4444' : '#fff' }} />
               </motion.button>
               <motion.button whileTap={{ scale: 0.94 }} onClick={flipCamera} aria-label="Flip camera" className="flex h-12 w-12 items-center justify-center rounded-2xl border backdrop-blur-xl" style={scrimControl} disabled={isRecording}>
