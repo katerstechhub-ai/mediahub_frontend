@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
 import {
   FiImage, FiX, FiCamera, FiArrowLeft, FiClipboard, FiCheck,
-  FiPlus, FiPlay, FiRotateCw, FiChevronLeft, FiChevronRight, FiTrash2,
+  FiPlus, FiPlay, FiRotateCw, FiChevronLeft, FiChevronRight, FiTrash2, FiZap, FiZapOff,
 } from 'react-icons/fi'
 import { postsAPI, uploadAPI, uploadMediaDirect } from '../api'
 import toast from 'react-hot-toast'
@@ -295,12 +295,15 @@ function CreatePostPage() {
   // Camera opens first, full-screen, by default.
   const camVideoRef = useRef(null)
   const camStreamRef = useRef(null)
+  const camTrackRef = useRef(null)
   const camCanvasRef = useRef(null)
   const [cameraOpen, setCameraOpen] = useState(true)
   const [camFacing, setCamFacing] = useState('environment')
   const [camReady, setCamReady] = useState(false)
   const [camError, setCamError] = useState(false)
   const [camZoom, setCamZoom] = useState(1)
+  const [camZoomBounds, setCamZoomBounds] = useState({ min: 1, max: 3 })
+  const [camTorch, setCamTorch] = useState(false)
   const pinchRef = useRef(null)
   const [shutterFlash, setShutterFlash] = useState(false)
   const [capturedShot, setCapturedShot] = useState(null)
@@ -569,6 +572,18 @@ function CreatePostPage() {
       if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
       stopCameraStream()
       camStreamRef.current = stream
+      const track = stream.getVideoTracks?.()[0] || null
+      camTrackRef.current = track
+      const capabilities = track?.getCapabilities?.() || {}
+      if (capabilities.zoom) {
+        const min = Number.isFinite(capabilities.zoom.min) ? capabilities.zoom.min : 1
+        const max = Math.min(3, Number.isFinite(capabilities.zoom.max) ? capabilities.zoom.max : 3)
+        setCamZoomBounds({ min, max: Math.max(min, max) })
+      } else {
+        setCamZoomBounds({ min: 1, max: 3 })
+      }
+      setCamZoom(1)
+      setCamTorch(false)
       if (camVideoRef.current) {
         camVideoRef.current.srcObject = stream
         await camVideoRef.current.play().catch(() => {})
@@ -577,6 +592,8 @@ function CreatePostPage() {
     })()
     return () => {
       cancelled = true
+      camTrackRef.current = null
+      setCamTorch(false)
       stopCameraStream()
     }
   }, [cameraOpen, camFacing, stopCameraStream])
@@ -597,6 +614,8 @@ function CreatePostPage() {
     setCameraOpen(false)
     setCamReady(false)
     setCamError(false)
+    setCamTorch(false)
+    camTrackRef.current = null
   }
 
   const capturePhoto = () => {
@@ -735,10 +754,33 @@ function CreatePostPage() {
   }
 
   const setCameraZoom = (value) => {
-    setCamZoom(Math.min(3, Math.max(1, Number(value.toFixed(2)))))
+    const next = Math.min(camZoomBounds.max, Math.max(camZoomBounds.min, Number(value.toFixed(2))))
+    setCamZoom(next)
+    const track = camTrackRef.current
+    const capabilities = track?.getCapabilities?.() || {}
+    if (track?.applyConstraints && capabilities.zoom) {
+      track.applyConstraints({ advanced: [{ zoom: next }] }).catch(() => {})
+    }
   }
 
   const changeCameraZoom = (amount) => setCameraZoom(camZoom + amount)
+
+  const toggleCameraTorch = async () => {
+    const track = camTrackRef.current
+    const capabilities = track?.getCapabilities?.() || {}
+    if (!track?.applyConstraints || !capabilities.torch) {
+      toast('Flash is not available on this camera')
+      return
+    }
+    const next = !camTorch
+    try {
+      await track.applyConstraints({ advanced: [{ torch: next }] })
+      setCamTorch(next)
+    } catch (error) {
+      console.error('Flash toggle failed', error)
+      toast('Flash could not be changed')
+    }
+  }
   const pinchDistance = (touches) => Math.hypot(
     touches[0].clientX - touches[1].clientX,
     touches[0].clientY - touches[1].clientY,
@@ -844,9 +886,9 @@ function CreatePostPage() {
 
             {!capturedShot && camReady && (
               <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border px-1.5 py-1 backdrop-blur-xl" style={{ background: 'rgba(20,20,22,0.58)', borderColor: 'rgba(255,255,255,0.2)' }}>
-                <button type="button" onClick={() => changeCameraZoom(-0.25)} disabled={camZoom <= 1} aria-label="Zoom out" className="flex h-8 w-8 items-center justify-center rounded-full text-lg font-semibold text-white disabled:opacity-35">−</button>
+                <button type="button" onClick={() => changeCameraZoom(-0.25)} disabled={camZoom <= camZoomBounds.min} aria-label="Zoom out" className="flex h-8 w-8 items-center justify-center rounded-full text-lg font-semibold text-white disabled:opacity-35">−</button>
                 <button type="button" onClick={() => setCameraZoom(1)} aria-label="Reset zoom" className="min-w-[48px] px-1 text-[11px] font-bold tabular-nums text-white/85">{camZoom.toFixed(1)}×</button>
-                <button type="button" onClick={() => changeCameraZoom(0.25)} disabled={camZoom >= 3} aria-label="Zoom in" className="flex h-8 w-8 items-center justify-center rounded-full text-lg font-semibold text-white disabled:opacity-35">+</button>
+                <button type="button" onClick={() => changeCameraZoom(0.25)} disabled={camZoom >= camZoomBounds.max} aria-label="Zoom in" className="flex h-8 w-8 items-center justify-center rounded-full text-lg font-semibold text-white disabled:opacity-35">+</button>
               </div>
             )}
           </div>
@@ -867,10 +909,15 @@ function CreatePostPage() {
           </button>
           <div className="rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-white/70 backdrop-blur-xl" style={scrimControl}>Instant lens</div>
           {!camError ? (
-            <button onClick={flipCamera} aria-label="Flip camera" className="flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-xl" style={scrimControl} disabled={isRecording}>
-              <FiRotateCw size={17} color="white" />
-            </button>
-          ) : <div className="h-10 w-10" />}
+            <div className="flex items-center gap-2">
+              <button onClick={toggleCameraTorch} aria-label={camTorch ? 'Turn flash off' : 'Turn flash on'} className="flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-xl" style={{ ...scrimControl, background: camTorch ? 'rgba(255,198,41,0.28)' : scrimControl.background }} disabled={isRecording}>
+                {camTorch ? <FiZap size={17} color="#ffd866" /> : <FiZapOff size={17} color="white" />}
+              </button>
+              <button onClick={flipCamera} aria-label="Flip camera" className="flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-xl" style={scrimControl} disabled={isRecording}>
+                <FiRotateCw size={17} color="white" />
+              </button>
+            </div>
+          ) : <div className="flex h-10 w-20" />}
         </div>
 
         <AnimatePresence>
