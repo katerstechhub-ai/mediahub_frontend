@@ -467,7 +467,7 @@ function Composer({ user, parentId = null, compact = false, placeholder, autoFoc
               resize: 'none',
               padding: compact ? '6px 0' : '10px 0',
               minHeight: compact ? 40 : 64,
-              fontSize: compact ? 15 : 18,
+              fontSize: compact ? 14 : 16,
               lineHeight: 1.6,
               color: 'var(--text-primary)',
             }}
@@ -565,14 +565,14 @@ function ActionPill({ onClick, label, active, activeColor, children }) {
       aria-label={label}
       style={{
         ...glassChip,
-        height: 42,
-        padding: '0 18px',
+        height: 38,
+        padding: '0 15px',
         borderRadius: 999,
         display: 'flex',
         alignItems: 'center',
-        gap: 8,
-        fontSize: 13,
-        fontWeight: 800,
+        gap: 7,
+        fontSize: 12,
+        fontWeight: 700,
         color: active ? activeColor : 'var(--text-primary)',
         background: active ? 'rgba(239,68,68,0.16)' : glassChip.background,
       }}
@@ -663,11 +663,11 @@ function ThoughtCard({ thought, user, onOpen, onLike, onDelete, onOpenProfile })
               <div style={{ minWidth: 0, flex: 1 }}>
                 <p
                   onClick={(e) => onOpenProfile(e, author)}
-                  style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                 >
                   {author.name || 'Unknown'}
                 </p>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{timeAgo(thought.createdAt)}</p>
+                <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>{timeAgo(thought.createdAt)}</p>
               </div>
               {isMine && (
                 <button
@@ -684,7 +684,7 @@ function ThoughtCard({ thought, user, onOpen, onLike, onDelete, onOpenProfile })
             {thought.text && (
               <p
                 style={{
-                  marginTop: 14, fontSize: 17, lineHeight: 1.7, color: 'var(--text-primary)',
+                  marginTop: 12, fontSize: 15, lineHeight: 1.6, color: 'var(--text-primary)',
                   whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                 }}
               >
@@ -700,15 +700,15 @@ function ThoughtCard({ thought, user, onOpen, onLike, onDelete, onOpenProfile })
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 22 }}>
               <ActionPill onClick={() => onOpen(thought._id)} label="Replies">
-                <FiMessageCircle size={18} strokeWidth={2.5} />
+                <FiMessageCircle size={16} strokeWidth={2.5} />
                 <span>{thought.replyCount || 0}</span>
               </ActionPill>
               <ActionPill onClick={() => onLike(thought._id)} label={liked ? 'Unlike' : 'Like'} active={liked} activeColor="#ef4444">
-                {liked ? <FaHeart size={17} color="#ef4444" /> : <FiHeart size={18} strokeWidth={2.5} />}
+                {liked ? <FaHeart size={15} color="#ef4444" /> : <FiHeart size={16} strokeWidth={2.5} />}
                 <span>{likes.length}</span>
               </ActionPill>
               <ActionPill onClick={() => shareThought(thought)} label="Share">
-                <FiShare2 size={17} strokeWidth={2.5} />
+                <FiShare2 size={15} strokeWidth={2.5} />
               </ActionPill>
             </div>
           </div>
@@ -814,16 +814,16 @@ function ThoughtModal({ thought, user, onClose, onLike, onDelete, onOpenProfile,
             <div style={{ minWidth: 0 }}>
               <p
                 onClick={(e) => { onOpenProfile(e, author) }}
-                style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', cursor: 'pointer' }}
+                style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer' }}
               >
                 {author.name || 'Unknown'}
               </p>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{timeAgo(thought.createdAt)}</p>
+              <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>{timeAgo(thought.createdAt)}</p>
             </div>
           </div>
 
           {thought.text && (
-            <p style={{ marginTop: 18, fontSize: 20, lineHeight: 1.65, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            <p style={{ marginTop: 16, fontSize: 17, lineHeight: 1.6, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
               {thought.text}
             </p>
           )}
@@ -835,15 +835,15 @@ function ThoughtModal({ thought, user, onClose, onLike, onDelete, onOpenProfile,
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 22 }}>
             <ActionPill label="Replies">
-              <FiMessageCircle size={18} strokeWidth={2.5} />
+              <FiMessageCircle size={16} strokeWidth={2.5} />
               <span>{thought.replyCount || replies.length || 0}</span>
             </ActionPill>
             <ActionPill onClick={() => onLike(thought._id)} label={liked ? 'Unlike' : 'Like'} active={liked} activeColor="#ef4444">
-              {liked ? <FaHeart size={17} color="#ef4444" /> : <FiHeart size={18} strokeWidth={2.5} />}
+              {liked ? <FaHeart size={15} color="#ef4444" /> : <FiHeart size={16} strokeWidth={2.5} />}
               <span>{likes.length}</span>
             </ActionPill>
             <ActionPill onClick={() => shareThought(thought)} label="Share">
-              <FiShare2 size={17} strokeWidth={2.5} />
+              <FiShare2 size={15} strokeWidth={2.5} />
             </ActionPill>
           </div>
         </div>
@@ -873,12 +873,12 @@ function ThoughtModal({ thought, user, onClose, onLike, onDelete, onOpenProfile,
                     <Avatar src={ra.avatar} name={ra.name} size={38} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                      <span style={{ fontWeight: 800, color: 'var(--text-primary)', marginRight: 8 }}>{ra.name || 'Unknown'}</span>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      <span style={{ fontWeight: 700, color: 'var(--text-primary)', marginRight: 8 }}>{ra.name || 'Unknown'}</span>
                       {timeAgo(r.createdAt)}
                     </p>
                     {r.text && (
-                      <p style={{ marginTop: 6, fontSize: 15, lineHeight: 1.65, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                      <p style={{ marginTop: 5, fontSize: 14, lineHeight: 1.6, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                         {r.text}
                       </p>
                     )}
@@ -1190,7 +1190,6 @@ export default function ExplorePage() {
       style={{ background: 'var(--bg-primary)', position: 'relative' }}
     >
       <div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none', background: AMBIENT_BG }} />
-      <ThemeOverlay className="fixed bottom-20 right-4 z-40 sm:bottom-6 sm:right-6" />
 
       {/* Floating "write a thought" button — fixed to the viewport, so it stays visible however long the feed is */}
       {createPortal(
@@ -1200,11 +1199,10 @@ export default function ExplorePage() {
           whileTap={{ scale: 0.92 }}
           onClick={() => setShowComposer((value) => !value)}
           aria-label={showComposer ? 'Close thought composer' : 'Write a thought'}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-500 text-white shadow-lg shadow-amber-500/30"
+          className="bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] flex h-14 w-14 items-center justify-center rounded-full bg-amber-500 text-white shadow-lg shadow-amber-500/30 sm:bottom-6"
           style={{
             position: 'fixed',
             right: 20,
-            bottom: 'calc(10.5rem + env(safe-area-inset-bottom, 0px))',
             zIndex: 50,
           }}
         >
@@ -1336,6 +1334,9 @@ export default function ExplorePage() {
                 )}
               </AnimatePresence>
             </motion.button>
+
+            {/* Light / dark switch now lives with the other header actions (it used to float bottom-right) */}
+            <ThemeOverlay className="relative flex h-11 w-11 items-center justify-center rounded-full" />
           </div>
         </div>
       </div>
