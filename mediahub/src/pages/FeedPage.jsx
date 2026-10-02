@@ -272,8 +272,12 @@ function isVideoItem(item) {
 function MultiImageBadge({ count, style }) {
   if (!count || count < 2) return null
   return (
-    <div style={style} className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-black/55 backdrop-blur-sm text-white text-[10px] font-bold leading-none shadow">
-      <FiCopy size={11} strokeWidth={2.8} />
+    <div style={style} className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-black/50 backdrop-blur-sm text-white text-[11px] font-semibold leading-none shadow">
+      {/* thin "stack of photos" glyph — stroke 1.8 keeps it fine at this size */}
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3.5" y="8" width="12.5" height="12.5" rx="3.2" />
+        <path d="M8 4.5h8.5A3.5 3.5 0 0 1 20 8v8.5" />
+      </svg>
       {count}
     </div>
   )
@@ -908,7 +912,6 @@ function PostListItem({
               )}
             />
           )}
-          <MultiImageBadge count={mediaItems.length} />
           <HeartAnimation postId={post._id} />
 
           <div
@@ -1327,8 +1330,6 @@ export default function FeedPage() {
             <FiImage size={22} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
           </div>
         )}
-
-        <MultiImageBadge count={mediaItems.length} style={TILE_BADGE_POS} />
 
         {/* avatar position comes from TILE_AVATAR_POS (top of file) so the curved clip never hides it */}
         <div onClick={(e) => goToProfile(e, post.author)} className="absolute cursor-pointer z-10" style={TILE_AVATAR_POS}>
