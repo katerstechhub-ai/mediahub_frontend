@@ -827,7 +827,7 @@ function CreatePostPage() {
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 pb-4 pt-16 sm:px-8">
         {!camError ? (
           <div
-            className="relative h-[min(58vh,480px)] sm:h-[min(52vh,440px)] w-[min(78vw,330px)] max-w-full shrink-0 overflow-hidden bg-[#151518] shadow-[0_24px_80px_rgba(0,0,0,0.65)]"
+            className="relative h-[min(52vh,440px)] sm:h-[min(52vh,440px)] w-[min(78vw,330px)] max-w-full shrink-0 overflow-hidden bg-[#151518] shadow-[0_24px_80px_rgba(0,0,0,0.65)]"
             style={{ clipPath: 'url(#camera-lens-clip)', WebkitClipPath: 'url(#camera-lens-clip)', borderRadius: '28px', touchAction: 'none' }}
             onTouchStart={handleCameraTouchStart}
             onTouchMove={handleCameraTouchMove}
