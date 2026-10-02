@@ -817,15 +817,22 @@ function CreatePostPage() {
    * ------------------------------------------------------------------ */
   const renderCaptureOverlay = () => (
     <div className="relative flex h-full w-full flex-col overflow-hidden" style={{ background: '#09090b' }}>
+      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false">
+        <defs>
+          <clipPath id="camera-lens-clip" clipPathUnits="objectBoundingBox">
+            <path d="M0.2,0.03 Q0.5,-0.03 0.8,0.03 Q0.9013,0.0503 0.94,0.16 Q1,0.33 1,0.5 Q1,0.67 0.94,0.84 Q0.9013,0.9497 0.8,0.97 Q0.5,1.03 0.2,0.97 Q0.0987,0.9497 0.06,0.84 Q0,0.67 0,0.5 Q0,0.33 0.06,0.16 Q0.0987,0.0503 0.2,0.03 Z" />
+          </clipPath>
+        </defs>
+      </svg>
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 pb-4 pt-16 sm:px-8">
         {!camError ? (
           <div
-            className="relative h-[min(52vh,440px)] w-[min(78vw,330px)] max-w-full shrink-0 overflow-hidden rounded-[64px] bg-[#151518] shadow-[0_24px_80px_rgba(0,0,0,0.65)]"
+            className="relative h-[min(52vh,440px)] w-[min(78vw,330px)] max-w-full shrink-0 overflow-hidden bg-[#151518] shadow-[0_24px_80px_rgba(0,0,0,0.65)]"
+            style={{ clipPath: 'url(#camera-lens-clip)', WebkitClipPath: 'url(#camera-lens-clip)', borderRadius: '28px', touchAction: 'none' }}
             onTouchStart={handleCameraTouchStart}
             onTouchMove={handleCameraTouchMove}
             onTouchEnd={handleCameraTouchEnd}
             onWheel={handleCameraWheel}
-            style={{ touchAction: 'none' }}
           >
             <video
               ref={camVideoRef}
