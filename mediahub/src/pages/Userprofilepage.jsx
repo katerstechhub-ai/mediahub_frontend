@@ -147,6 +147,20 @@ export default function UserProfilePage() {
             </button>
           </div>
         )}
+
+        {userPosts.length === 0 && (
+          <section className="mt-12 flex flex-col items-center border-y py-14 text-center sm:mt-16 sm:py-20">
+            <div
+              className="mb-6 flex h-16 w-16 items-center justify-center rounded-[1.35rem] border"
+              style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: '#f59e0b' }}
+            >
+              <FiUser size={25} strokeWidth={1.8} />
+            </div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em]" style={{ color: '#b45309' }}>Memory wall not started</p>
+            <h2 className="mt-3 font-display text-xl font-extrabold tracking-tight sm:text-2xl" style={{ color: 'var(--text-primary)' }}>{profileUser?.name || 'This person'} has no memories yet.</h2>
+            <p className="mt-2 max-w-xs text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>There is nothing here yet—but the next chapter can start with a single shared moment.</p>
+          </section>
+        )}
       </main>
     </div>
   )

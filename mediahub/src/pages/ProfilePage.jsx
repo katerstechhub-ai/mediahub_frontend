@@ -224,11 +224,20 @@ export default function ProfilePage() {
         )}
 
         {userPosts.length === 0 && (
-          <div className="mt-10 flex flex-col items-start gap-3 rounded-3xl border-y py-8">
-            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Your memory wall is empty.</p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Capture a photo or video to start collecting memories.</p>
-            <button type="button" onClick={() => navigate('/create')} className="min-h-[44px] rounded-full bg-amber-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm">Create your first memory</button>
-          </div>
+          <section className="mt-12 flex flex-col items-center border-y py-14 text-center sm:mt-16 sm:py-20">
+            <div
+              className="mb-6 flex h-16 w-16 items-center justify-center rounded-[1.35rem] border"
+              style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: '#f59e0b' }}
+            >
+              <FiLayers size={26} strokeWidth={1.8} />
+            </div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em]" style={{ color: '#b45309' }}>A blank page for now</p>
+            <h2 className="mt-3 font-display text-xl font-extrabold tracking-tight sm:text-2xl" style={{ color: 'var(--text-primary)' }}>Your next memory starts here.</h2>
+            <p className="mt-2 max-w-xs text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>Save the moments you will want to revisit—one photo, video, or thought at a time.</p>
+            <button type="button" onClick={() => navigate('/create')} className="mt-7 flex min-h-[44px] items-center gap-2 rounded-full bg-amber-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-amber-400">
+              <FiPlus size={17} /> Make your first memory
+            </button>
+          </section>
         )}
       </main>
       {avatarToCrop && <AvatarCropper file={avatarToCrop} onCancel={() => setAvatarToCrop(null)} onConfirm={(file) => { setAvatarToCrop(null); uploadAvatar(file) }} />}
