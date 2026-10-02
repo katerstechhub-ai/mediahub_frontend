@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiArrowLeft, FiDownload, FiLayers, FiLoader, FiPlay, FiShare2, FiUser } from 'react-icons/fi'
+import { FiArrowLeft, FiDownload, FiHeart, FiLayers, FiLoader, FiPlay, FiShare2, FiUser } from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
@@ -105,7 +105,32 @@ export default function UserProfilePage() {
   }
 
   if (loading || isLoading) {
-    return <div className="flex min-h-dvh items-center justify-center" style={{ background: 'var(--bg-primary)' }}><div className="h-10 w-10 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" /></div>
+    return (
+      <motion.div
+        className="flex min-h-screen flex-col items-center justify-center gap-4"
+        style={{ background: 'var(--bg-primary)' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        <motion.div
+          className="relative flex h-20 w-20 items-center justify-center rounded-[2rem] bg-gradient-to-br from-amber-300 via-amber-500 to-orange-600 text-white shadow-xl shadow-amber-500/25"
+          animate={{ y: [0, -7, 0], rotate: [-3, 3, -3] }}
+          transition={{ repeat: Infinity, duration: 1.7, ease: 'easeInOut' }}
+        >
+          <FiHeart size={30} fill="currentColor" strokeWidth={1.8} />
+          <motion.span
+            className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-amber-200"
+            animate={{ scale: [0.7, 1.15, 0.7], opacity: [0.5, 1, 0.5] }}
+            transition={{ repeat: Infinity, duration: 1.2 }}
+          />
+        </motion.div>
+        <div className="flex items-center gap-1.5" aria-label="Loading memories">
+          {[0, 1, 2].map((dot) => (
+            <motion.span key={dot} className="h-2 w-2 rounded-full bg-amber-500" animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }} transition={{ repeat: Infinity, duration: 0.9, delay: dot * 0.14 }} />
+          ))}
+        </div>
+      </motion.div>
+    )
   }
 
   return (

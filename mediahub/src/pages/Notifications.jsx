@@ -32,7 +32,7 @@ function SwipeableRow({ notificationId, onDelete, children }) {
 
   return (
     <div className="relative overflow-hidden rounded-2xl">
-      <div className="absolute inset-y-0 right-0 w-20 flex items-center justify-center bg-red-500 rounded-2xl">
+      <div className="absolute inset-y-0 right-0 w-20 flex items-center justify-center bg-amber-600 rounded-2xl">
         <FiTrash2 size={20} color="#fff" />
       </div>
       <motion.div
@@ -328,9 +328,15 @@ export default function Notifications() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen" style={{ background: 'var(--bg-primary)' }}>
-        <div className="animate-spin rounded-full h-10 w-10 border-4 border-amber-500 border-t-transparent" />
-      </div>
+      <motion.div className="flex min-h-screen flex-col items-center justify-center gap-4" style={{ background: 'var(--bg-primary)' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <motion.div className="relative flex h-20 w-20 items-center justify-center rounded-[2rem] bg-gradient-to-br from-amber-300 via-amber-500 to-orange-600 text-white shadow-xl shadow-amber-500/25" animate={{ y: [0, -7, 0], rotate: [-3, 3, -3] }} transition={{ repeat: Infinity, duration: 1.7, ease: 'easeInOut' }}>
+          <FiHeart size={30} fill="currentColor" strokeWidth={1.8} />
+          <motion.span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-amber-200" animate={{ scale: [0.7, 1.15, 0.7], opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.2 }} />
+        </motion.div>
+        <div className="flex items-center gap-1.5" aria-label="Loading notifications">
+          {[0, 1, 2].map((dot) => <motion.span key={dot} className="h-2 w-2 rounded-full bg-amber-500" animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }} transition={{ repeat: Infinity, duration: 0.9, delay: dot * 0.14 }} />)}
+        </div>
+      </motion.div>
     )
   }
 
@@ -338,33 +344,49 @@ export default function Notifications() {
 
   return (
     <div className="min-h-screen fade-in pb-[calc(5rem+env(safe-area-inset-bottom))]" style={{ background: 'var(--bg-primary)' }}>
-      <div className="sticky top-0 z-30 px-4 py-3 backdrop-blur-xl sm:px-6" style={{ background: 'color-mix(in srgb, var(--bg-primary) 94%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--border) 72%, transparent)', boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)', WebkitBackdropFilter: 'saturate(150%) blur(18px)' }}>
-        <div className="max-w-2xl mx-auto flex items-center gap-3">
+      <div
+        className="sticky top-0 z-30 px-3 sm:px-5 pb-2"
+        style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+      >
+        <div
+          className="relative max-w-7xl mx-auto flex items-center gap-2 sm:gap-3"
+          style={{
+            height: 58,
+            padding: 6,
+            borderRadius: 29,
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0) 60%), color-mix(in srgb, var(--bg-primary) 68%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)',
+            boxShadow: '0 10px 28px rgba(15,23,42,0.09), 0 1px 3px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.24)',
+            backdropFilter: 'saturate(180%) blur(24px)',
+            WebkitBackdropFilter: 'saturate(180%) blur(24px)',
+          }}
+        >
           <button
             onClick={() => navigate(-1)}
-            className="w-11 h-11 flex items-center justify-center rounded-full flex-shrink-0 hover:bg-[var(--bg-secondary)] transition-colors"
-            style={{ color: 'var(--text-primary)' }}
+            aria-label="Go back"
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full"
+            style={{ color: 'var(--text-primary)', background: 'color-mix(in srgb, var(--bg-secondary) 70%, transparent)', border: '1px solid color-mix(in srgb, var(--border) 70%, transparent)' }}
           >
             <FiArrowLeft size={19} />
           </button>
-          <h1 className="text-xl sm:text-2xl font-extrabold font-display tracking-tight" style={{ color: 'var(--text-primary)' }}>
-            Notifications
-          </h1>
+          <div className="min-w-0 flex-shrink-0 hidden sm:block" style={{ lineHeight: 1.1 }}>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.24em]" style={{ color: '#d97706' }}>Your circle</p>
+            <p className="font-display truncate" style={{ marginTop: 3, fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>Notifications</p>
+          </div>
           {unreadCount > 0 && (
             <button
               onClick={handleMarkAllAsRead}
-              className="ml-auto min-h-[44px] text-xs font-semibold px-3 py-1.5 rounded-full transition-colors hover:bg-[var(--bg-secondary)]"
-              style={{ color: 'var(--text-muted)' }}
+              className="ml-auto inline-flex min-h-[40px] items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-extrabold"
+              style={{ color: '#b45309', background: 'rgba(245,158,11,0.13)', borderColor: 'rgba(245,158,11,0.28)', boxShadow: '0 4px 14px rgba(245,158,11,0.10)' }}
             >
-              Mark all read · {unreadCount}
+              <span className="h-2 w-2 rounded-full bg-amber-500" />
+              <span className="hidden sm:inline">Mark all read</span>
+              <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] text-white">{unreadCount}</span>
             </button>
           )}
-        </div>
-        <div className="mx-auto mt-2 flex max-w-2xl justify-end">
-          <ThemeOverlay className="relative z-0" />
+          <ThemeOverlay className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full" />
         </div>
       </div>
-
       <div className="relative z-0 max-w-2xl mx-auto pt-1">
         {notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-4 py-24 text-center">
@@ -409,7 +431,7 @@ export default function Notifications() {
             </AnimatedContent>
           </div>
         ) : (
-          <div className="px-3 sm:px-4 py-3 flex flex-col gap-1.5">
+          <div className="px-3 py-5 sm:px-4 sm:py-6 flex flex-col gap-3">
             {notifications.map((notification) => {
               const post = notification.post
               const isThought = isThoughtType(notification.type)
@@ -453,7 +475,7 @@ export default function Notifications() {
                         navigate(`/posts/${post._id}`)
                       }
                     }}
-                    className="flex items-center gap-3 px-3 py-3 rounded-3xl border border-black/[0.05] hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer shadow-[0_8px_22px_rgba(15,23,42,0.05)]"
+                    className="flex items-center gap-3 px-3.5 py-3.5 rounded-[1.65rem] border border-amber-500/10 hover:-translate-y-0.5 hover:bg-[var(--bg-secondary)] transition-all cursor-pointer shadow-[0_10px_26px_rgba(15,23,42,0.06)]"
                     style={{ background: !notification.read ? 'rgba(245,158,11,0.07)' : 'var(--bg-primary)' }}
                   >
                     <div className="relative flex-shrink-0">

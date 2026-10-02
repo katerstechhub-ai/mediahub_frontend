@@ -18,6 +18,7 @@ import CardSpread from '../components/ui/card-spread'
 import Stack from '../components/ui/Stack'
 import BounceCards from '../components/ui/BounceCards'
 import DepthCarousel from '../components/ui/DepthCarousel'
+import CircularCarousel from '../components/ui/CircularCarousel'
 import DollyGallery from '../components/ui/DollyGallery'
 import MemoryVideo from '../components/ui/MemoryVideo'
 import toast from 'react-hot-toast'
@@ -545,7 +546,6 @@ function ScrapbookCollage({ post, items }) {
 
 function PhotoLightbox({ post, onClose, navigate }) {
   const items = post ? getMediaItems(post) : []
-  const isMulti = items.length > 1
   const item = items[0]
   const videoMode = isVideoItem(item)
 
@@ -583,45 +583,45 @@ function PhotoLightbox({ post, onClose, navigate }) {
             <FiX size={20} />
           </button>
 
-          {isMulti ? (
+          {!videoMode ? (
             <motion.div
-              key={`card-spread-modal-${post._id}`}
-              initial={{ opacity: 0, scale: 0.92, y: 16 }}
+              key={`circular-carousel-modal-${post._id}`}
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: 16 }}
-              transition={{ type: 'spring', stiffness: 220, damping: 22 }}
-              className="relative z-0 overflow-hidden rounded-3xl border border-amber-200/60 bg-[#fdfaf3] shadow-2xl"
-              style={{ width: 'min(94vw, 760px)', height: 'min(78vh, 560px)' }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: 'spring', stiffness: 220, damping: 24 }}
+              className="relative z-0 overflow-hidden rounded-[2rem] border border-white/20 bg-[#17130d] shadow-2xl"
+              style={{ width: 'min(94vw, 920px)', height: 'min(76vh, 660px)' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <span className="absolute right-4 top-3 z-20 text-[10px] font-bold uppercase tracking-[0.24em] text-amber-700/75">
-                Memory
-              </span>
-              <CardSpread
-                cards={items.map((media, index) => ({
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between px-5 py-4">
+                <span className="rounded-full border border-white/15 bg-black/25 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.24em] text-amber-200/90 backdrop-blur-md">
+                  Memory circle
+                </span>
+                <span className="rounded-full border border-white/15 bg-black/25 px-3 py-1.5 text-xs font-semibold text-white/75 backdrop-blur-md">
+                  {items.length} memories
+                </span>
+              </div>
+              <CircularCarousel
+                items={items.map((media, index) => ({
                   src: isVideoItem(media) ? (media.thumbnail || media.url) : media.url,
                   alt: post.title ? `${post.title} — memory ${index + 1}` : `Memory ${index + 1}`,
-                  id: media.id || media.url || index,
-                })).filter((card) => card.src)}
-                cardWidth={156}
-                cardHeight={234}
-                cardRadius={14}
-                radius={420}
-                arc={82}
-                cardColor="#fffdf8"
-                cardPadding={5}
-                borderColor="rgba(245, 158, 11, 0.24)"
-                shadow={0.28}
-                lift={34}
-                push={4}
-                pushReach={2}
-                restOpacity={0.96}
-                stiffness={170}
-                damping={18}
-                stagger={0.06}
-                fit
-                maxScale={1}
-                interactive
+                  title: post.title || 'Wedding memory',
+                  subtitle: `Memory ${index + 1} of ${items.length}`,
+                })).filter((item) => item.src)}
+                preset="cylinder"
+                intro="rise"
+                cardWidth={200}
+                aspectRatio={0.82}
+                gap={24}
+                autoplay="drift"
+                speed={9}
+                draggable
+                focusOnClick
+                captions
+                cornerRadius={18}
+                fadeColor="#17130d"
+                innerShade={0.62}
                 className="h-full w-full"
               />
             </motion.div>
@@ -639,7 +639,7 @@ function PhotoLightbox({ post, onClose, navigate }) {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.96 }}
                   transition={{ duration: 0.18 }}
-                  className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg"
+                  className="max-w-[86vw] max-h-[72vh] object-contain rounded-lg"
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
@@ -651,7 +651,7 @@ function PhotoLightbox({ post, onClose, navigate }) {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.96 }}
                   transition={{ duration: 0.18 }}
-                  className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg"
+                  className="max-w-[86vw] max-h-[72vh] object-contain rounded-lg"
                   onClick={(e) => e.stopPropagation()}
                 />
               )}
@@ -1238,9 +1238,36 @@ export default function FeedPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen" style={{ background: 'var(--bg-primary)' }}>
-        <div className="animate-spin rounded-full h-10 w-10 border-4 border-amber-500 border-t-transparent" />
-      </div>
+      <motion.div
+        className="flex min-h-screen flex-col items-center justify-center gap-4"
+        style={{ background: 'var(--bg-primary)' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <motion.div
+          className="relative flex h-20 w-20 items-center justify-center rounded-[2rem] bg-gradient-to-br from-amber-300 via-amber-500 to-orange-600 text-white shadow-xl shadow-amber-500/25"
+          animate={{ y: [0, -7, 0], rotate: [-3, 3, -3] }}
+          transition={{ repeat: Infinity, duration: 1.7, ease: 'easeInOut' }}
+        >
+          <FiHeart size={30} fill="currentColor" strokeWidth={1.8} />
+          <motion.span
+            className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-amber-200"
+            animate={{ scale: [0.7, 1.15, 0.7], opacity: [0.5, 1, 0.5] }}
+            transition={{ repeat: Infinity, duration: 1.2 }}
+          />
+        </motion.div>
+        <div className="flex items-center gap-1.5" aria-label="Loading memories">
+          {[0, 1, 2].map((dot) => (
+            <motion.span
+              key={dot}
+              className="h-2 w-2 rounded-full bg-amber-500"
+              animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }}
+              transition={{ repeat: Infinity, duration: 0.9, delay: dot * 0.14 }}
+            />
+          ))}
+        </div>
+      </motion.div>
     )
   }
 

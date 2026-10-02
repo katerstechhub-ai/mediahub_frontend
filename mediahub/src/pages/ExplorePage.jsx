@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
 import {
   FiSearch, FiX, FiBell, FiPlus, FiHeart, FiMessageCircle,
   FiSmile, FiTrash2, FiShare2, FiFeather,
@@ -60,6 +60,57 @@ const glassAmber = {
 }
 
 const AMBIENT_BG = 'var(--bg-primary)'
+
+
+const NOTIFICATION_DELETE_THRESHOLD = -80
+
+function NotificationSwipeRow({ notificationId, onDelete, children }) {
+  const x = useMotionValue(0)
+  const [dragging, setDragging] = useState(false)
+
+  const handleDragEnd = (_event, info) => {
+    setDragging(false)
+    if (info.offset.x < NOTIFICATION_DELETE_THRESHOLD) {
+      animate(x, -400, {
+        duration: 0.2,
+        onComplete: () => onDelete(notificationId),
+      })
+    } else {
+      animate(x, 0, { type: 'spring', stiffness: 500, damping: 35 })
+    }
+  }
+
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 18 }}>
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+          paddingRight: 18, background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff', borderRadius: 18,
+        }}
+      >
+        <FiTrash2 size={19} />
+      </div>
+      <motion.div
+        drag="x"
+        dragDirectionLock
+        dragConstraints={{ left: -100, right: 0 }}
+        dragElastic={0.15}
+        style={{ x, position: 'relative', zIndex: 1 }}
+        onDragStart={() => setDragging(true)}
+        onDragEnd={handleDragEnd}
+        onClickCapture={(event) => {
+          if (dragging) {
+            event.stopPropagation()
+            event.preventDefault()
+          }
+        }}
+      >
+        {children}
+      </motion.div>
+    </div>
+  )
+}
 
 /* ─────────── Stickers ─────────── */
 
@@ -1146,6 +1197,21 @@ export default function ExplorePage() {
     setThoughts((prev) => [created, ...prev])
   }
 
+  const handleDeleteNotification = async (notificationId) => {
+    const previous = notifications
+    setNotifications((prev) => prev.filter((n) => n._id !== notificationId))
+    setUnreadCount((count) => {
+      const removed = previous.find((n) => n._id === notificationId)
+      return removed && !removed.read ? Math.max(0, count - 1) : count
+    })
+    try {
+      await notificationsAPI.delete(notificationId)
+    } catch (err) {
+      console.error('Error deleting notification:', err)
+      setNotifications(previous)
+    }
+  }
+
   // Tap an item in the activity dropdown
   const openNotification = (n) => {
     setShowNotifications(false)
@@ -1166,13 +1232,36 @@ export default function ExplorePage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+      <motion.div
+        className="flex min-h-screen flex-col items-center justify-center gap-4"
+        style={{ background: 'var(--bg-primary)' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
         <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 0.9, ease: 'linear' }}
-          className="rounded-full h-8 w-8 border-2 border-amber-500 border-t-transparent"
-        />
-      </div>
+          className="relative flex h-20 w-20 items-center justify-center rounded-[2rem] bg-gradient-to-br from-amber-300 via-amber-500 to-orange-600 text-white shadow-xl shadow-amber-500/25"
+          animate={{ y: [0, -7, 0], rotate: [-3, 3, -3] }}
+          transition={{ repeat: Infinity, duration: 1.7, ease: 'easeInOut' }}
+        >
+          <FiHeart size={30} fill="currentColor" strokeWidth={1.8} />
+          <motion.span
+            className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-amber-200"
+            animate={{ scale: [0.7, 1.15, 0.7], opacity: [0.5, 1, 0.5] }}
+            transition={{ repeat: Infinity, duration: 1.2 }}
+          />
+        </motion.div>
+        <div className="flex items-center gap-1.5" aria-label="Loading memories">
+          {[0, 1, 2].map((dot) => (
+            <motion.span
+              key={dot}
+              className="h-2 w-2 rounded-full bg-amber-500"
+              animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }}
+              transition={{ repeat: Infinity, duration: 0.9, delay: dot * 0.14 }}
+            />
+          ))}
+        </div>
+      </motion.div>
     )
   }
 
@@ -1248,94 +1337,72 @@ export default function ExplorePage() {
         />
       )}
 
-      {/* Sticky header */}
+      {/* Sticky header — matches FeedPage's liquid-glass navigation geometry. */}
       <div
-        className="sticky top-0 z-40 pointer-events-auto border-b px-3 py-3 sm:px-6"
-        style={{
-          background: 'var(--bg-primary)',
-          backdropFilter: 'none',
-          WebkitBackdropFilter: 'none',
-          borderBottom: '1px solid var(--border)',
-          boxShadow: 'none',
-        }}
+        className="sticky top-0 z-40 px-3 sm:px-5 pb-2"
+        style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
       >
-        <div className="max-w-7xl mx-auto flex items-center gap-3">
-          <div className="relative flex-1 max-w-xl mx-auto">
-            <FiSearch
-              size={16}
-              strokeWidth={2.25}
-              className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
-              style={{ color: 'var(--text-muted)' }}
-            />
+        <div
+          className="relative max-w-7xl mx-auto flex items-center gap-2 sm:gap-3"
+          style={{
+            height: 58,
+            padding: 6,
+            borderRadius: 29,
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0) 60%), color-mix(in srgb, var(--bg-primary) 68%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)',
+            boxShadow: '0 10px 28px rgba(15,23,42,0.09), 0 1px 3px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.24)',
+            backdropFilter: 'saturate(180%) blur(24px)',
+            WebkitBackdropFilter: 'saturate(180%) blur(24px)',
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{ position: 'absolute', left: '18%', right: '18%', bottom: -1, height: 1, pointerEvents: 'none', background: 'linear-gradient(90deg, transparent, rgba(245,158,11,0.6), transparent)' }}
+          />
+          <div className="hidden sm:flex items-center gap-3 flex-shrink-0">
+            <div
+              style={{ width: 44, height: 44, borderRadius: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: 'linear-gradient(145deg, #fcd34d, #f59e0b 50%, #ea580c)', boxShadow: '0 6px 16px rgba(245,158,11,0.40), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -2px 4px rgba(0,0,0,0.12)' }}
+            >
+              <FiFeather size={20} strokeWidth={2.3} />
+            </div>
+            <div style={{ lineHeight: 1.15, paddingRight: 6 }}>
+              <p className="font-display" style={{ margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: '-0.022em', color: 'var(--text-primary)' }}>Explore</p>
+              <p style={{ margin: 0, marginTop: 2, fontSize: 12, fontWeight: 500, color: 'var(--text-muted)' }}>{thoughts.length} thoughts</p>
+            </div>
+          </div>
+          <div className="relative flex-1 min-w-0 max-w-xl mx-auto">
+            <FiSearch size={16} strokeWidth={2.4} className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
             <input
               ref={inputRef}
               type="text"
               placeholder="Search thoughts"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-full min-h-[44px] rounded-full text-sm outline-none transition-all focus:ring-2 focus:ring-amber-500/40"
-              style={{
-                ...glassChip,
-                color: 'var(--text-primary)',
-                padding: '11px 40px 11px 42px',
-                fontWeight: 500,
-              }}
+              className="w-full h-11 rounded-full text-sm outline-none transition-all"
+              style={{ ...glassChip, color: 'var(--text-primary)', padding: '0 42px', fontWeight: 500 }}
             />
             <AnimatePresence>
               {query && (
-                <motion.button
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center"
-                  style={{ color: 'var(--text-primary)', background: 'var(--bg-input)' }}
-                  aria-label="Clear search"
-                >
+                <motion.button initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} whileTap={{ scale: 0.9 }} onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center" style={{ color: 'var(--text-primary)', background: 'var(--bg-input)' }} aria-label="Clear search">
                   <FiX size={13} strokeWidth={2.5} />
                 </motion.button>
               )}
             </AnimatePresence>
           </div>
-
           <div className="flex items-center gap-2 flex-shrink-0">
-            <motion.button
-              onClick={(event) => { event.preventDefault(); navigate('/create') }}
-              whileTap={{ scale: 0.9 }}
-              aria-label="Create photo or video post"
-              className="flex items-center justify-center h-11 w-11 rounded-full"
-              style={{ ...glassChip, color: 'var(--text-primary)' }}
-            >
+            <motion.button onClick={(event) => { event.preventDefault(); navigate('/create') }} whileTap={{ scale: 0.9 }} aria-label="Create photo or video post" className="flex items-center justify-center h-11 w-11 rounded-full" style={{ ...glassChip, color: 'var(--text-primary)' }}>
               <FiPlus size={22} strokeWidth={2.5} />
             </motion.button>
-
-            <motion.button
-              onClick={(event) => { event.preventDefault(); setShowNotifications((value) => !value) }}
-              whileTap={{ scale: 0.9 }}
-              aria-label="Thought notifications"
-              className="relative flex items-center justify-center h-11 w-11 rounded-full"
-              style={{ ...glassChip, color: 'var(--text-primary)' }}
-            >
+            <motion.button onClick={(event) => { event.preventDefault(); setShowNotifications((value) => !value) }} whileTap={{ scale: 0.9 }} aria-label="Thought notifications" className="relative flex items-center justify-center h-11 w-11 rounded-full" style={{ ...glassChip, color: 'var(--text-primary)' }}>
               <FiBell size={20} strokeWidth={2.5} />
               <AnimatePresence>
                 {unreadCount > 0 && (
-                  <motion.span
-                    key="badge"
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-                    className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
-                    style={{ background: '#ef4444' }}
-                  >
+                  <motion.span key="badge" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: 'spring', stiffness: 500, damping: 20 }} className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: '#f59e0b' }}>
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </motion.span>
                 )}
               </AnimatePresence>
             </motion.button>
-
-            {/* Light / dark switch now lives with the other header actions (it used to float bottom-right) */}
             <ThemeOverlay className="relative flex h-11 w-11 items-center justify-center rounded-full" />
           </div>
         </div>
@@ -1390,21 +1457,23 @@ export default function ExplorePage() {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px 12px' }}>
                     <p style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>Activity</p>
-                    <button
-                      type="button"
-                      onClick={() => { setShowNotifications(false); navigate('/notifications') }}
-                      style={{
-                        height: 32,
-                        padding: '0 14px',
-                        borderRadius: 999,
-                        fontSize: 12,
-                        fontWeight: 800,
-                        color: '#d97706',
-                        background: 'rgba(245,158,11,0.14)',
-                      }}
-                    >
-                      View all
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => { setShowNotifications(false); navigate('/notifications') }}
+                        style={{ height: 32, padding: '0 14px', borderRadius: 999, fontSize: 12, fontWeight: 800, color: '#d97706', background: 'rgba(245,158,11,0.14)' }}
+                      >
+                        View all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowNotifications(false)}
+                        aria-label="Close activity"
+                        style={{ width: 32, height: 32, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
+                      >
+                        <FiX size={16} strokeWidth={2.5} />
+                      </button>
+                    </div>
                   </div>
 
                   {notifications.length === 0 ? (
@@ -1423,6 +1492,11 @@ export default function ExplorePage() {
                         const { Icon, color } = notificationBadge(notification.type)
                         const unread = !notification.read
                         return (
+                          <NotificationSwipeRow
+                            key={`notification-row-${notification._id || index}`}
+                            notificationId={notification._id}
+                            onDelete={handleDeleteNotification}
+                          >
                           <button
                             key={notification._id || index}
                             type="button"
@@ -1488,6 +1562,7 @@ export default function ExplorePage() {
                               <span style={{ width: 9, height: 9, flexShrink: 0, borderRadius: 999, background: '#f59e0b' }} />
                             )}
                           </button>
+                          </NotificationSwipeRow>
                         )
                       })}
                     </div>
