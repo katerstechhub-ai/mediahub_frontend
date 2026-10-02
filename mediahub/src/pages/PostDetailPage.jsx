@@ -196,20 +196,20 @@ export default function PostDetailPage() {
         animate={{ opacity: 1 }}
       >
         <motion.div
-          className="relative flex h-20 w-20 items-center justify-center rounded-[2rem] bg-gradient-to-br from-amber-300 via-amber-500 to-orange-600 text-white shadow-xl shadow-amber-500/25"
+          className="relative flex h-20 w-20 items-center justify-center rounded-[2rem] border border-sky-300/40 bg-[var(--bg-secondary)] text-sky-500 shadow-[0_12px_34px_rgba(14,165,233,0.16)]"
           animate={{ y: [0, -7, 0], rotate: [-3, 3, -3] }}
           transition={{ repeat: Infinity, duration: 1.7, ease: 'easeInOut' }}
         >
-          <FiHeart size={30} fill="currentColor" strokeWidth={1.8} />
+          <span aria-hidden="true" className="relative block h-9 w-9 rounded-xl border-2 border-current/70"><span className="absolute -left-1 -top-1 h-6 w-6 rounded-lg border-2 border-current/55" /><span className="absolute -bottom-1 -right-1 h-6 w-6 rounded-lg border-2 border-current/55" /></span>
           <motion.span
-            className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-amber-200"
+            className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-sky-200"
             animate={{ scale: [0.7, 1.15, 0.7], opacity: [0.5, 1, 0.5] }}
             transition={{ repeat: Infinity, duration: 1.2 }}
           />
         </motion.div>
         <div className="flex items-center gap-1.5" aria-label="Loading memories">
           {[0, 1, 2].map((dot) => (
-            <motion.span key={dot} className="h-2 w-2 rounded-full bg-amber-500" animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }} transition={{ repeat: Infinity, duration: 0.9, delay: dot * 0.14 }} />
+            <motion.span key={dot} className="h-2 w-2 rounded-full bg-sky-400" animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }} transition={{ repeat: Infinity, duration: 0.9, delay: dot * 0.14 }} />
           ))}
         </div>
       </motion.div>

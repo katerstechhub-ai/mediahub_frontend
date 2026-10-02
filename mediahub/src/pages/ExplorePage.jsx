@@ -86,7 +86,7 @@ function NotificationSwipeRow({ notificationId, onDelete, children }) {
         aria-hidden="true"
         style={{
           position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-          paddingRight: 18, background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff', borderRadius: 18,
+          paddingRight: 18, background: 'var(--bg-secondary)', color: '#fff', borderRadius: 18,
         }}
       >
         <FiTrash2 size={19} />
@@ -416,7 +416,7 @@ function notificationBadge(type) {
   if (type === 'reply_thought' || type === 'comment' || type === 'reply') {
     return { Icon: FiMessageCircle, color: '#3b82f6' }
   }
-  return { Icon: FiBell, color: '#f59e0b' }
+  return { Icon: FiBell, color: '#38bdf8' }
 }
 
 /* ─────────── Character ring ─────────── */
@@ -1075,12 +1075,19 @@ export default function ExplorePage() {
           const post = arr[i]
           const urls = getImageUrls(post) || []
           for (let j = 0; j < urls.length && items.length < 24; j++) {
-            if (urls[j]) items.push({ type: 'image', src: urls[j] })
+            const raw = urls[j]
+            const src = typeof raw === 'string' ? raw : (raw?.url || raw?.secure_url || raw?.src || raw?.path)
+            if (typeof src === 'string' && src.trim()) {
+              items.push({ type: 'image', src, url: src, thumbnail: src })
+            }
           }
           const vids = Array.isArray(post.videos) ? post.videos : []
           for (let k = 0; k < vids.length && items.length < 24; k++) {
-            if (vids[k] && vids[k].url) {
-              items.push({ type: 'video', src: vids[k].url, poster: vids[k].thumbnail || vids[k].url })
+            const video = vids[k]
+            const src = typeof video === 'string' ? video : (video?.url || video?.secure_url || video?.src)
+            const poster = typeof video === 'object' ? (video?.thumbnail || video?.poster || src) : src
+            if (typeof src === 'string' && src.trim()) {
+              items.push({ type: 'video', src, url: src, poster, thumbnail: poster })
             }
           }
         }
@@ -1240,13 +1247,13 @@ export default function ExplorePage() {
         exit={{ opacity: 0 }}
       >
         <motion.div
-          className="relative flex h-20 w-20 items-center justify-center rounded-[2rem] bg-gradient-to-br from-amber-300 via-amber-500 to-orange-600 text-white shadow-xl shadow-amber-500/25"
+          className="relative flex h-20 w-20 items-center justify-center rounded-[2rem] border border-sky-300/40 bg-[var(--bg-secondary)] text-sky-500 shadow-[0_12px_34px_rgba(14,165,233,0.16)]"
           animate={{ y: [0, -7, 0], rotate: [-3, 3, -3] }}
           transition={{ repeat: Infinity, duration: 1.7, ease: 'easeInOut' }}
         >
-          <FiHeart size={30} fill="currentColor" strokeWidth={1.8} />
+          <span aria-hidden="true" className="relative block h-9 w-9 rounded-xl border-2 border-current/70"><span className="absolute -left-1 -top-1 h-6 w-6 rounded-lg border-2 border-current/55" /><span className="absolute -bottom-1 -right-1 h-6 w-6 rounded-lg border-2 border-current/55" /></span>
           <motion.span
-            className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-amber-200"
+            className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-sky-200"
             animate={{ scale: [0.7, 1.15, 0.7], opacity: [0.5, 1, 0.5] }}
             transition={{ repeat: Infinity, duration: 1.2 }}
           />
@@ -1451,8 +1458,8 @@ export default function ExplorePage() {
                     overflowY: 'auto',
                     padding: 10,
                     borderRadius: 28,
-                    background: 'var(--bg-secondary)',
-                    boxShadow: '0 24px 70px rgba(0,0,0,0.28)',
+                    background: 'var(--bg-primary)',
+                    boxShadow: '0 24px 70px rgba(0,0,0,0.20)',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px 12px' }}>
@@ -1461,7 +1468,7 @@ export default function ExplorePage() {
                       <button
                         type="button"
                         onClick={() => { setShowNotifications(false); navigate('/notifications') }}
-                        style={{ height: 32, padding: '0 14px', borderRadius: 999, fontSize: 12, fontWeight: 800, color: '#d97706', background: 'rgba(245,158,11,0.14)' }}
+                        style={{ height: 32, padding: '0 14px', borderRadius: 999, fontSize: 12, fontWeight: 800, color: 'var(--text-primary)', background: 'var(--bg-primary)' }}
                       >
                         View all
                       </button>
@@ -1478,8 +1485,8 @@ export default function ExplorePage() {
 
                   {notifications.length === 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '28px 16px 34px' }}>
-                      <span style={{ width: 52, height: 52, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(245,158,11,0.14)' }}>
-                        <FiBell size={22} color="#d97706" />
+                      <span style={{ width: 52, height: 52, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
+                        <FiBell size={22} color="#38bdf8" />
                       </span>
                       <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>No activity yet</p>
                     </div>
@@ -1510,7 +1517,7 @@ export default function ExplorePage() {
                               padding: '12px 12px',
                               borderRadius: 20,
                               textAlign: 'left',
-                              background: unread ? 'rgba(245,158,11,0.1)' : 'transparent',
+                              background: 'var(--bg-primary)',
                               transition: 'background 150ms ease',
                             }}
                           >
@@ -1559,7 +1566,7 @@ export default function ExplorePage() {
                             </span>
 
                             {unread && (
-                              <span style={{ width: 9, height: 9, flexShrink: 0, borderRadius: 999, background: '#f59e0b' }} />
+                              <span style={{ width: 9, height: 9, flexShrink: 0, borderRadius: 999, background: '#38bdf8' }} />
                             )}
                           </button>
                           </NotificationSwipeRow>
