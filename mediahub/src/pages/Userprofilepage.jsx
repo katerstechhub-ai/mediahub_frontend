@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiArrowLeft, FiDownload, FiHeart, FiLayers, FiLoader, FiPlay, FiShare2, FiUser } from 'react-icons/fi'
+import { FiArrowLeft, FiDownload, FiLayers, FiLoader, FiPlay, FiShare2, FiUser } from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
@@ -12,6 +12,7 @@ import BounceCards from '../components/ui/BounceCards'
 import MemoryVideo from '../components/ui/MemoryVideo'
 import DomeGallery from '../components/ui/DomeGallery'
 import ThemeOverlay from '../components/ui/ThemeOverlay'
+import EmptyMemoryWall from '../components/ui/EmptyMemoryWall'
 
 function getPostMedia(post) {
   const images = getImageUrls(post).filter(Boolean)
@@ -105,65 +106,20 @@ export default function UserProfilePage() {
   }
 
   if (loading || isLoading) {
-    return (
-      <motion.div
-        className="flex min-h-screen flex-col items-center justify-center gap-4"
-        style={{ background: 'var(--bg-primary)' }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-      >
-        <motion.div
-          className="relative flex h-20 w-20 items-center justify-center rounded-[2rem] border border-sky-300/40 bg-[var(--bg-secondary)] text-sky-500 shadow-[0_12px_34px_rgba(14,165,233,0.16)]"
-          animate={{ y: [0, -7, 0], rotate: [-3, 3, -3] }}
-          transition={{ repeat: Infinity, duration: 1.7, ease: 'easeInOut' }}
-        >
-          <span aria-hidden="true" className="relative block h-9 w-9 rounded-xl border-2 border-current/70"><span className="absolute -left-1 -top-1 h-6 w-6 rounded-lg border-2 border-current/55" /><span className="absolute -bottom-1 -right-1 h-6 w-6 rounded-lg border-2 border-current/55" /></span>
-          <motion.span
-            className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-sky-200"
-            animate={{ scale: [0.7, 1.15, 0.7], opacity: [0.5, 1, 0.5] }}
-            transition={{ repeat: Infinity, duration: 1.2 }}
-          />
-        </motion.div>
-        <div className="flex items-center gap-1.5" aria-label="Loading memories">
-          {[0, 1, 2].map((dot) => (
-            <motion.span key={dot} className="h-2 w-2 rounded-full bg-amber-500" animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }} transition={{ repeat: Infinity, duration: 0.9, delay: dot * 0.14 }} />
-          ))}
-        </div>
-      </motion.div>
-    )
+    return <div className="flex min-h-dvh items-center justify-center" style={{ background: 'var(--bg-primary)' }}><div className="h-10 w-10 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" /></div>
   }
 
   return (
     <div className="min-h-dvh pb-[calc(6rem+env(safe-area-inset-bottom))] fade-in" style={{ background: 'var(--bg-primary)' }}>
-      <main className="mx-auto max-w-5xl px-4 sm:px-6" style={{ paddingTop: 0 }}>
-        <div className="sticky top-0 z-30 -mx-4 px-3 pb-2 sm:-mx-6 sm:px-5" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
-          <div
-            className="relative mx-auto flex max-w-7xl items-center gap-2 sm:gap-3"
-            style={{
-              height: 58,
-              padding: 6,
-              borderRadius: 29,
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0) 60%), color-mix(in srgb, var(--bg-primary) 68%, transparent)',
-              border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)',
-              boxShadow: '0 10px 28px rgba(15,23,42,0.09), 0 1px 3px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.24)',
-              backdropFilter: 'saturate(180%) blur(24px)',
-              WebkitBackdropFilter: 'saturate(180%) blur(24px)',
-            }}
-          >
-            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} aria-label="Go back" className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border" style={{ color: 'var(--text-primary)', background: 'color-mix(in srgb, var(--bg-secondary) 72%, transparent)', borderColor: 'color-mix(in srgb, var(--border) 70%, transparent)' }}>
-              <FiArrowLeft size={19} />
-            </motion.button>
-            <div className="min-w-0 flex-1 text-center sm:text-left" style={{ lineHeight: 1.1 }}>
-              <p className="text-[10px] font-extrabold uppercase tracking-[0.24em]" style={{ color: '#d97706' }}>Memory wall</p>
-              <p className="mt-1 truncate font-display text-[16px] font-extrabold tracking-tight sm:text-[17px]" style={{ color: 'var(--text-primary)' }}>{profileUser?.name || 'Profile'}</p>
-            </div>
-            <div className="flex flex-shrink-0 items-center gap-2">
-              <motion.button whileTap={{ scale: 0.92 }} onClick={handleShareProfile} aria-label="Share profile" className="flex h-11 w-11 items-center justify-center rounded-full border sm:w-auto sm:gap-1.5 sm:px-4" style={{ color: 'var(--text-primary)', background: 'color-mix(in srgb, var(--bg-secondary) 72%, transparent)', borderColor: 'color-mix(in srgb, var(--border) 70%, transparent)' }}>
-                <FiShare2 size={15} /> <span className="hidden text-sm font-semibold sm:inline">Share</span>
-              </motion.button>
-              <ThemeOverlay className="relative flex h-11 w-11 items-center justify-center rounded-full" />
-            </div>
-          </div>
+      <ThemeOverlay className="fixed right-4 top-20 z-40 sm:right-6 sm:top-6" />
+      <main className="mx-auto max-w-5xl px-4 sm:px-6" style={{ paddingTop: 'max(env(safe-area-inset-top), 24px)' }}>
+        <div className="flex items-center justify-between">
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} aria-label="Go back" className="flex h-11 w-11 items-center justify-center rounded-full border border-black/[0.05] shadow-[0_6px_18px_rgba(15,23,42,0.06)]" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+            <FiArrowLeft size={20} />
+          </motion.button>
+          <motion.button whileTap={{ scale: 0.92 }} onClick={handleShareProfile} aria-label="Share profile" className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-black/[0.05] px-4 text-sm font-semibold shadow-[0_6px_18px_rgba(15,23,42,0.06)]" style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+            <FiShare2 size={15} /> Share
+          </motion.button>
         </div>
 
         <section className="mt-6 flex flex-col items-start gap-5">
@@ -193,19 +149,7 @@ export default function UserProfilePage() {
           </div>
         )}
 
-        {userPosts.length === 0 && (
-          <section className="mt-12 flex flex-col items-center border-y py-14 text-center sm:mt-16 sm:py-20">
-            <div
-              className="mb-6 flex h-16 w-16 items-center justify-center rounded-[1.35rem] border"
-              style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: '#f59e0b' }}
-            >
-              <FiUser size={25} strokeWidth={1.8} />
-            </div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em]" style={{ color: '#b45309' }}>Memory wall not started</p>
-            <h2 className="mt-3 font-display text-xl font-extrabold tracking-tight sm:text-2xl" style={{ color: 'var(--text-primary)' }}>{profileUser?.name || 'This person'} has no memories yet.</h2>
-            <p className="mt-2 max-w-xs text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>There is nothing here yet—but the next chapter can start with a single shared moment.</p>
-          </section>
-        )}
+        {userPosts.length === 0 && <EmptyMemoryWall variant="other" name={profileUser?.name} />}
       </main>
     </div>
   )
