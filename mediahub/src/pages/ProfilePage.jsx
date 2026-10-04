@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiArrowLeft, FiEdit2, FiSettings, FiShare2, FiDownload, FiLoader, FiPlay, FiLayers, FiPlus } from 'react-icons/fi'
+import { FiArrowLeft, FiEdit2, FiSettings, FiShare2, FiDownload, FiLoader, FiPlay, FiLayers, FiPlus, FiUser } from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
@@ -14,6 +14,15 @@ import DomeGallery from '../components/ui/DomeGallery'
 import ThemeOverlay from '../components/ui/ThemeOverlay'
 import AvatarCropper from '../components/ui/AvatarCropper'
 import EmptyMemoryWall from '../components/ui/EmptyMemoryWall'
+
+// Same chip style used by the Explore header
+const glassChip = {
+  background: 'var(--bg-secondary)',
+  backdropFilter: 'none',
+  WebkitBackdropFilter: 'none',
+  border: '1px solid var(--border)',
+  boxShadow: 'none',
+}
 
 function getPostMedia(post) {
   const images = getImageUrls(post).filter(Boolean)
@@ -131,49 +140,113 @@ export default function ProfilePage() {
 
   if (loading || isLoading) {
     return (
-      <div className="flex min-h-dvh items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" />
-      </div>
+      <motion.div
+        className="flex min-h-screen flex-col items-center justify-center gap-4"
+        style={{ background: 'var(--bg-primary)' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <motion.div
+          className="relative flex h-20 w-20 items-center justify-center rounded-[2rem] border border-sky-300/40 bg-[var(--bg-secondary)] text-sky-500 shadow-[0_12px_34px_rgba(14,165,233,0.16)]"
+          animate={{ y: [0, -7, 0], rotate: [-3, 3, -3] }}
+          transition={{ repeat: Infinity, duration: 1.7, ease: 'easeInOut' }}
+        >
+          <span aria-hidden="true" className="relative block h-9 w-9 rounded-xl border-2 border-current/70"><span className="absolute -left-1 -top-1 h-6 w-6 rounded-lg border-2 border-current/55" /><span className="absolute -bottom-1 -right-1 h-6 w-6 rounded-lg border-2 border-current/55" /></span>
+          <motion.span
+            className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-sky-200"
+            animate={{ scale: [0.7, 1.15, 0.7], opacity: [0.5, 1, 0.5] }}
+            transition={{ repeat: Infinity, duration: 1.2 }}
+          />
+        </motion.div>
+        <div className="flex items-center gap-1.5" aria-label="Loading memories">
+          {[0, 1, 2].map((dot) => (
+            <motion.span
+              key={dot}
+              className="h-2 w-2 rounded-full bg-amber-500"
+              animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }}
+              transition={{ repeat: Infinity, duration: 0.9, delay: dot * 0.14 }}
+            />
+          ))}
+        </div>
+      </motion.div>
     )
   }
 
   return (
     <div className="min-h-dvh pb-[calc(6rem+env(safe-area-inset-bottom))] fade-in" style={{ background: 'var(--bg-primary)' }}>
-      <ThemeOverlay className="fixed right-4 top-20 z-40 sm:right-6 sm:top-6" />
-      <main className="mx-auto max-w-5xl px-4 sm:px-6" style={{ paddingTop: 'max(env(safe-area-inset-top), 24px)' }}>
-        <div className="flex items-center justify-between">
+      {/* Sticky header — same liquid-glass bar as the Explore page */}
+      <div
+        className="sticky top-0 z-40 px-3 sm:px-5 pb-2"
+        style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+      >
+        <div
+          className="relative mx-auto flex max-w-5xl items-center gap-2 sm:gap-3"
+          style={{
+            height: 58,
+            padding: 6,
+            borderRadius: 29,
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0) 60%), color-mix(in srgb, var(--bg-primary) 68%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)',
+            boxShadow: '0 10px 28px rgba(15,23,42,0.09), 0 1px 3px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.24)',
+            backdropFilter: 'saturate(180%) blur(24px)',
+            WebkitBackdropFilter: 'saturate(180%) blur(24px)',
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{ position: 'absolute', left: '18%', right: '18%', bottom: -1, height: 1, pointerEvents: 'none', background: 'linear-gradient(90deg, transparent, rgba(245,158,11,0.6), transparent)' }}
+          />
+
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => navigate(-1)}
             aria-label="Go back"
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-black/[0.05] shadow-[0_6px_18px_rgba(15,23,42,0.06)]"
-            style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full"
+            style={{ ...glassChip, color: 'var(--text-primary)' }}
           >
-            <FiArrowLeft size={20} />
+            <FiArrowLeft size={20} strokeWidth={2.5} />
           </motion.button>
-          <div className="flex items-center gap-2">
+
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div
+              className="hidden sm:flex"
+              style={{ width: 44, height: 44, borderRadius: 22, flexShrink: 0, alignItems: 'center', justifyContent: 'center', color: '#fff', background: 'linear-gradient(145deg, #fcd34d, #f59e0b 50%, #ea580c)', boxShadow: '0 6px 16px rgba(245,158,11,0.40), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -2px 4px rgba(0,0,0,0.12)' }}
+            >
+              <FiUser size={20} strokeWidth={2.3} />
+            </div>
+            <div style={{ lineHeight: 1.15, minWidth: 0 }}>
+              <p className="font-display truncate" style={{ margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: '-0.022em', color: 'var(--text-primary)' }}>{user?.name || 'Profile'}</p>
+              <p style={{ margin: 0, marginTop: 2, fontSize: 12, fontWeight: 500, color: 'var(--text-muted)' }}>{userPosts.length} posts</p>
+            </div>
+          </div>
+
+          <div className="flex flex-shrink-0 items-center gap-2">
             <motion.button
               whileTap={{ scale: 0.92 }}
               onClick={handleShareProfile}
               aria-label="Share profile"
-              className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-black/[0.05] px-4 text-sm font-semibold shadow-[0_6px_18px_rgba(15,23,42,0.06)]"
-              style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+              className="flex h-11 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-semibold sm:px-4"
+              style={{ ...glassChip, color: 'var(--text-primary)' }}
             >
-              <FiShare2 size={15} /> Share
+              <FiShare2 size={15} strokeWidth={2.5} /> <span className="hidden sm:inline">Share</span>
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={() => navigate('/settings')}
               aria-label="Settings"
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-black/[0.05] shadow-[0_6px_18px_rgba(15,23,42,0.06)]"
-              style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+              className="flex h-11 w-11 items-center justify-center rounded-full"
+              style={{ ...glassChip, color: 'var(--text-primary)' }}
             >
-              <FiSettings size={19} />
+              <FiSettings size={19} strokeWidth={2.5} />
             </motion.button>
+            <ThemeOverlay className="relative flex h-11 w-11 items-center justify-center rounded-full" />
           </div>
         </div>
+      </div>
 
-        <section className="mt-6 flex flex-col items-start gap-5">
+      <main className="mx-auto max-w-5xl px-4 sm:px-6" style={{ paddingTop: 20 }}>
+        <section className="mt-2 flex flex-col items-start gap-5">
           <div className="relative">
             <div className="rounded-full p-1" style={{ background: 'linear-gradient(135deg, #fbbf24, #f3e8d7, #93a6d4)' }}>
               <Avatar src={user?.avatar} name={user?.name} size={72} />
