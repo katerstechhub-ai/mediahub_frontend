@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   FiImage, FiX, FiCamera, FiArrowLeft, FiClipboard, FiCheck,
-  FiPlus, FiPlay, FiRotateCw, FiChevronLeft, FiChevronRight, FiTrash2, FiZap, FiZapOff,
+  FiPlay, FiRotateCw, FiChevronLeft, FiChevronRight, FiTrash2, FiZap, FiZapOff,
 } from 'react-icons/fi'
 import { postsAPI, uploadAPI, uploadMediaDirect } from '../api'
 import toast from 'react-hot-toast'
@@ -14,46 +14,35 @@ import ThemeOverlay from '../components/ui/ThemeOverlay'
 /**
  * CreatePostPage
  * -------------------------------------------------------------------
- * Compose-first page. The camera opens first, full-screen, on entry —
- * it is NOT a modal card with padding around it. Closing it (X) reveals
- * the composer (collage + title + story). Tapping "Take a photo or
- * video" re-opens the same full-screen camera.
+ * Compose-first page. The camera opens first, full-screen, on entry.
  *
- * Capture overlay behavior (Instagram-style):
- *   • Tap the shutter  → takes a photo, freezes it into a Retake/Use review.
- *   • Press and hold   → starts recording video (with audio, mic permitting);
- *     releasing stops the recording and shows the same Retake/Use review,
- *     just with a video instead of a still.
- *   • "Use" hands the resulting File to the same handleFiles() path that
- *     gallery picks and pastes already go through — no separate code path.
- *   • Rendered via createPortal into <body> at OVERLAY_Z so it covers the
- *     app's persistent bottom nav and any parent stacking contexts. Body
- *     scroll is locked while it's open.
- *   • If the camera (or mic) is unavailable/denied, the overlay always
- *     offers a way out: pick from the gallery, or fall back to the OS
- *     camera app.
- *
- * Everything below capture — validation, compression, signed Cloudinary
- * upload, progress tracking, cancel-in-flight, post creation — is untouched.
+ * Fixes in this version:
+ *   • Videos recorded with the in-app camera now show a preview. MediaRecorder
+ *     files have no duration/seek index, so the old thumbnail code waited for a
+ *     "seeked" event that never came and the tile spun forever. The thumbnail
+ *     generator now handles that, and a video tile never spins forever — it
+ *     falls back to a play-icon tile. The lightbox plays videos for real.
+ *   • Quality: camera captures are no longer re-compressed (they were being
+ *     JPEG'd twice), camera resolution request is higher, video bitrate is set,
+ *     gallery/OS-camera photos keep up to 2400px at 0.9 quality, and hardware
+ *     zoom is no longer applied on top of CSS zoom (which cropped/softened it).
  */
 const MAX_MEDIA = 5
-const MAX_DIMENSION = 1600
-const JPEG_QUALITY = 0.82
+const MAX_DIMENSION = 2400
+const JPEG_QUALITY = 0.9
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10MB
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024 // 100MB
 const SIGNATURE_TTL = 8 * 60 * 1000
+const VIDEO_BITRATE = 8 * 1000 * 1000
 
 const LONG_PRESS_MS = 280
 const MAX_RECORD_MS = 60 * 1000
 const BOTTOM_NAV_HEIGHT = 64
 const BOTTOM_CLEARANCE = `calc(${BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px) + 12px)`
 const TOP_CLEARANCE = 'calc(env(safe-area-inset-top, 0px) + 12px)'
-// Above everything — nav bars, toasts, other overlays. createPortal + max int
-// so no stacking context anywhere in the app can render above it.
 const OVERLAY_Z = 2147483000
 
 const ACCENT = '#FFC629'
-const ACCENT_STRONG = '#F5B700'
 const INK = 'var(--bg-primary)'
 const SURFACE = 'var(--bg-secondary)'
 const SURFACE_SOFT = 'color-mix(in srgb, var(--bg-secondary) 78%, var(--bg-primary))'
@@ -67,7 +56,6 @@ const scrimControl = {
   borderColor: 'rgba(255,255,255,0.2)',
   boxShadow: '0 1px 0 0 rgba(255,255,255,0.25) inset',
 }
-const scrimShadow = '0 20px 50px -22px rgba(0,0,0,0.6)'
 
 let idSeq = 0
 const nextId = () => `media_${Date.now()}_${idSeq++}`
@@ -88,6 +76,10 @@ function compressImage(file) {
           width = Math.round((width * MAX_DIMENSION) / height)
           height = MAX_DIMENSION
         }
+      } else if (file.size < 1.5 * 1024 * 1024) {
+        // Already small enough — re-encoding would only lose quality.
+        resolve(file)
+        return
       }
       const canvas = document.createElement('canvas')
       canvas.width = width
@@ -106,39 +98,67 @@ function compressImage(file) {
   })
 }
 
+// Resolves to a data-URL thumbnail, or null if no frame could be grabbed.
+// Handles MediaRecorder output (webm/mp4 with no duration and no seek index),
+// where waiting for a "seeked" event never completes.
 function generateVideoThumbnail(file) {
   return new Promise((resolve) => {
     const video = document.createElement('video')
-    video.preload = 'metadata'
+    video.preload = 'auto'
     video.muted = true
     video.playsInline = true
     const url = URL.createObjectURL(file)
-    video.src = url
+    let done = false
+    let timeout = null
 
-    const cleanup = () => URL.revokeObjectURL(url)
-    const timeout = setTimeout(() => { cleanup(); resolve(null) }, 8000)
-
-    video.onloadedmetadata = () => {
-      video.currentTime = Math.min(0.3, (video.duration || 1) / 4)
-    }
-    video.onseeked = () => {
+    const finish = (value) => {
+      if (done) return
+      done = true
       clearTimeout(timeout)
-      const canvas = document.createElement('canvas')
-      canvas.width = video.videoWidth || MAX_DIMENSION
-      canvas.height = video.videoHeight || MAX_DIMENSION
-      const ctx = canvas.getContext('2d')
-      if (!ctx) { cleanup(); resolve(null); return }
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-      canvas.toBlob((blob) => {
-        cleanup()
-        if (!blob) { resolve(null); return }
-        const reader = new FileReader()
-        reader.onloadend = () => resolve(reader.result)
-        reader.onerror = () => resolve(null)
-        reader.readAsDataURL(blob)
-      }, 'image/jpeg', 0.8)
+      video.pause()
+      video.removeAttribute('src')
+      video.load()
+      URL.revokeObjectURL(url)
+      resolve(value)
     }
-    video.onerror = () => { clearTimeout(timeout); cleanup(); resolve(null) }
+
+    const draw = () => {
+      if (done) return
+      try {
+        const w = video.videoWidth
+        const h = video.videoHeight
+        if (!w || !h) { finish(null); return }
+        const scale = Math.min(1, 800 / Math.max(w, h))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(w * scale)
+        canvas.height = Math.round(h * scale)
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { finish(null); return }
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        finish(canvas.toDataURL('image/jpeg', 0.8))
+      } catch (err) {
+        finish(null)
+      }
+    }
+
+    timeout = setTimeout(() => {
+      if (video.videoWidth) draw()
+      else finish(null)
+    }, 6000)
+
+    video.onloadeddata = () => {
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        video.currentTime = Math.min(0.3, video.duration / 4)
+      } else {
+        // No duration (MediaRecorder file): play a moment, then grab the frame.
+        video.play()
+          .then(() => setTimeout(draw, 200))
+          .catch(draw)
+      }
+    }
+    video.onseeked = draw
+    video.onerror = () => finish(null)
+    video.src = url
   })
 }
 
@@ -155,17 +175,14 @@ function pickRecorderMimeType() {
 
 const COLLAGE_AREAS = ['big', 'small1', 'small2', 'wide', 'small3']
 
-/* ------------------------------------------------------------------ *
- * CollageSlot — hoisted OUT of CreatePostPage on purpose. Defining it
- * inside the page created a brand-new component type on every render,
- * which forced React to unmount+remount all five tiles on every
- * keystroke (restarting their fade-in animations from opacity:0 and
- * thrashing framer-motion's `layout`). That is the "page goes blank /
- * flickers" bug.
- * ------------------------------------------------------------------ */
+/* CollageSlot is hoisted out of the page on purpose (see earlier fix: defining
+ * it inside remounted every tile on each keystroke). */
 const CollageSlot = ({ area, item, isNextEmpty, onRemove, onPick, onPreview, onDrop, onDragOver, onDragLeave }) => {
   if (item) {
     const { id, preview, compressing, isVideo } = item
+    // A finished video with no thumbnail still gets a tile (play icon), never an endless spinner.
+    const videoNoThumb = isVideo && !preview && !compressing
+    const showSpinner = !preview && !videoNoThumb
     return (
       <motion.div
         layout
@@ -173,7 +190,7 @@ const CollageSlot = ({ area, item, isNextEmpty, onRemove, onPick, onPreview, onD
         animate={{ opacity: 1, scale: 1 }}
         style={{ gridArea: area, background: SURFACE_SOFT, borderColor: BORDER }}
         className="relative rounded-2xl overflow-hidden border"
-        onClick={() => preview && !compressing && onPreview(id)}
+        onClick={() => (preview || videoNoThumb) && !compressing && onPreview(id)}
       >
         {preview ? (
           <motion.img
@@ -183,7 +200,7 @@ const CollageSlot = ({ area, item, isNextEmpty, onRemove, onPick, onPreview, onD
             animate={{ opacity: 1 }}
             className="w-full h-full object-cover cursor-zoom-in"
           />
-        ) : (
+        ) : showSpinner ? (
           <div className="w-full h-full flex items-center justify-center">
             <motion.span
               animate={{ rotate: 360 }}
@@ -192,6 +209,8 @@ const CollageSlot = ({ area, item, isNextEmpty, onRemove, onPick, onPreview, onD
               style={{ borderColor: BORDER, borderTopColor: ACCENT }}
             />
           </div>
+        ) : (
+          <div className="w-full h-full cursor-pointer" style={{ background: '#18181b' }} />
         )}
         {compressing && preview && (
           <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
@@ -203,7 +222,7 @@ const CollageSlot = ({ area, item, isNextEmpty, onRemove, onPick, onPreview, onD
             />
           </div>
         )}
-        {isVideo && preview && !compressing && (
+        {isVideo && !compressing && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}>
               <FiPlay size={13} color="white" fill="white" style={{ marginLeft: 1 }} />
@@ -243,10 +262,6 @@ const CollageSlot = ({ area, item, isNextEmpty, onRemove, onPick, onPreview, onD
   )
 }
 
-/* ------------------------------------------------------------------ *
- * Error boundary — if anything in the page throws during render, show a
- * small recoverable fallback instead of a blank screen for the whole app.
- * ------------------------------------------------------------------ */
 class PageErrorBoundary extends React.Component {
   constructor(props) {
     super(props)
@@ -287,12 +302,11 @@ function CreatePostPage() {
   const [loading, setLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadStage, setUploadStage] = useState('uploading')
-  const [dragOver, setDragOver] = useState(false)
+  const [, setDragOver] = useState(false)
   const [errors, setErrors] = useState({})
   const [justPasted, setJustPasted] = useState(false)
   const [previewId, setPreviewId] = useState(null)
 
-  // Camera opens first, full-screen, by default.
   const camVideoRef = useRef(null)
   const camStreamRef = useRef(null)
   const camTrackRef = useRef(null)
@@ -302,6 +316,7 @@ function CreatePostPage() {
   const [camReady, setCamReady] = useState(false)
   const [camError, setCamError] = useState(false)
   const [camZoom, setCamZoom] = useState(1)
+  const [camHwZoom, setCamHwZoom] = useState(false)
   const [camZoomBounds, setCamZoomBounds] = useState({ min: 1, max: 3 })
   const [camTorch, setCamTorch] = useState(false)
   const pinchRef = useRef(null)
@@ -329,10 +344,10 @@ function CreatePostPage() {
   const progressFraction = (
     (title.trim() ? 1 : 0) + (content.trim() ? 1 : 0) + (mediaItems.length > 0 ? 1 : 0)
   ) / 3
+  // When the camera supports hardware zoom, the stream is already zoomed —
+  // don't zoom/crop a second time in CSS or on capture.
+  const softZoom = camHwZoom ? 1 : camZoom
 
-  // Lock body scroll while the camera is open. Without this, the page
-  // behind it scrolls under touch and it feels like you're "scrolling a
-  // camera".
   useEffect(() => {
     if (!cameraOpen) return
     const prev = document.body.style.overflow
@@ -361,7 +376,9 @@ function CreatePostPage() {
     return Object.keys(e).length === 0
   }
 
-  const handleFiles = useCallback((fileListLike) => {
+  // opts.skipCompress: camera captures are already encoded once — don't re-encode.
+  const handleFiles = useCallback((fileListLike, opts) => {
+    const skipCompress = !!(opts && opts.skipCompress)
     const incoming = Array.from(fileListLike || [])
     if (!incoming.length) return
     if (remainingSlots <= 0) {
@@ -394,7 +411,8 @@ function CreatePostPage() {
     accepted.forEach((f) => {
       const id = nextId()
       const isVideo = f.type.startsWith('video/')
-      setMediaItems(prev => [...prev, { id, file: f, preview: null, compressing: true, isVideo }])
+      const videoUrl = isVideo ? URL.createObjectURL(f) : null
+      setMediaItems(prev => [...prev, { id, file: f, preview: null, compressing: true, isVideo, videoUrl }])
       if (isVideo) {
         ;(async () => {
           const thumb = await generateVideoThumbnail(f)
@@ -404,11 +422,16 @@ function CreatePostPage() {
         })()
       } else {
         ;(async () => {
-          const compressed = await compressImage(f)
+          const compressed = skipCompress ? f : await compressImage(f)
           const reader = new FileReader()
           reader.onloadend = () => {
             setMediaItems(prev => prev.map(item => item.id === id
               ? { ...item, file: compressed, preview: reader.result, compressing: false }
+              : item))
+          }
+          reader.onerror = () => {
+            setMediaItems(prev => prev.map(item => item.id === id
+              ? { ...item, file: compressed, compressing: false }
               : item))
           }
           reader.readAsDataURL(compressed)
@@ -426,6 +449,8 @@ function CreatePostPage() {
   const removeMedia = useCallback((id, e) => {
     e?.stopPropagation()
     setMediaItems(prev => {
+      const removed = prev.find(item => item.id === id)
+      if (removed?.videoUrl) URL.revokeObjectURL(removed.videoUrl)
       const next = prev.filter(item => item.id !== id)
       if (!next.length) signatureRef.current = null
       return next
@@ -455,8 +480,6 @@ function CreatePostPage() {
     return () => window.removeEventListener('paste', onPaste)
   }, [handleFiles])
 
-  // Keep a fresh submit handler in a ref so the ⌘+Enter listener never
-  // fires a stale closure.
   const submitRef = useRef(null)
 
   useEffect(() => {
@@ -557,7 +580,8 @@ function CreatePostPage() {
         if (!cancelled) setCamError(true)
         return
       }
-      const videoConstraints = { facingMode: camFacing, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      // Higher ideal resolution than before (was 1920x1080) for sharper photos/video.
+      const videoConstraints = { facingMode: camFacing, width: { ideal: 2560 }, height: { ideal: 1440 } }
       let stream = null
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: true })
@@ -580,8 +604,10 @@ function CreatePostPage() {
         const min = Number.isFinite(capabilities.zoom.min) ? capabilities.zoom.min : 1
         const max = Math.min(3, Number.isFinite(capabilities.zoom.max) ? capabilities.zoom.max : 3)
         setCamZoomBounds({ min, max: Math.max(min, max) })
+        setCamHwZoom(true)
       } else {
         setCamZoomBounds({ min: 1, max: 3 })
+        setCamHwZoom(false)
       }
       setCamZoom(1)
       setCamTorch(false)
@@ -601,7 +627,10 @@ function CreatePostPage() {
 
   const closeCameraModal = () => {
     if (recordingRef.current) {
-      mediaRecorderRef.current?.stop()
+      // Closing mid-recording: discard instead of flashing a review screen.
+      const rec = mediaRecorderRef.current
+      if (rec) rec.onstop = null
+      if (rec && rec.state !== 'inactive') rec.stop()
       recordingRef.current = false
     }
     clearInterval(recordIntervalRef.current)
@@ -628,8 +657,8 @@ function CreatePostPage() {
     if (!ctx) return
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
-    const sourceWidth = video.videoWidth / camZoom
-    const sourceHeight = video.videoHeight / camZoom
+    const sourceWidth = video.videoWidth / softZoom
+    const sourceHeight = video.videoHeight / softZoom
     const sourceX = (video.videoWidth - sourceWidth) / 2
     const sourceY = (video.videoHeight - sourceHeight) / 2
     if (camFacing === 'user') {
@@ -643,7 +672,7 @@ function CreatePostPage() {
     canvas.toBlob((blob) => {
       if (!blob) return
       setCapturedShot({ blob, previewUrl: URL.createObjectURL(blob), kind: 'photo' })
-    }, 'image/jpeg', 0.92)
+    }, 'image/jpeg', 0.95)
   }
 
   const startRecording = () => {
@@ -652,7 +681,9 @@ function CreatePostPage() {
     recordedChunksRef.current = []
     recordMimeRef.current = pickRecorderMimeType()
     try {
-      const recorder = new MediaRecorder(stream, recordMimeRef.current ? { mimeType: recordMimeRef.current } : undefined)
+      const options = { videoBitsPerSecond: VIDEO_BITRATE }
+      if (recordMimeRef.current) options.mimeType = recordMimeRef.current
+      const recorder = new MediaRecorder(stream, options)
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data)
       }
@@ -704,6 +735,16 @@ function CreatePostPage() {
     }
   }
 
+  const setCameraZoom = (value) => {
+    const next = Math.min(camZoomBounds.max, Math.max(camZoomBounds.min, Number(value.toFixed(2))))
+    setCamZoom(next)
+    const track = camTrackRef.current
+    const capabilities = track?.getCapabilities?.() || {}
+    if (track?.applyConstraints && capabilities.zoom) {
+      track.applyConstraints({ advanced: [{ zoom: next }] }).catch(() => {})
+    }
+  }
+
   const handleShutterDown = (e) => {
     e.preventDefault()
     if (!camReady || capturedShot) return
@@ -714,7 +755,6 @@ function CreatePostPage() {
     }, LONG_PRESS_MS)
   }
 
-  // Swipe the shutter vertically: up zooms in, down zooms out.
   const handleShutterMove = (e) => {
     const gesture = shutterGestureRef.current
     if (!gesture || recordingRef.current) return
@@ -764,7 +804,7 @@ function CreatePostPage() {
     const file = kind === 'video'
       ? new File([blob], `capture_${Date.now()}.${blob.type.includes('mp4') ? 'mp4' : 'webm'}`, { type: blob.type || 'video/webm' })
       : new File([blob], `capture_${Date.now()}.jpg`, { type: 'image/jpeg' })
-    handleFiles([file])
+    handleFiles([file], { skipCompress: true })
     URL.revokeObjectURL(capturedShot.previewUrl)
     setCapturedShot(null)
     setCameraOpen(false)
@@ -773,16 +813,6 @@ function CreatePostPage() {
   const flipCamera = () => {
     if (recordingRef.current) stopRecording()
     setCamFacing(f => (f === 'user' ? 'environment' : 'user'))
-  }
-
-  const setCameraZoom = (value) => {
-    const next = Math.min(camZoomBounds.max, Math.max(camZoomBounds.min, Number(value.toFixed(2))))
-    setCamZoom(next)
-    const track = camTrackRef.current
-    const capabilities = track?.getCapabilities?.() || {}
-    if (track?.applyConstraints && capabilities.zoom) {
-      track.applyConstraints({ advanced: [{ zoom: next }] }).catch(() => {})
-    }
   }
 
   const changeCameraZoom = (amount) => setCameraZoom(camZoom + amount)
@@ -833,10 +863,6 @@ function CreatePostPage() {
     return `${m}:${s}`
   }
 
-  /* ------------------------------------------------------------------ *
-   * Full-screen capture UI. No card, no backdrop, no padding-bottom
-   * reservation for the nav — it simply covers the entire viewport.
-   * ------------------------------------------------------------------ */
   const renderCaptureOverlay = () => (
     <div className="relative flex h-full w-full flex-col overflow-hidden" style={{ background: '#09090b' }}>
       <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false">
@@ -851,6 +877,10 @@ function CreatePostPage() {
           <div
             className="relative h-[min(44vh,360px)] sm:h-[min(52vh,440px)] w-[min(78vw,330px)] max-w-full shrink-0 overflow-hidden bg-[#151518] shadow-[0_24px_80px_rgba(0,0,0,0.65)]"
             style={{ clipPath: 'url(#camera-lens-clip)', WebkitClipPath: 'url(#camera-lens-clip)', borderRadius: '28px', touchAction: 'none' }}
+            onTouchStart={handleCameraTouchStart}
+            onTouchMove={handleCameraTouchMove}
+            onTouchEnd={handleCameraTouchEnd}
+            onWheel={handleCameraWheel}
           >
             <video
               ref={camVideoRef}
@@ -860,7 +890,7 @@ function CreatePostPage() {
               style={{
                 opacity: camReady ? 1 : 0,
                 transition: 'opacity .4s ease',
-                transform: camFacing === 'user' ? `scaleX(-1) scale(${camZoom})` : `scale(${camZoom})`,
+                transform: camFacing === 'user' ? `scaleX(-1) scale(${softZoom})` : `scale(${softZoom})`,
                 transformOrigin: 'center',
               }}
             />
@@ -989,7 +1019,7 @@ function CreatePostPage() {
       <input
         ref={cameraFallbackRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         capture="environment"
         className="hidden"
         onChange={onFilesPicked}
@@ -1252,8 +1282,6 @@ function CreatePostPage() {
         </div>
       </div>
 
-      {/* Full-screen camera. Portaled to <body> at OVERLAY_Z so it covers
-          the app's persistent bottom nav (and any parent stacking context). */}
       {createPortal(
         <AnimatePresence>
           {cameraOpen && (
@@ -1271,7 +1299,6 @@ function CreatePostPage() {
         document.body
       )}
 
-      {/* Lightbox — also portaled so it clears the nav the same way. */}
       {createPortal(
         <AnimatePresence>
           {previewItem && (
@@ -1308,11 +1335,23 @@ function CreatePostPage() {
                     <FiChevronLeft size={18} color="white" />
                   </button>
                 )}
-                <img
-                  src={previewItem.preview}
-                  alt=""
-                  className="max-w-full max-h-full rounded-[24px] object-contain"
-                />
+                {previewItem.isVideo && previewItem.videoUrl ? (
+                  <video
+                    key={previewItem.id}
+                    src={previewItem.videoUrl}
+                    poster={previewItem.preview || undefined}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="max-w-full max-h-full rounded-[24px] object-contain"
+                  />
+                ) : (
+                  <img
+                    src={previewItem.preview}
+                    alt=""
+                    className="max-w-full max-h-full rounded-[24px] object-contain"
+                  />
+                )}
                 {previewIndex < mediaItems.length - 1 && (
                   <button
                     onClick={() => setPreviewId(mediaItems[previewIndex + 1].id)}
@@ -1395,9 +1434,6 @@ function CharCounter({ value, max }) {
   )
 }
 
-// Default export wraps the page in an error boundary so a render crash
-// inside this route shows a small recoverable fallback instead of a blank
-// screen for the whole app.
 export default function CreatePostPageWithBoundary() {
   return (
     <PageErrorBoundary>
