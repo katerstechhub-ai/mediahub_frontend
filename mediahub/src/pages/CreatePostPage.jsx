@@ -315,6 +315,7 @@ function CreatePostPage() {
   const [camFacing, setCamFacing] = useState('environment')
   const [camReady, setCamReady] = useState(false)
   const [camError, setCamError] = useState(false)
+  const [camAttempt, setCamAttempt] = useState(0)
   const [camZoom, setCamZoom] = useState(1)
   const [camHwZoom, setCamHwZoom] = useState(false)
   const [camZoomBounds, setCamZoomBounds] = useState({ min: 1, max: 3 })
@@ -582,19 +583,28 @@ function CreatePostPage() {
       }
       // Higher ideal resolution than before (was 1920x1080) for sharper photos/video.
       const videoConstraints = { facingMode: camFacing, width: { ideal: 2560 }, height: { ideal: 1440 } }
+      // Phones release the camera slowly after a stream is stopped. Re-opening
+      // right away often fails with NotReadableError, so retry a few times
+      // (audio first, then video-only, then plain video) before giving up.
+      const attempts = [
+        { video: videoConstraints, audio: true },
+        { video: videoConstraints, audio: false },
+        { video: { facingMode: camFacing }, audio: false },
+      ]
       let stream = null
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: true })
-      } catch (err) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false })
-        } catch (err2) {
-          console.error('Camera unavailable', err2)
-          if (!cancelled) setCamError(true)
-          return
+      for (let round = 0; round < 4 && !stream && !cancelled; round++) {
+        if (round > 0) await new Promise(r => setTimeout(r, 350))
+        for (let i = 0; i < attempts.length && !stream; i++) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia(attempts[i])
+          } catch (err) {
+            console.error('Camera attempt failed', round, i, err)
+            if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) { round = 99; break }
+          }
         }
       }
-      if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+      if (cancelled) { if (stream) stream.getTracks().forEach(t => t.stop()); return }
+      if (!stream) { setCamError(true); return }
       stopCameraStream()
       camStreamRef.current = stream
       const track = stream.getVideoTracks?.()[0] || null
@@ -611,6 +621,11 @@ function CreatePostPage() {
       }
       setCamZoom(1)
       setCamTorch(false)
+      // The overlay can mount a frame after this effect on re-open — wait for it.
+      for (let i = 0; i < 20 && !camVideoRef.current && !cancelled; i++) {
+        await new Promise(r => setTimeout(r, 50))
+      }
+      if (cancelled) { stream.getTracks().forEach(t => t.stop()); camStreamRef.current = null; return }
       if (camVideoRef.current) {
         camVideoRef.current.srcObject = stream
         await camVideoRef.current.play().catch(() => {})
@@ -621,9 +636,10 @@ function CreatePostPage() {
       cancelled = true
       camTrackRef.current = null
       setCamTorch(false)
+      if (camVideoRef.current) camVideoRef.current.srcObject = null
       stopCameraStream()
     }
-  }, [cameraOpen, camFacing, stopCameraStream])
+  }, [cameraOpen, camFacing, camAttempt, stopCameraStream])
 
   const closeCameraModal = () => {
     if (recordingRef.current) {
@@ -945,6 +961,7 @@ function CreatePostPage() {
             <FiCamera size={28} color="rgba(255,255,255,0.5)" />
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>Couldn’t access the camera. You can still add photos another way.</p>
             <div className="flex w-full flex-col gap-2">
+              <motion.button whileTap={{ scale: 0.96 }} onClick={() => setCamAttempt(n => n + 1)} className="rounded-full border px-4 py-2.5 text-xs font-bold backdrop-blur-xl" style={{ ...scrimControl, color: 'white' }}>Try camera again</motion.button>
               <motion.button whileTap={{ scale: 0.96 }} onClick={() => cameraFallbackRef.current?.click()} className="rounded-full px-4 py-2.5 text-xs font-bold" style={{ background: ACCENT, color: '#171717' }}>Open camera app</motion.button>
               <motion.button whileTap={{ scale: 0.96 }} onClick={() => fileRef.current?.click()} className="rounded-full border px-4 py-2.5 text-xs font-bold backdrop-blur-xl" style={{ ...scrimControl, color: 'white' }}>Choose from gallery</motion.button>
             </div>
