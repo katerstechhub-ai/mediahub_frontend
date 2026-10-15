@@ -459,20 +459,42 @@ function BoomerangVideo({ src, poster, className, style, onClick, isActive = tru
     // as soon as it is.
     const handleCanPlay = () => { if (video.paused) tryPlay() }
 
+    // Watchdog: the first time a video is requested, Cloudinary may still be
+    // making the resized copy, so the request just hangs (no error, no video).
+    // That's why it fails on first load and works after a refresh (the copy is
+    // cached by then). If nothing is playing after a few seconds, switch to the
+    // original file; if that also stalls, reload it.
+    let watchdog = null
+    const handlePlaying = () => { clearTimeout(watchdog) }
+    const armWatchdog = () => {
+      clearTimeout(watchdog)
+      watchdog = setTimeout(() => {
+        if (cancelled || reversingRef.current) return
+        const stuck = video.paused || video.readyState < 3 || video.currentTime === 0
+        if (!stuck) return
+        if (!useOriginal && playSrc !== src) setUseOriginal(true)
+        else setAttempt((a) => (a < 3 ? a + 1 : a))
+      }, 4500)
+    }
+
     video.addEventListener('ended', handleEnded)
     video.addEventListener('loadeddata', handleCanPlay)
     video.addEventListener('canplay', handleCanPlay)
+    video.addEventListener('playing', handlePlaying)
     try { video.currentTime = 0 } catch (err) { /* metadata not ready yet */ }
     tryPlay()
+    armWatchdog()
 
     return () => {
       cancelled = true
+      clearTimeout(watchdog)
       video.removeEventListener('ended', handleEnded)
       video.removeEventListener('loadeddata', handleCanPlay)
       video.removeEventListener('canplay', handleCanPlay)
+      video.removeEventListener('playing', handlePlaying)
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [src, playSrc, attempt, shouldPlay])
+  }, [src, playSrc, attempt, shouldPlay, useOriginal])
 
   const handleError = () => {
     if (!useOriginal && playSrc !== src) {
