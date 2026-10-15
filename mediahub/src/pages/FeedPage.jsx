@@ -348,34 +348,51 @@ function hashStr(s) {
 
 /* ─────────── Boomerang video (muted, ping-pong) ─────────── */
 
+// Still frame from a Cloudinary video, used when a post has no saved thumbnail
+// so the tile is never blank while the clip loads.
+function autoPoster(url, width = 480) {
+  if (!url || typeof url !== 'string') return undefined
+  if (!url.includes('res.cloudinary.com') || !url.includes('/video/upload/')) return undefined
+  const after = url.split('/video/upload/')[1] || ''
+  if (!/^v\d+\//.test(after)) return undefined
+  return url
+    .replace('/video/upload/', `/video/upload/so_0,f_jpg,q_auto,w_${width}/`)
+    .replace(/\.\w+(\?.*)?$/, '.jpg')
+}
+
 // `isActive`: true when this is the slide currently showing inside a
 // multi-media post's MediaSlider (always true for single-media posts).
-// The component also tracks real viewport visibility itself, the same way
-// FeedVideo does below. Both gates must be true before anything plays.
+// A tile only animates while it is both visible and active.
 //
-// Previously this autoplayed — and kept running its own requestAnimationFrame
-// reverse-playback loop — the instant it mounted, regardless of whether it
-// was on screen or the active slide in its post's slider. With several
-// video posts in the feed (or several videos inside one post), that meant
-// many videos decoding and many rAF loops running simultaneously, which is
-// exactly what made dragging through a slider and scrolling the feed feel
-// slow. Now a tile only animates while it's both visible and active.
+// Reliability fixes (videos sometimes missing after a refresh):
+//   • muted is forced on the element itself — React's `muted` prop does not
+//     always set the attribute, and without it autoplay is blocked.
+//   • a failed play() is retried when the clip becomes playable, instead of
+//     being swallowed and never tried again.
+//   • a load error no longer hides the video forever. Cloudinary's resized
+//     copy can fail on first request while it is still being made, so we fall
+//     back to the original and then retry with a short delay.
+//   • a poster (saved one, or a frame generated from the video) always shows
+//     while the clip loads, so the tile is never empty.
 function BoomerangVideo({ src, poster, className, style, onClick, isActive = true }) {
   const videoRef = useRef(null)
   const wrapRef = useRef(null)
   const rafRef = useRef(null)
   const lastTimeRef = useRef(null)
+  const reversingRef = useRef(false)
   const [inView, setInView] = useState(false)
   // Smaller H.264 mp4 copy from Cloudinary; falls back to the original file if that copy fails
   const [useOriginal, setUseOriginal] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const playSrc = useOriginal ? src : videoSrc(src, 480)
+  const shownPoster = poster || autoPoster(src)
 
   useEffect(() => {
     const el = wrapRef.current
     if (!el) return
     const io = new IntersectionObserver(
       ([entry]) => setInView(entry.isIntersecting),
-      { threshold: 0.15 }
+      { threshold: 0.05, rootMargin: '150px' }
     )
     io.observe(el)
     return () => io.disconnect()
@@ -383,18 +400,34 @@ function BoomerangVideo({ src, poster, className, style, onClick, isActive = tru
 
   const shouldPlay = isActive && inView
 
+  // Force muted on the element (needed for autoplay).
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    v.muted = true
+    v.defaultMuted = true
+  }, [playSrc, attempt])
+
   useEffect(() => {
     const video = videoRef.current
     if (!video || !src) return
 
     if (!shouldPlay) {
       video.pause()
+      reversingRef.current = false
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       lastTimeRef.current = null
       return
     }
 
     let cancelled = false
+
+    const tryPlay = () => {
+      if (cancelled || reversingRef.current) return
+      video.muted = true
+      const p = video.play()
+      if (p && p.catch) p.catch(() => { })
+    }
 
     const stepReverse = (timestamp) => {
       if (cancelled || !videoRef.current) return
@@ -407,7 +440,8 @@ function BoomerangVideo({ src, poster, className, style, onClick, isActive = tru
       if (next <= 0) {
         v.currentTime = 0
         lastTimeRef.current = null
-        v.play().catch(() => { })
+        reversingRef.current = false
+        tryPlay()
       } else {
         v.currentTime = next
         rafRef.current = requestAnimationFrame(stepReverse)
@@ -417,37 +451,56 @@ function BoomerangVideo({ src, poster, className, style, onClick, isActive = tru
     const handleEnded = () => {
       if (cancelled) return
       lastTimeRef.current = null
+      reversingRef.current = true
       rafRef.current = requestAnimationFrame(stepReverse)
     }
 
+    // If play() was rejected because the clip wasn't ready yet, try again
+    // as soon as it is.
+    const handleCanPlay = () => { if (video.paused) tryPlay() }
+
     video.addEventListener('ended', handleEnded)
-    video.currentTime = 0
-    video.play().catch(() => { })
+    video.addEventListener('loadeddata', handleCanPlay)
+    video.addEventListener('canplay', handleCanPlay)
+    try { video.currentTime = 0 } catch (err) { /* metadata not ready yet */ }
+    tryPlay()
 
     return () => {
       cancelled = true
       video.removeEventListener('ended', handleEnded)
+      video.removeEventListener('loadeddata', handleCanPlay)
+      video.removeEventListener('canplay', handleCanPlay)
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [src, playSrc, shouldPlay])
+  }, [src, playSrc, attempt, shouldPlay])
+
+  const handleError = () => {
+    if (!useOriginal && playSrc !== src) {
+      setUseOriginal(true)
+      return
+    }
+    // Both versions failed (often a brief network/Cloudinary hiccup): retry a
+    // few times with a growing delay. The poster stays visible meanwhile.
+    if (attempt < 3) {
+      setTimeout(() => setAttempt((a) => a + 1), 1200 * (attempt + 1))
+    }
+  }
 
   return (
     <div ref={wrapRef} className="w-full h-full">
       <video
+        key={`${playSrc}|${attempt}`}
         ref={videoRef}
         src={playSrc}
-        poster={poster || undefined}
+        poster={shownPoster}
         className={className}
-        style={style}
+        style={{ background: '#18181b', ...style }}
         muted
         playsInline
         loop={false}
         preload={shouldPlay ? 'auto' : 'metadata'}
         onClick={onClick}
-        onError={(e) => {
-          if (!useOriginal && playSrc !== src) setUseOriginal(true)
-          else e.target.style.display = 'none'
-        }}
+        onError={handleError}
       />
     </div>
   )
