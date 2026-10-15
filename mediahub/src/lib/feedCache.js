@@ -5,6 +5,8 @@
    other pages (e.g. PostDetailPage) can update it — for example removing a
    post that was just deleted, so it doesn't reappear when you go back. */
 
+import { removeFromFeedSnapshot } from './perf'
+
 export const feedCache = {
   posts: null,
   nextCursor: null,
@@ -16,6 +18,9 @@ export const feedCache = {
 }
 
 export function removePostFromFeedCache(postId) {
+  // Also drop it from the saved (localStorage) snapshot so a deleted post
+  // can't flash back on the next visit.
+  removeFromFeedSnapshot(postId)
   if (!Array.isArray(feedCache.posts)) return
   feedCache.posts = feedCache.posts.filter((p) => String(p._id || p.id) !== String(postId))
 }

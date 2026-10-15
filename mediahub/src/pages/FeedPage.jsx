@@ -12,6 +12,7 @@ import { FaHeart } from 'react-icons/fa'
 import api, { postsAPI, getDownloadUrl } from '../api'
 import { useAuthStore } from '../store'
 import { feedCache } from '../lib/feedCache'
+import { readFeedSnapshot, saveFeedSnapshot, thumb, videoSrc } from '../lib/perf'
 import { Avatar } from '../components/ui'
 import { getMediaItems, MediaSlider, useMediaAspect } from '../components/PostMedia'
 import CardSpread from '../components/ui/card-spread'
@@ -291,10 +292,12 @@ function isVideoMedia(item) {
 }
 
 function MultiMediaShowcase({ items, postId, onOpen, compact = false, contain = false, bare = false, badgeStyle }) {
+  // Images and video posters use small Cloudinary copies (thumb); the video
+  // file itself is left untouched.
   const visibleItems = items.slice(0, 6).map((item) => ({
     type: isVideoMedia(item) ? 'video' : 'image',
-    src: item.url,
-    poster: item.thumbnail || item.url,
+    src: isVideoMedia(item) ? item.url : thumb(item.url, 600),
+    poster: thumb(item.thumbnail || item.url, 600),
     alt: 'Memory',
   }))
 
@@ -363,6 +366,9 @@ function BoomerangVideo({ src, poster, className, style, onClick, isActive = tru
   const rafRef = useRef(null)
   const lastTimeRef = useRef(null)
   const [inView, setInView] = useState(false)
+  // Smaller H.264 mp4 copy from Cloudinary; falls back to the original file if that copy fails
+  const [useOriginal, setUseOriginal] = useState(false)
+  const playSrc = useOriginal ? src : videoSrc(src, 480)
 
   useEffect(() => {
     const el = wrapRef.current
@@ -423,13 +429,13 @@ function BoomerangVideo({ src, poster, className, style, onClick, isActive = tru
       video.removeEventListener('ended', handleEnded)
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [src, shouldPlay])
+  }, [src, playSrc, shouldPlay])
 
   return (
     <div ref={wrapRef} className="w-full h-full">
       <video
         ref={videoRef}
-        src={src}
+        src={playSrc}
         poster={poster || undefined}
         className={className}
         style={style}
@@ -438,7 +444,10 @@ function BoomerangVideo({ src, poster, className, style, onClick, isActive = tru
         loop={false}
         preload={shouldPlay ? 'auto' : 'metadata'}
         onClick={onClick}
-        onError={(e) => { e.target.style.display = 'none' }}
+        onError={(e) => {
+          if (!useOriginal && playSrc !== src) setUseOriginal(true)
+          else e.target.style.display = 'none'
+        }}
       />
     </div>
   )
@@ -622,8 +631,12 @@ function PhotoLightbox({ post, onClose, navigate }) {
               {videoMode ? (
                 <motion.video
                   key={item?.url}
-                  src={item?.url}
+                  src={videoSrc(item?.url, 1080)}
                   poster={item?.thumbnail}
+                  onError={(e) => {
+                    const original = item?.url
+                    if (original && e.currentTarget.src !== original) e.currentTarget.src = original
+                  }}
                   controls
                   autoPlay
                   playsInline
@@ -687,6 +700,9 @@ function FeedVideo({ src, poster, postId, className, style, isActive = true }) {
   const [muted, setMuted] = useState(true)
   const [inView, setInView] = useState(false)
   const [needsTap, setNeedsTap] = useState(false)
+  // Smaller H.264 mp4 copy from Cloudinary; falls back to the original file if that copy fails
+  const [useOriginal, setUseOriginal] = useState(false)
+  const playSrc = useOriginal ? src : videoSrc(src, 720)
 
   const isActiveSound = SoundBus.getActive() === postId
 
@@ -721,7 +737,7 @@ function FeedVideo({ src, poster, postId, className, style, isActive = true }) {
       v.pause()
       if (SoundBus.getActive() === postId) SoundBus.setActive(null)
     }
-  }, [inView, isActive, postId])
+  }, [inView, isActive, postId, playSrc])
 
   const toggleSound = (e) => {
     e.stopPropagation()
@@ -749,13 +765,14 @@ function FeedVideo({ src, poster, postId, className, style, isActive = true }) {
     <div ref={wrapRef} className={`relative ${className || ''}`} style={style}>
       <video
         ref={videoRef}
-        src={src}
+        src={playSrc}
         poster={poster || undefined}
         className="w-full h-full object-cover bg-black"
         muted
         playsInline
         loop
         preload={isActive ? 'auto' : 'metadata'}
+        onError={() => { if (!useOriginal && playSrc !== src) setUseOriginal(true) }}
       />
 
       <button
@@ -893,6 +910,7 @@ function PostListItem({
               className="w-full h-full"
               hideDots
               fit="cover"
+              imgWidth={900}
               renderVideo={(item, isActive) => (
                 <FeedVideo
                   src={item.url}
@@ -1025,11 +1043,18 @@ export default function FeedPage() {
   const restoringRef = useRef(navigationType === 'POP' && Array.isArray(feedCache.posts) && feedCache.posts.length > 0)
   const restoredFromCache = restoringRef.current
 
-  const [posts, setPosts] = useState(() => (restoredFromCache ? feedCache.posts : []))
-  const [loading, setLoading] = useState(!restoredFromCache)
+  // Saved first page from the last visit (null the very first time, after
+  // logout, or when it's older than 3 days). Lets the feed paint instantly
+  // while the fresh copy loads quietly in the background.
+  const authUser = useAuthStore.getState().user
+  const myUserId = authUser?._id || authUser?.id
+  const [snapshot] = useState(() => (restoredFromCache ? null : readFeedSnapshot(myUserId)))
+
+  const [posts, setPosts] = useState(() => (restoredFromCache ? feedCache.posts : (snapshot?.posts ?? [])))
+  const [loading, setLoading] = useState(!restoredFromCache && !snapshot)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [nextCursor, setNextCursor] = useState(() => (restoredFromCache ? feedCache.nextCursor : null))
-  const [hasMore, setHasMore] = useState(() => (restoredFromCache ? feedCache.hasMore : false))
+  const [nextCursor, setNextCursor] = useState(() => (restoredFromCache ? feedCache.nextCursor : (snapshot?.nextCursor ?? null)))
+  const [hasMore, setHasMore] = useState(() => (restoredFromCache ? feedCache.hasMore : (snapshot?.hasMore ?? false)))
   const [viewMode, setViewMode] = useState(() => (restoredFromCache ? feedCache.viewMode : 'grid'))
   const [query, setQuery] = useState(() => (restoredFromCache ? feedCache.query : ''))
   const [showHeartAnimation, setShowHeartAnimation] = useState(null)
@@ -1115,8 +1140,10 @@ export default function FeedPage() {
   // reset=false: load the next page (appends, using nextCursor as `before`).
   const fetchPosts = async (reset) => {
     if (!reset && (!hasMore || loadingMore)) return
-    if (reset) setLoading(true)
-    else setLoadingMore(true)
+    // Already showing a saved snapshot? Refresh quietly — no spinner.
+    const showingSnapshot = reset && posts.length > 0
+    if (reset && !showingSnapshot) setLoading(true)
+    else if (!reset) setLoadingMore(true)
     try {
       const params = reset ? {} : (nextCursor ? { before: nextCursor } : {})
       const response = await postsAPI.getAll(params)
@@ -1124,9 +1151,12 @@ export default function FeedPage() {
       setPosts(prev => reset ? arr : [...prev, ...arr])
       setNextCursor(cursor)
       setHasMore(more)
+      // Save only the first page, together with the cursor that belongs to it
+      if (reset) saveFeedSnapshot(myUserId, { posts: arr, nextCursor: cursor, hasMore: more })
     } catch (err) {
       console.error('Failed to fetch posts:', err)
-      if (reset) setPosts([])
+      // If the server is slow or down, keep showing the snapshot instead of an empty feed
+      if (reset && !showingSnapshot) setPosts([])
     } finally {
       if (reset) setLoading(false)
       setLoadingMore(false)
@@ -1339,6 +1369,7 @@ export default function FeedPage() {
               className="w-full h-full"
               hideDots
               peek
+              imgWidth={400}
               renderVideo={(item, isActive) => (
                 <BoomerangVideo src={item.url} poster={item.thumbnail} className="w-full h-full object-cover" isActive={isActive} />
               )}

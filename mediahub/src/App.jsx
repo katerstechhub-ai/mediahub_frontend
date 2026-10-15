@@ -28,6 +28,13 @@ const CommentsPage = lazy(() => import('./pages/CommentsPage'))
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
 
+// Start downloading the Feed chunk right now, in parallel with the auth check,
+// instead of waiting until auth finishes. (Dynamic imports are cached, so
+// lazy() above reuses this same download.)
+if (typeof window !== 'undefined' && window.location.pathname === '/') {
+  import('./pages/FeedPage')
+}
+
 function PageFallback({ fullScreen = false, label = 'Loading memories' }) {
   return (
     <motion.div
@@ -65,10 +72,20 @@ function PageFallback({ fullScreen = false, label = 'Loading memories' }) {
 function App() {
   const { theme } = useThemeStore()
   const { user, isLoading, checkAuth } = useAuthStore()
-  const [authChecked, setAuthChecked] = useState(false)
+
+  // A saved session = a token plus the persisted user. If one exists, trust it
+  // and show the app immediately; the token is verified quietly in the
+  // background. If it turns out to be expired, the 401 handler in api.js logs
+  // the person out and sends them to /login.
+  // Before, the whole app waited on /api/auth/me, which meant a sleeping
+  // Render backend froze the page for 30-50 seconds.
+  const [hasSession] = useState(
+    () => !!localStorage.getItem('auth_token') && !!useAuthStore.getState().user
+  )
+  const [authChecked, setAuthChecked] = useState(hasSession)
 
   useEffect(() => {
-    checkAuth().finally(() => setAuthChecked(true))
+    checkAuth({ silent: hasSession }).finally(() => setAuthChecked(true))
   }, [])
 
   useEffect(() => {

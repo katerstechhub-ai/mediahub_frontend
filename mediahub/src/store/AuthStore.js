@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { authAPI } from '../api';
+import { clearFeedSnapshots } from '../lib/perf';
 
 export const useAuthStore = create(
   persist(
@@ -36,10 +37,14 @@ export const useAuthStore = create(
         });
         localStorage.removeItem('auth_token');
         localStorage.removeItem('auth_user');
+        // Saved feed snapshots belong to the person who just logged out
+        clearFeedSnapshots();
       },
       
-      checkAuth: async () => {
-        set({ isLoading: true });
+      // silent: true  -> verify the token in the background without showing the
+      //                  full-screen loader (used when a saved session exists).
+      checkAuth: async ({ silent = false } = {}) => {
+        if (!silent) set({ isLoading: true });
         
         const token = localStorage.getItem('auth_token');
         
@@ -70,15 +75,24 @@ export const useAuthStore = create(
           
         } catch (error) {
           console.error('Auth check failed:', error);
-          // Token is invalid or expired
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('auth_user');
-          set({ 
-            user: null, 
-            token: null, 
-            isAuthenticated: false,
-            isLoading: false 
-          });
+          const status = error.response?.status;
+
+          if (status === 401 || status === 403) {
+            // Token is genuinely invalid or expired
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_user');
+            clearFeedSnapshots();
+            set({ 
+              user: null, 
+              token: null, 
+              isAuthenticated: false,
+              isLoading: false 
+            });
+          } else {
+            // Timeout, network error, or the backend still waking up:
+            // that is NOT a bad token, so keep the saved session.
+            set({ isLoading: false });
+          }
         }
       },
     }),
