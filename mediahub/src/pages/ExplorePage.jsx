@@ -1089,6 +1089,14 @@ export default function ExplorePage() {
         else if (d && Array.isArray(d.data)) arr = d.data
         else if (Array.isArray(d)) arr = d
         const items = []
+        // The same photo can come from several posts (or a video poster can match an image),
+        // so each picture is added once.
+        const seen = new Set()
+        const addItem = (small) => {
+          if (!small || seen.has(small)) return
+          seen.add(small)
+          items.push({ type: 'image', src: small, url: small, thumbnail: small })
+        }
         for (let i = 0; i < arr.length && items.length < 24; i++) {
           const post = arr[i]
           const urls = getImageUrls(post) || []
@@ -1097,7 +1105,7 @@ export default function ExplorePage() {
             const src = typeof raw === 'string' ? raw : (raw?.url || raw?.secure_url || raw?.src || raw?.path)
             if (typeof src === 'string' && src.trim()) {
               const small = thumb(src, 600)
-              items.push({ type: 'image', src: small, url: small, thumbnail: small })
+              addItem(small)
             }
           }
           const vids = Array.isArray(post.videos) ? post.videos : []
@@ -1107,7 +1115,7 @@ export default function ExplorePage() {
             const poster = typeof video === 'object' ? (video?.thumbnail || video?.poster || src) : src
             if (typeof src === 'string' && src.trim()) {
               const small = thumb(poster, 600)
-              items.push({ type: 'image', src: small, url: small, thumbnail: small })
+              addItem(small)
             }
           }
         }
