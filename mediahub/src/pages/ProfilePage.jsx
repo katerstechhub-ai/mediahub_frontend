@@ -34,6 +34,16 @@ const shuffleKey = (str, seed) => {
   return h
 }
 
+// Keeps only the first item for each src, so one photo never appears twice
+const keepFirstBySrc = () => {
+  const seen = new Set()
+  return (item) => {
+    if (seen.has(item.src)) return false
+    seen.add(item.src)
+    return true
+  }
+}
+
 function getPostMedia(post) {
   const images = getImageUrls(post).filter(Boolean)
   const videos = Array.isArray(post?.videos) ? post.videos : []
@@ -139,17 +149,15 @@ export default function ProfilePage() {
         ...images.map((src) => ({ type: 'image', src: thumb(src, 640), postId: post._id || post.id })),
         ...videos.map((video) => ({ type: 'video', src: video.url, poster: thumb(video.thumbnail, 640), postId: post._id || post.id })),
       ]
-    }).filter((item) => item.src).sort((a, b) => shuffleKey(a.src, seed) - shuffleKey(b.src, seed)).slice(0, 20)
+    }).filter((item) => item.src).filter(keepFirstBySrc()).sort((a, b) => shuffleKey(a.src, seed) - shuffleKey(b.src, seed)).slice(0, 20)
   }, [userPosts])
 
   // Each gallery gets its own photos so nothing repeats across them (stack 0-5,
-  // bounce cards 5-10, dome 10-20). With few photos a gallery falls back to the first ones.
+  // bounce cards 5-10, dome 10-20). A gallery with no photos of its own is hidden
+  // instead of reusing another gallery's photos.
   // Live videos only play in the stack; the other galleries get the poster frame,
   // so the page never runs many video decoders at once.
-  const pick = (from, to) => {
-    const part = memoryMedia.slice(from, to)
-    return part.length > 0 ? part : memoryMedia.slice(0, to - from)
-  }
+  const pick = (from, to) => memoryMedia.slice(from, to)
   const toPoster = (item) => (
     item.type === 'video' ? { type: 'image', src: item.poster || item.src, postId: item.postId } : item
   )
@@ -303,7 +311,7 @@ export default function ProfilePage() {
           )}
         </section>
 
-        {memoryMedia.length > 0 && (
+        {bounceMedia.length > 0 && (
           <section className="mt-10 overflow-hidden rounded-3xl border-y py-6" style={{ borderColor: 'var(--border)' }}>
             <div className="mb-2 flex items-center justify-between">
               <div>
@@ -314,7 +322,7 @@ export default function ProfilePage() {
           </section>
         )}
 
-        {memoryMedia.length > 0 && <DomeGallery images={domeMedia}onPostSelect={(item) => item.postId && navigate(`/posts/${item.postId}`)} />}
+        {domeMedia.length > 0 && <DomeGallery images={domeMedia}onPostSelect={(item) => item.postId && navigate(`/posts/${item.postId}`)} />}
 
         {myPostsHasMore && userPosts.length > 0 && (
           <div className="flex justify-center py-8">

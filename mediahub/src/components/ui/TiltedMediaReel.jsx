@@ -1,6 +1,10 @@
 import { useMemo } from 'react'
 import MemoryVideo from './MemoryVideo'
 
+// A row only loops (and so shows each photo twice) when it has enough photos that the
+// copies stay off screen. Rows with fewer photos show each photo once and stand still.
+const MIN_LOOP_ITEMS = 5
+
 const KEYFRAMES = `
 @keyframes tilted-media-reel-forward {
   from { transform: translate3d(0, 0, 0); }
@@ -18,6 +22,11 @@ const KEYFRAMES = `
 }
 .tilted-media-reel-track.reverse {
   animation-name: tilted-media-reel-reverse;
+}
+.tilted-media-reel-track.static {
+  animation: none;
+  will-change: auto;
+  margin: 0 auto;
 }
 .tilted-media-reel:hover .tilted-media-reel-track {
   animation-play-state: paused;
@@ -43,14 +52,16 @@ function TiltedMediaReel({ items = [], rows = 3, tilt = 4, className = '' }) {
       <style>{KEYFRAMES}</style>
       <div className="space-y-1.5 py-1 sm:space-y-2 sm:py-2">
         {rowItems.map((row, rowIndex) => {
-          const repeated = [...row, ...row]
+          if (!row.length) return null
+          const canLoop = row.length >= MIN_LOOP_ITEMS
+          const shown = canLoop ? [...row, ...row] : row
           return (
             <div key={rowIndex} className="overflow-hidden">
               <div
-                className={`tilted-media-reel-track ${rowIndex % 2 ? 'reverse' : ''}`}
+                className={`tilted-media-reel-track ${rowIndex % 2 ? 'reverse' : ''} ${canLoop ? '' : 'static'}`}
                 style={{ '--reel-duration': `${34 + rowIndex * 7}s` }}
               >
-                {repeated.map((item, index) => {
+                {shown.map((item, index) => {
                   const source = typeof item === 'string' ? item : item.src
                   const isVideo = typeof item !== 'string' && item.type === 'video'
                   const cardTilt = ((index + rowIndex) % 2 ? 1 : -1) * tilt
