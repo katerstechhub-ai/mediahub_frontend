@@ -139,16 +139,25 @@ export default function ProfilePage() {
         ...images.map((src) => ({ type: 'image', src: thumb(src, 640), postId: post._id || post.id })),
         ...videos.map((video) => ({ type: 'video', src: video.url, poster: thumb(video.thumbnail, 640), postId: post._id || post.id })),
       ]
-    }).filter((item) => item.src).sort((a, b) => shuffleKey(a.src, seed) - shuffleKey(b.src, seed)).slice(0, 10)
+    }).filter((item) => item.src).sort((a, b) => shuffleKey(a.src, seed) - shuffleKey(b.src, seed)).slice(0, 20)
   }, [userPosts])
 
-  // One set of media feeds all three galleries. Live videos only play in the stack;
-  // the other galleries get the poster frame, so the page never runs many video decoders at once.
-  const galleryMedia = memoryMedia.map((item) => (
+  // Each gallery gets its own photos so nothing repeats across them (stack 0-5,
+  // bounce cards 5-10, dome 10-20). With few photos a gallery falls back to the first ones.
+  // Live videos only play in the stack; the other galleries get the poster frame,
+  // so the page never runs many video decoders at once.
+  const pick = (from, to) => {
+    const part = memoryMedia.slice(from, to)
+    return part.length > 0 ? part : memoryMedia.slice(0, to - from)
+  }
+  const toPoster = (item) => (
     item.type === 'video' ? { type: 'image', src: item.poster || item.src, postId: item.postId } : item
-  ))
+  )
+  const stackMedia = pick(0, 5)
+  const bounceMedia = pick(5, 10).map(toPoster)
+  const domeMedia = pick(10, 20).map(toPoster)
 
-  const featuredCards = memoryMedia.slice(0, 5).map((item, index) => (
+  const featuredCards = stackMedia.map((item, index) => (
     item.type === 'video' ? (
       <MemoryVideo key={`${item.src}-${index}`} src={item.src} poster={item.poster} className="h-full w-full object-cover" />
     ) : (
@@ -264,7 +273,6 @@ export default function ProfilePage() {
       </div>
 
       <main className="mx-auto max-w-5xl px-4 sm:px-6" style={{ paddingTop: 20 }}>
-        <div style={{ background: '#dc2626', color: '#fff', padding: 10, borderRadius: 8, fontWeight: 700, textAlign: 'center' }}>TEST 1</div>
         <section className="mt-2 flex flex-col items-start gap-5">
           <div className="relative">
             <div className="rounded-full p-1" style={{ background: 'linear-gradient(135deg, #fbbf24, #f3e8d7, #93a6d4)' }}>
@@ -302,11 +310,11 @@ export default function ProfilePage() {
               </div>
               <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{userPosts.length} posts</span>
             </div>
-            <BounceCards images={galleryMedia.slice(0, 5)} containerHeight={230} className="mt-3" />
+            <BounceCards images={bounceMedia}containerHeight={230} className="mt-3" />
           </section>
         )}
 
-        {memoryMedia.length > 0 && <DomeGallery images={galleryMedia} onPostSelect={(item) => item.postId && navigate(`/posts/${item.postId}`)} />}
+        {memoryMedia.length > 0 && <DomeGallery images={domeMedia}onPostSelect={(item) => item.postId && navigate(`/posts/${item.postId}`)} />}
 
         {myPostsHasMore && userPosts.length > 0 && (
           <div className="flex justify-center py-8">
