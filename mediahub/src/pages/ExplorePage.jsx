@@ -16,7 +16,6 @@ import { onNotificationsChanged } from '../lib/notificationSocket'
 import ThemeOverlay from '../components/ui/ThemeOverlay'
 import { EmptyState, Avatar } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
-import TiltedMediaReel from '../components/ui/TiltedMediaReel'
 import { thumb } from '../lib/perf'
 dayjs.extend(relativeTime)
 
@@ -27,6 +26,9 @@ const PAGE_SIZE = 20
 // Optional. Add VITE_GIPHY_KEY to your .env to unlock the animated sticker tab.
 // Without it the built-in emoji packs still work.
 const GIPHY_KEY = import.meta.env.VITE_GIPHY_KEY || ''
+
+// How many photos from other people's posts Explore keeps ready for the top grid
+const MAX_GRID_POOL = 40
 
 // Kept in memory between visits so Explore paints instantly and refreshes quietly
 const exploreCache = { thoughts: [], nextCursor: null, hasMore: false, reel: [] }
@@ -39,6 +41,123 @@ const preloadImage = (src) => new Promise((resolve) => {
   img.onerror = () => { clearTimeout(timer); resolve(false) }
   img.src = src
 })
+
+/* ─────────── Discover grid: 6 photos from different people, swapping at random ─────────── */
+
+const GRID_SIZE = 6
+
+const shuffleList = (list) => {
+  const out = list.slice()
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = out[i]
+    out[i] = out[j]
+    out[j] = tmp
+  }
+  return out
+}
+
+// One photo per person first, then fill any empty spots from whoever is left
+const pickGridItems = (items) => {
+  const mixed = shuffleList(items)
+  const chosen = []
+  const people = new Set()
+  for (let i = 0; i < mixed.length && chosen.length < GRID_SIZE; i++) {
+    const key = mixed[i].authorId || mixed[i].src
+    if (people.has(key)) continue
+    people.add(key)
+    chosen.push(mixed[i])
+  }
+  for (let i = 0; i < mixed.length && chosen.length < GRID_SIZE; i++) {
+    if (chosen.indexOf(mixed[i]) === -1) chosen.push(mixed[i])
+  }
+  return chosen
+}
+
+function DiscoverGrid({ items, onOpen }) {
+  const [tiles, setTiles] = useState(() => pickGridItems(items))
+  const lastSlot = useRef(-1)
+
+  // More photos arrived after the first batch: fill any empty spots, keep what is showing
+  useEffect(() => {
+    setTiles((current) => {
+      if (current.length >= GRID_SIZE || current.length >= items.length) return current
+      return pickGridItems(items)
+    })
+  }, [items])
+
+  // Every few seconds one spot fades to a different photo, preferring someone not on screen
+  useEffect(() => {
+    if (items.length <= GRID_SIZE) return undefined
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined
+    const timer = setInterval(() => {
+      if (document.hidden) return
+      setTiles((current) => {
+        if (current.length === 0) return current
+        const showingSrc = new Set()
+        const showingPeople = new Set()
+        for (let i = 0; i < current.length; i++) {
+          showingSrc.add(current[i].src)
+          if (current[i].authorId) showingPeople.add(current[i].authorId)
+        }
+        const spare = []
+        const spareNewPerson = []
+        for (let i = 0; i < items.length; i++) {
+          if (showingSrc.has(items[i].src)) continue
+          spare.push(items[i])
+          if (!items[i].authorId || !showingPeople.has(items[i].authorId)) spareNewPerson.push(items[i])
+        }
+        const source = spareNewPerson.length > 0 ? spareNewPerson : spare
+        if (source.length === 0) return current
+        let slot = Math.floor(Math.random() * current.length)
+        if (slot === lastSlot.current) slot = (slot + 1) % current.length
+        lastSlot.current = slot
+        const next = current.slice()
+        next[slot] = source[Math.floor(Math.random() * source.length)]
+        return next
+      })
+    }, 3500)
+    return () => clearInterval(timer)
+  }, [items])
+
+  if (tiles.length === 0) return null
+  // The big-photo layout needs all 6 photos; with fewer, show plain squares
+  const mosaic = tiles.length === GRID_SIZE
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, maxWidth: 560, margin: '0 auto' }}>
+      {tiles.map((item, slot) => (
+        <div
+          key={slot}
+          style={{
+            position: 'relative',
+            overflow: 'hidden',
+            borderRadius: 18,
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            ...(mosaic && slot === 0 ? { gridColumn: 'span 2', gridRow: 'span 2' } : { aspectRatio: '1 / 1' }),
+          }}
+        >
+          <AnimatePresence initial={false}>
+            <motion.button
+              key={item.src}
+              type="button"
+              onClick={() => onOpen(item)}
+              aria-label="Open post"
+              initial={{ opacity: 0, scale: 1.06 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.6 }}
+              style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}
+            >
+              <img src={item.src} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            </motion.button>
+          </AnimatePresence>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 /* ─────────── Liquid-glass presets (inline, same family as FeedPage) ─────────── */
 
@@ -1092,42 +1211,62 @@ export default function ExplorePage() {
         // The same photo can come from several posts (or a video poster can match an image),
         // so each picture is added once.
         const seen = new Set()
-        const addItem = (small) => {
+        const addItem = (small, post) => {
           if (!small || seen.has(small)) return
           seen.add(small)
-          items.push({ type: 'image', src: small, url: small, thumbnail: small })
+          const author = post && post.author
+          items.push({
+            type: 'image',
+            src: small,
+            url: small,
+            thumbnail: small,
+            postId: post && (post._id || post.id),
+            authorId: author ? String(author._id || author.id || author) : null,
+          })
         }
-        for (let i = 0; i < arr.length && items.length < 24; i++) {
+        for (let i = 0; i < arr.length && items.length < MAX_GRID_POOL; i++) {
           const post = arr[i]
           const urls = getImageUrls(post) || []
-          for (let j = 0; j < urls.length && items.length < 24; j++) {
+          for (let j = 0; j < urls.length && items.length < MAX_GRID_POOL; j++) {
             const raw = urls[j]
             const src = typeof raw === 'string' ? raw : (raw?.url || raw?.secure_url || raw?.src || raw?.path)
             if (typeof src === 'string' && src.trim()) {
               const small = thumb(src, 600)
-              addItem(small)
+              addItem(small, post)
             }
           }
           const vids = Array.isArray(post.videos) ? post.videos : []
-          for (let k = 0; k < vids.length && items.length < 24; k++) {
+          for (let k = 0; k < vids.length && items.length < MAX_GRID_POOL; k++) {
             const video = vids[k]
             const src = typeof video === 'string' ? video : (video?.url || video?.secure_url || video?.src)
             const poster = typeof video === 'object' ? (video?.thumbnail || video?.poster || src) : src
             if (typeof src === 'string' && src.trim()) {
               const small = thumb(poster, 600)
-              addItem(small)
+              addItem(small, post)
             }
           }
         }
-        // Only show images that have fully loaded, so the reel never has white tiles
-        const okList = await Promise.all(items.map((it) => preloadImage(it.src)))
-        const loaded = items.filter((_, i) => okList[i])
-        if (!cancelled && loaded.length > 0) {
-          exploreCache.reel = loaded
-          // Keep the current list if nothing changed, so the reel doesn't remount and flash white
-          setReelItems((prev) => (
-            prev.length === loaded.length && prev.every((p, i) => p.src === loaded[i].src) ? prev : loaded
-          ))
+        // Only use images that have fully loaded, so the grid never has white tiles.
+        // The first batch loads on its own so the grid shows quickly; the rest join the pool after.
+        const mixed = shuffleList(items)
+        const loaded = []
+        const publish = () => {
+          if (cancelled || loaded.length === 0) return
+          const snapshot = loaded.slice()
+          exploreCache.reel = snapshot
+          setReelItems(snapshot)
+        }
+        const loadBatch = async (batch) => {
+          const okList = await Promise.all(batch.map((it) => preloadImage(it.src)))
+          for (let i = 0; i < batch.length; i++) {
+            if (okList[i]) loaded.push(batch[i])
+          }
+        }
+        await loadBatch(mixed.slice(0, 12))
+        publish()
+        if (mixed.length > 12) {
+          await loadBatch(mixed.slice(12))
+          publish()
         }
       } catch (err) {
         console.error('Reel load failed:', err)
@@ -1620,10 +1759,10 @@ export default function ExplorePage() {
       )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6" style={{ paddingTop: 28 }}>
-        {/* Top scrolling reel stays */}
+        {/* Top grid: 6 photos from different people, swapping at random. Tap one to open its post. */}
         {reelItems.length > 0 && !query.trim() && (
-          <section style={{ overflow: 'hidden', padding: '12px 0', marginBottom: 56 }}>
-            <TiltedMediaReel items={reelItems} rows={2} tilt={3.5} className="touch-pan-y" />
+          <section style={{ padding: '12px 0', marginBottom: 56 }}>
+            <DiscoverGrid items={reelItems} onOpen={(item) => item.postId && navigate(`/posts/${item.postId}`)} />
           </section>
         )}
 
