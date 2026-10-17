@@ -4,10 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { FiArrowLeft, FiDownload, FiLayers, FiLoader, FiPlay, FiShare2, FiUser } from 'react-icons/fi'
 import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
-import { getImageUrls } from '../components/PostMedia'
+import { getMediaItems } from '../components/PostMedia'
+import { autoPoster, isVideoMedia } from '../lib/mediaPoster'
 import api, { authAPI, getDownloadUrl } from '../api'
 import { thumb } from '../lib/perf'
 import toast from 'react-hot-toast'
+import SafeImage from '../components/ui/SafeImage'
 import Stack from '../components/ui/Stack'
 import BounceCards from '../components/ui/BounceCards'
 import MemoryVideo from '../components/ui/MemoryVideo'
@@ -43,14 +45,6 @@ const keepFirstBySrc = () => {
   }
 }
 
-function getPostMedia(post) {
-  const images = getImageUrls(post).filter(Boolean)
-  const videos = (Array.isArray(post?.videos) ? post.videos : []).map((video) => ({
-    url: video?.url,
-    thumbnail: video?.thumbnail || video?.url,
-  })).filter((item) => item.url)
-  return { images, videos }
-}
 
 export default function UserProfilePage() {
   const { userId } = useParams()
@@ -91,31 +85,44 @@ export default function UserProfilePage() {
 
   const seed = useRef(Math.random()).current
   const memoryMedia = useMemo(() => userPosts.flatMap((post) => {
-    const { images, videos } = getPostMedia(post)
-    return [
-      ...images.map((src) => ({ type: 'image', src: thumb(src, 640), postId: post._id || post.id })),
-      ...videos.map((video) => ({ type: 'video', src: video.url, poster: thumb(video.thumbnail, 640), postId: post._id || post.id })),
-    ]
-  }).filter((item) => item.src).filter(keepFirstBySrc()).sort((a, b) => shuffleKey(a.src, seed) - shuffleKey(b.src, seed)).slice(0, 20), [userPosts])
+    const postId = post._id || post.id
+    return getMediaItems(post).filter((item) => item?.url).map((item) => (
+      isVideoMedia(item)
+        ? { type: 'video', src: item.url, poster: item.thumbnail ? thumb(item.thumbnail, 640) : autoPoster(item.url, 640), postId }
+        : { type: 'image', src: thumb(item.url, 640), full: item.url, postId }
+    ))
+  }).filter((item) => item.src).filter(keepFirstBySrc()).sort((a, b) => shuffleKey(a.src, seed) - shuffleKey(b.src, seed)), [userPosts])
 
   // Each gallery gets its own photos so nothing repeats across them (stack 0-5,
-  // bounce cards 5-10, dome 10-20). A gallery with no photos of its own is hidden
+  // bounce cards 5-12, dome 12 and up, no cap). A gallery with no photos of its own is hidden
   // instead of reusing another gallery's photos.
-  // Live videos only play in the stack; the other galleries get the poster frame,
-  // so the page never runs many video decoders at once.
+  // Live videos only play in the stack; the other galleries show the poster frame
+  // (so the page never runs many video decoders at once) but keep the real video
+  // in `video`, so the preview modal can play it.
   const pick = (from, to) => memoryMedia.slice(from, to)
   const toPoster = (item) => (
-    item.type === 'video' ? { type: 'image', src: item.poster || item.src, postId: item.postId } : item
+    item.type === 'video'
+      ? { type: 'image', src: item.poster || item.src, video: item.src, postId: item.postId }
+      : item
   )
-  const stackMedia = pick(0, 5)
-  const bounceMedia = pick(5, 10).map(toPoster)
-  const domeMedia = pick(10, 20).map(toPoster)
+  // Both rows show ALL of the user's posts, one item per post in each row (no repeats inside
+  // a row). A post with several photos/videos shows a different one in each row.
+  // Only the media not used by the rows goes to the bottom grid.
+  const byPost = new Map()
+  memoryMedia.forEach((item) => {
+    if (!byPost.has(item.postId)) byPost.set(item.postId, [])
+    byPost.get(item.postId).push(item)
+  })
+  const postGroups = [...byPost.values()]
+  const stackMedia = postGroups.map((group) => group[0])
+  const bounceMedia = postGroups.map((group) => group[1] || group[0]).map(toPoster)
+  const domeMedia = postGroups.flatMap((group) => group.slice(2)).map(toPoster)
 
   const featuredCards = stackMedia.map((item, index) => (
     item.type === 'video' ? (
       <MemoryVideo key={`${item.src}-${index}`} src={item.src} poster={item.poster} className="h-full w-full object-cover" />
     ) : (
-      <img key={`${item.src}-${index}`} src={item.src} alt={`Featured memory ${index + 1}`} className="h-full w-full object-cover" draggable={false} />
+      <SafeImage key={`${item.src}-${index}`} src={item.src} fallback={item.full} alt={`Featured memory ${index + 1}`} className="h-full w-full object-cover" draggable={false} />
     )
   ))
 
@@ -264,11 +271,11 @@ export default function UserProfilePage() {
 
         {bounceMedia.length > 0 && (
           <section className="mt-10 overflow-hidden rounded-3xl border-y py-6" style={{ borderColor: 'var(--border)' }}>
-            <BounceCards images={bounceMedia}containerHeight={230} className="mt-3" />
+            <BounceCards images={bounceMedia} containerHeight={230} className="mt-3" />
           </section>
         )}
 
-        {domeMedia.length > 0 && <DomeGallery images={domeMedia}onPostSelect={(item) => item.postId && navigate(`/posts/${item.postId}`)} />}
+        {domeMedia.length > 0 && <DomeGallery images={domeMedia} onPostSelect={(item) => item.postId && navigate(`/posts/${item.postId}`)} />}
 
         {authorPostsHasMore && userPosts.length > 0 && (
           <div className="flex justify-center py-8">

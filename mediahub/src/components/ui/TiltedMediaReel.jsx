@@ -14,16 +14,27 @@ const prefersReducedMotion = () =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /*
-  items: [{ src, postId }]  -> ONE entry per post (the page builds this list).
+  items: [{ src, full?, postId }]  -> ONE entry per post (the page builds this list).
+  `full` is the original, un-resized photo: if `src` fails to load, the tile retries with it.
+  If that fails too, the photo is dropped from the pool and another one takes its place,
+  so a tile never stays blank.
   A post never appears twice on screen: swaps only pick posts that are not
   currently showing. If there are no spare posts, two tiles trade places instead.
 */
-function ReelTile({ item, tilt, onItemClick }) {
+function ReelTile({ item, tilt, onItemClick, onItemFail }) {
   const clickable = typeof onItemClick === 'function' && item?.postId
+  const [src, setSrc] = useState(item.src)
+
+  useEffect(() => { setSrc(item.src) }, [item.src])
+
+  const handleError = () => {
+    if (item.full && src !== item.full) setSrc(item.full)
+    else if (onItemFail) onItemFail(item.postId)
+  }
 
   return (
     <motion.div
-      className={`relative mx-1 h-[76px] w-[108px] shrink-0 overflow-hidden rounded-[16px] border-[3px] border-white bg-[var(--bg-secondary)] shadow-[0_8px_16px_rgba(50,35,20,0.16)] sm:mx-1.5 sm:h-[108px] sm:w-[154px] ${clickable ? 'cursor-pointer' : ''}`}
+      className={`relative mx-1 h-[76px] w-[108px] shrink-0 overflow-hidden rounded-[16px] border-[3px] border-white bg-[color-mix(in_srgb,var(--text-muted)_30%,var(--bg-secondary))] shadow-[0_8px_16px_rgba(50,35,20,0.16)] sm:mx-1.5 sm:h-[108px] sm:w-[154px] ${clickable ? 'cursor-pointer' : ''}`}
       initial={false}
       animate={{ rotate: tilt }}
       whileHover={{ rotate: 0, scale: 1.04 }}
@@ -37,9 +48,10 @@ function ReelTile({ item, tilt, onItemClick }) {
       <AnimatePresence initial={false}>
         <motion.img
           key={item.postId || item.src}
-          src={item.src}
+          src={src}
           alt="Memory"
           draggable={false}
+          onError={handleError}
           className="absolute inset-0 h-full w-full object-cover"
           // No fading: a fade lets the tile background show through for a moment, which looked like
           // a white flash. The new photo slides in on top of the old one, which stays fully visible
@@ -55,6 +67,10 @@ function ReelTile({ item, tilt, onItemClick }) {
 }
 
 function TiltedMediaReel({ items = [], rows = 3, tilt = 4, className = '', onItemClick }) {
+  // Photos that failed to load even in their original form; they are skipped
+  const [bad, setBad] = useState(() => new Set())
+  const markBad = (postId) => setBad((cur) => (cur.has(postId) ? cur : new Set([...cur, postId])))
+
   // One entry per post, in case the caller sends duplicates
   const pool = useMemo(() => {
     const seen = new Set()
@@ -63,12 +79,12 @@ function TiltedMediaReel({ items = [], rows = 3, tilt = 4, className = '', onIte
       const src = typeof item === 'string' ? item : item?.src
       if (!src) continue
       const entry = typeof item === 'string' ? { src, postId: src } : { ...item, postId: item.postId || src }
-      if (seen.has(entry.postId)) continue
+      if (seen.has(entry.postId) || bad.has(entry.postId)) continue
       seen.add(entry.postId)
       out.push(entry)
     }
     return out
-  }, [items])
+  }, [items, bad])
 
   const poolKey = pool.map((p) => p.postId).join('|')
   const slotCount = Math.min(pool.length, rows * PER_ROW)
@@ -80,7 +96,8 @@ function TiltedMediaReel({ items = [], rows = 3, tilt = 4, className = '', onIte
   shownRef.current = shown
   const busyRef = useRef(false)
 
-  // New pool (e.g. more posts loaded): refill the slots, keeping photos that are still valid
+  // New pool (e.g. more posts loaded, or a broken photo dropped): refill the slots,
+  // keeping photos that are still valid
   useEffect(() => {
     setShown((prev) => {
       const valid = new Set(pool.map((p) => p.postId))
@@ -150,7 +167,7 @@ function TiltedMediaReel({ items = [], rows = 3, tilt = 4, className = '', onIte
               <div className="flex w-max">
                 {row.map(({ item, slot }, index) => {
                   const cardTilt = ((index + rowIndex) % 2 ? 1 : -1) * tilt
-                  return <ReelTile key={slot} item={item} tilt={cardTilt} onItemClick={onItemClick} />
+                  return <ReelTile key={slot} item={item} tilt={cardTilt} onItemClick={onItemClick} onItemFail={markBad} />
                 })}
               </div>
             </div>

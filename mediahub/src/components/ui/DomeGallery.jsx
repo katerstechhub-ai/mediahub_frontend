@@ -1,18 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useMemo, useState } from 'react'
 import MemoryVideo from './MemoryVideo'
+import SafeImage from './SafeImage'
+import PostPreviewModal from './PostPreviewModal'
 
-export default function DomeGallery({ images = [], onPostSelect, grayscale = false }) {
+export default function DomeGallery({ images = [], onPostSelect, grayscale = false, onItemFail }) {
   const [opened, setOpened] = useState(null)
   const [failed, setFailed] = useState(() => new Set())
+  // Posters that failed but have a real video: shown as a video instead of being removed
+  const [posterFailed, setPosterFailed] = useState(() => new Set())
   const items = useMemo(() => images.filter((item) => item?.src && !failed.has(item.src)), [images, failed])
-
-  useEffect(() => {
-    if (!opened) return undefined
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = previousOverflow }
-  }, [opened])
 
   const removeFailed = (src) => {
     setFailed((current) => {
@@ -20,6 +16,13 @@ export default function DomeGallery({ images = [], onPostSelect, grayscale = fal
       next.add(src)
       return next
     })
+    if (onItemFail) onItemFail(src)
+  }
+
+  const handleImageError = (item) => {
+    if (item.video && !posterFailed.has(item.src)) {
+      setPosterFailed((current) => new Set([...current, item.src]))
+    }
   }
 
   if (!items.length) return null
@@ -36,17 +39,17 @@ export default function DomeGallery({ images = [], onPostSelect, grayscale = fal
               <button
                 key={`${item.src}-${index}`}
                 type="button"
-                onClick={() => {
-                  setOpened(item)
-                }}
-                className="group relative aspect-square overflow-hidden rounded-[18px] border-2 border-white/80 bg-[var(--bg-secondary)] shadow-[0_10px_22px_rgba(50,35,20,0.16)] transition duration-300 hover:z-10 hover:scale-105 hover:!rotate-0"
+                onClick={() => setOpened(item)}
+                className="group relative aspect-square overflow-hidden rounded-[18px] border-2 border-white/80 bg-[color-mix(in_srgb,var(--text-muted)_30%,var(--bg-secondary))] shadow-[0_10px_22px_rgba(50,35,20,0.16)] transition duration-300 hover:z-10 hover:scale-105 hover:!rotate-0"
                 style={{ transform: `translateY(${lift}px) rotate(${tilt}deg)` }}
                 aria-label={item.alt || 'Open memory'}
               >
-                {item.type === 'video' ? (
-                  <MemoryVideo src={item.src} poster={item.poster} onError={() => removeFailed(item.src)} className={`h-full w-full object-cover ${grayscale ? 'grayscale' : ''}`} />
+                {item.video && posterFailed.has(item.src) ? (
+                  <MemoryVideo src={item.video} className={`h-full w-full object-cover ${grayscale ? 'grayscale' : ''}`} />
+                ) : item.type === 'video' ? (
+                  <MemoryVideo src={item.src} poster={item.poster} className={`h-full w-full object-cover ${grayscale ? 'grayscale' : ''}`} />
                 ) : (
-                  <img src={item.src} alt={item.alt || 'Memory'} loading="lazy" className={`h-full w-full object-cover ${grayscale ? 'grayscale' : ''}`} draggable={false} onError={() => removeFailed(item.src)} />
+                  <SafeImage src={item.src} fallback={item.full} alt={item.alt || 'Memory'} loading="lazy" className={`h-full w-full object-cover ${grayscale ? 'grayscale' : ''}`} draggable={false} onFail={() => handleImageError(item)} />
                 )}
                 <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 to-transparent opacity-0 transition group-hover:opacity-100" />
               </button>
@@ -55,32 +58,7 @@ export default function DomeGallery({ images = [], onPostSelect, grayscale = fal
         </div>
       </div>
 
-      {opened && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[120] flex h-[100dvh] w-full flex-col overflow-hidden overscroll-none bg-black/85 p-4 backdrop-blur-md sm:p-6" onClick={() => setOpened(null)} role="dialog" aria-modal="true">
-          <button type="button" onClick={() => setOpened(null)} className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-xl text-white" aria-label="Close image">×</button>
-          <div className="flex min-h-0 flex-1 items-center justify-center pb-16" onClick={(event) => event.stopPropagation()}>
-            <div className="relative max-h-full max-w-[min(88vw,720px)] overflow-hidden rounded-[26px] border-4 border-white bg-black shadow-2xl">
-            {opened.type === 'video' ? (
-              <MemoryVideo src={opened.src} poster={opened.poster} className="max-h-[82vh] max-w-full object-contain" />
-            ) : (
-              <img src={opened.src} alt={opened.alt || 'Memory'} className="max-h-[82vh] max-w-full object-contain" />
-            )}
-            </div>
-          </div>
-          {opened.postId && onPostSelect && (
-            <div className="absolute inset-x-0 bottom-0 flex justify-center pb-[calc(env(safe-area-inset-bottom,0px)+20px)]">
-              <button
-                type="button"
-                onClick={() => { onPostSelect(opened); setOpened(null) }}
-                className="rounded-full bg-white px-5 py-3 text-sm font-bold text-black shadow-lg"
-              >
-                View post
-              </button>
-            </div>
-          )}
-        </div>,
-        document.body
-      )}
+      <PostPreviewModal item={opened} onClose={() => setOpened(null)} onViewPost={onPostSelect} />
     </>
   )
 }
