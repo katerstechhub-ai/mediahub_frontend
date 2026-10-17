@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-// Tiles per row. Rows are wider than the screen on purpose: the container clips the
-// edges, so the wall always looks full on phones and desktops alike.
-const PER_ROW = 8
+// Tiles per row. 3 per row x 2 rows = 6 tiles, centred, on every screen size.
+// The tiles swap photos from the larger pool, so there are always only 6 on screen.
+const PER_ROW = 3
 // One random tile swaps its photo every SWAP_MS, so the wall changes gradually
 // instead of everything flipping at once.
 const SWAP_MS = 1100
@@ -119,7 +119,7 @@ function TiltedMediaReel({ items = [], rows = 3, tilt = 4, className = '', onIte
         {rowSlots.map((row, rowIndex) => {
           if (!row.length) return null
           return (
-            <div key={rowIndex} className="flex justify-center overflow-hidden" style={{ marginLeft: rowIndex % 2 ? 40 : -40 }}>
+            <div key={rowIndex} className="flex justify-center overflow-hidden" style={{ transform: `translateX(${rowIndex % 2 ? 8 : -8}px)` }}>
               <div className="flex w-max">
                 {row.map(({ item, slot }, index) => {
                   const cardTilt = ((index + rowIndex) % 2 ? 1 : -1) * tilt
