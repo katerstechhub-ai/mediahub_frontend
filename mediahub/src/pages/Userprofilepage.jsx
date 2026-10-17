@@ -6,6 +6,7 @@ import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
 import api, { authAPI, getDownloadUrl } from '../api'
+import { thumb } from '../lib/perf'
 import toast from 'react-hot-toast'
 import Stack from '../components/ui/Stack'
 import BounceCards from '../components/ui/BounceCards'
@@ -41,6 +42,10 @@ export default function UserProfilePage() {
   const [loading, setLoading] = useState(true)
   const [downloadingMap, setDownloadingMap] = useState({})
 
+  // Posts in the store that already belong to this user show instantly
+  const hasFreshPosts = userPosts.length > 0 &&
+    String(userPosts[0]?.author?._id || userPosts[0]?.author?.id || userPosts[0]?.author) === String(userId)
+
   useEffect(() => {
     const myId = currentUser?._id || currentUser?.id
     if (myId && String(myId) === String(userId)) navigate('/profile', { replace: true })
@@ -48,14 +53,14 @@ export default function UserProfilePage() {
 
   useEffect(() => {
     const loadData = async () => {
-      setLoading(true)
-      try {
-        const response = await authAPI.getUserProfile(userId)
-        setProfileUser(response.data?.data || null)
-      } catch {
-        setProfileUser(null)
-      }
-      await fetchAuthorPosts(userId, true)
+      if (!hasFreshPosts) setLoading(true)
+      // Profile info and posts load at the same time instead of one after the other
+      await Promise.all([
+        authAPI.getUserProfile(userId)
+          .then((response) => setProfileUser(response.data?.data || null))
+          .catch(() => setProfileUser(null)),
+        fetchAuthorPosts(userId, true),
+      ])
       setLoading(false)
     }
     loadData()
@@ -68,8 +73,8 @@ export default function UserProfilePage() {
   const memoryMedia = useMemo(() => userPosts.flatMap((post) => {
     const { images, videos } = getPostMedia(post)
     return [
-      ...images.map((src) => ({ type: 'image', src, postId: post._id || post.id })),
-      ...videos.map((video) => ({ type: 'video', src: video.url, poster: video.thumbnail, postId: post._id || post.id })),
+      ...images.map((src) => ({ type: 'image', src: thumb(src, 640), postId: post._id || post.id })),
+      ...videos.map((video) => ({ type: 'video', src: video.url, poster: thumb(video.thumbnail, 640), postId: post._id || post.id })),
     ]
   }).filter((item) => item.src).sort(() => Math.random() - 0.5).slice(0, 10), [userPosts])
 
@@ -114,7 +119,7 @@ export default function UserProfilePage() {
     }
   }
 
-  if (loading || isLoading) {
+  if (!hasFreshPosts && (loading || isLoading)) {
     return (
       <motion.div
         className="flex min-h-screen flex-col items-center justify-center gap-4"

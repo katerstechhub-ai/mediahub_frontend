@@ -9,7 +9,7 @@ import {
 import { FaHeart } from 'react-icons/fa'
 import api, { postsAPI, commentsAPI, getDownloadUrl } from '../api'
 import { useAuthStore } from '../store'
-import { removePostFromFeedCache } from '../lib/feedCache'
+import { feedCache, removePostFromFeedCache } from '../lib/feedCache'
 import { Avatar } from '../components/ui'
 import ThemeOverlay from '../components/ui/ThemeOverlay'
 import { getMediaItems, MediaSlider, useMediaAspect, InstagramVideo } from '../components/PostMedia'
@@ -24,11 +24,13 @@ export default function PostDetailPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
-  const [post, setPost] = useState(null)
-  const [commentCount, setCommentCount] = useState(0)
-  const [loading, setLoading] = useState(true)
+  // If this post is already in the saved feed, show it right away and refresh quietly
+  const cachedPost = Array.isArray(feedCache.posts) ? feedCache.posts.find((p) => p._id === id) : null
+  const [post, setPost] = useState(cachedPost || null)
+  const [commentCount, setCommentCount] = useState(cachedPost?.commentCount ?? 0)
+  const [loading, setLoading] = useState(!cachedPost)
   const [liked, setLiked] = useState(false)
-  const [likeCount, setLikeCount] = useState(0)
+  const [likeCount, setLikeCount] = useState(cachedPost?.likes?.length || 0)
   const [showMenu, setShowMenu] = useState(false)
   const [showComments, setShowComments] = useState(false)
   const [showHeartAnimation, setShowHeartAnimation] = useState(false)
@@ -63,17 +65,18 @@ export default function PostDetailPage() {
   }
 
   const fetchPost = async () => {
+    // Comments are requested at the same time as the post, not after it
+    const commentsPromise = commentsAPI.getByPost(id)
+      .then((cRes) => (cRes.data?.data || []).length)
+      .catch(() => 0)
     try {
       const response = await postsAPI.getOne(id)
       const p = response.data?.data || response.data?.post || response.data || response
       setPost(p)
       if (currentUserId && p.likes) setLiked(p.likes.includes(currentUserId))
       setLikeCount(p.likes?.length || 0)
-
-      try {
-        const cRes = await commentsAPI.getByPost(id)
-        setCommentCount((cRes.data?.data || []).length)
-      } catch { setCommentCount(0) }
+      setLoading(false)
+      setCommentCount(await commentsPromise)
     } catch {
       toast.error('Post not found')
       goBack()

@@ -16,16 +16,16 @@ import ThemeOverlay from '../components/ui/ThemeOverlay'
  * -------------------------------------------------------------------
  * Compose-first page. The camera opens first, full-screen, on entry.
  *
- * Fixes in this version:
- *   • Videos recorded with the in-app camera now show a preview. MediaRecorder
- *     files have no duration/seek index, so the old thumbnail code waited for a
- *     "seeked" event that never came and the tile spun forever. The thumbnail
- *     generator now handles that, and a video tile never spins forever — it
- *     falls back to a play-icon tile. The lightbox plays videos for real.
- *   • Quality: camera captures are no longer re-compressed (they were being
- *     JPEG'd twice), camera resolution request is higher, video bitrate is set,
- *     gallery/OS-camera photos keep up to 2400px at 0.9 quality, and hardware
- *     zoom is no longer applied on top of CSS zoom (which cropped/softened it).
+ * This version:
+ *   • Video tiles now PLAY inside the collage (muted, looping) straight from the
+ *     picked file. Before, the tile depended on a generated thumbnail; on phones
+ *     (iOS gallery .mov/HEVC especially) that thumbnail often failed and the tile
+ *     stayed black. The thumbnail is now only a poster/backup.
+ *   • Video items no longer wait for thumbnail generation before they can be
+ *     opened or posted.
+ *   • Earlier fixes kept: no double-compression of camera captures, higher camera
+ *     resolution, video bitrate, 2400px/0.9 gallery photos, no hardware+CSS zoom
+ *     stacking.
  */
 const MAX_MEDIA = 5
 const MAX_DIMENSION = 2400
@@ -101,6 +101,7 @@ function compressImage(file) {
 // Resolves to a data-URL thumbnail, or null if no frame could be grabbed.
 // Handles MediaRecorder output (webm/mp4 with no duration and no seek index),
 // where waiting for a "seeked" event never completes.
+// Now only used as a poster/backup — the tile plays the real video.
 function generateVideoThumbnail(file) {
   return new Promise((resolve) => {
     const video = document.createElement('video')
@@ -179,10 +180,10 @@ const COLLAGE_AREAS = ['big', 'small1', 'small2', 'wide', 'small3']
  * it inside remounted every tile on each keystroke). */
 const CollageSlot = ({ area, item, isNextEmpty, onRemove, onPick, onPreview, onDrop, onDragOver, onDragLeave }) => {
   if (item) {
-    const { id, preview, compressing, isVideo } = item
-    // A finished video with no thumbnail still gets a tile (play icon), never an endless spinner.
-    const videoNoThumb = isVideo && !preview && !compressing
-    const showSpinner = !preview && !videoNoThumb
+    const { id, preview, compressing, isVideo, videoUrl } = item
+    // Videos play right in the tile from the picked file — no thumbnail needed.
+    const hasLiveVideo = isVideo && !!videoUrl
+    const showSpinner = !preview && !hasLiveVideo && compressing
     return (
       <motion.div
         layout
@@ -190,9 +191,29 @@ const CollageSlot = ({ area, item, isNextEmpty, onRemove, onPick, onPreview, onD
         animate={{ opacity: 1, scale: 1 }}
         style={{ gridArea: area, background: SURFACE_SOFT, borderColor: BORDER }}
         className="relative rounded-2xl overflow-hidden border"
-        onClick={() => (preview || videoNoThumb) && !compressing && onPreview(id)}
+        onClick={() => (preview || hasLiveVideo) && !compressing && onPreview(id)}
       >
-        {preview ? (
+        {hasLiveVideo ? (
+          <video
+            // "#t=0.001" makes iOS Safari paint the first frame even if autoplay is blocked
+            src={`${videoUrl}#t=0.001`}
+            poster={preview || undefined}
+            muted
+            loop
+            autoPlay
+            playsInline
+            preload="auto"
+            disablePictureInPicture
+            ref={(el) => {
+              if (!el) return
+              el.muted = true
+              const p = el.play()
+              if (p && p.catch) p.catch(() => {})
+            }}
+            className="w-full h-full object-cover cursor-zoom-in pointer-events-none"
+            style={{ background: '#18181b' }}
+          />
+        ) : preview ? (
           <motion.img
             src={preview}
             alt=""
@@ -212,7 +233,7 @@ const CollageSlot = ({ area, item, isNextEmpty, onRemove, onPick, onPreview, onD
         ) : (
           <div className="w-full h-full cursor-pointer" style={{ background: '#18181b' }} />
         )}
-        {compressing && preview && (
+        {compressing && preview && !hasLiveVideo && (
           <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
             <motion.span
               animate={{ rotate: 360 }}
@@ -223,10 +244,8 @@ const CollageSlot = ({ area, item, isNextEmpty, onRemove, onPick, onPreview, onD
           </div>
         )}
         {isVideo && !compressing && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}>
-              <FiPlay size={13} color="white" fill="white" style={{ marginLeft: 1 }} />
-            </div>
+          <div className="absolute bottom-1.5 left-1.5 pointer-events-none flex items-center justify-center w-6 h-6 rounded-full" style={{ background: 'rgba(0,0,0,0.5)' }}>
+            <FiPlay size={10} color="white" fill="white" style={{ marginLeft: 1 }} />
           </div>
         )}
         <button
@@ -413,12 +432,15 @@ function CreatePostPage() {
       const id = nextId()
       const isVideo = f.type.startsWith('video/')
       const videoUrl = isVideo ? URL.createObjectURL(f) : null
-      setMediaItems(prev => [...prev, { id, file: f, preview: null, compressing: true, isVideo, videoUrl }])
+      // Videos are shown (and playable) immediately, so they are not "compressing".
+      setMediaItems(prev => [...prev, { id, file: f, preview: null, compressing: !isVideo, isVideo, videoUrl }])
       if (isVideo) {
+        // Thumbnail is only a poster/backup now; failure is harmless.
         ;(async () => {
           const thumb = await generateVideoThumbnail(f)
+          if (!thumb) return
           setMediaItems(prev => prev.map(item => item.id === id
-            ? { ...item, preview: thumb, compressing: false }
+            ? { ...item, preview: thumb }
             : item))
         })()
       } else {

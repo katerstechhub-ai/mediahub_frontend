@@ -6,6 +6,7 @@ import { useAuthStore, usePostStore } from '../store'
 import { Avatar, EmptyState } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
 import api, { authAPI, postsAPI, getDownloadUrl } from '../api'
+import { thumb } from '../lib/perf'
 import toast from 'react-hot-toast'
 import Stack from '../components/ui/Stack'
 import BounceCards from '../components/ui/BounceCards'
@@ -38,14 +39,15 @@ export default function ProfilePage() {
   const navigate = useNavigate()
   const { user, updateUser } = useAuthStore()
   const { myPosts: userPosts, isLoading, myPostsHasMore, fetchMyPosts } = usePostStore()
-  const [loading, setLoading] = useState(true)
+  // Posts already in the store show instantly; the refresh runs quietly in the background
+  const [loading, setLoading] = useState(userPosts.length === 0)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [avatarToCrop, setAvatarToCrop] = useState(null)
   const [downloadingMap, setDownloadingMap] = useState({})
 
   useEffect(() => {
     const loadData = async () => {
-      setLoading(true)
+      if (userPosts.length === 0) setLoading(true)
       await fetchMyPosts(true)
       setLoading(false)
     }
@@ -124,8 +126,8 @@ export default function ProfilePage() {
     return userPosts.flatMap((post) => {
       const { images, videos } = getPostMedia(post)
       return [
-        ...images.map((src) => ({ type: 'image', src, postId: post._id || post.id })),
-        ...videos.map((video) => ({ type: 'video', src: video.url, poster: video.thumbnail, postId: post._id || post.id })),
+        ...images.map((src) => ({ type: 'image', src: thumb(src, 640), postId: post._id || post.id })),
+        ...videos.map((video) => ({ type: 'video', src: video.url, poster: thumb(video.thumbnail, 640), postId: post._id || post.id })),
       ]
     }).filter((item) => item.src).sort(() => Math.random() - 0.5).slice(0, 10)
   }, [userPosts])
@@ -138,7 +140,7 @@ export default function ProfilePage() {
     )
   ))
 
-  if (loading || isLoading) {
+  if (userPosts.length === 0 && (loading || isLoading)) {
     return (
       <motion.div
         className="flex min-h-screen flex-col items-center justify-center gap-4"

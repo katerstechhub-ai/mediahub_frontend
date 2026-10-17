@@ -17,6 +17,7 @@ import ThemeOverlay from '../components/ui/ThemeOverlay'
 import { EmptyState, Avatar } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
 import TiltedMediaReel from '../components/ui/TiltedMediaReel'
+import { thumb } from '../lib/perf'
 dayjs.extend(relativeTime)
 
 /* ─────────── Config ─────────── */
@@ -26,6 +27,9 @@ const PAGE_SIZE = 20
 // Optional. Add VITE_GIPHY_KEY to your .env to unlock the animated sticker tab.
 // Without it the built-in emoji packs still work.
 const GIPHY_KEY = import.meta.env.VITE_GIPHY_KEY || ''
+
+// Kept in memory between visits so Explore paints instantly and refreshes quietly
+const exploreCache = { thoughts: [], nextCursor: null, hasMore: false, reel: [] }
 
 /* ─────────── Liquid-glass presets (inline, same family as FeedPage) ─────────── */
 
@@ -962,13 +966,13 @@ function ThoughtModal({ thought, user, onClose, onLike, onDelete, onOpenProfile,
 /* ─────────── ExplorePage ─────────── */
 
 export default function ExplorePage() {
-  const [thoughts, setThoughts] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [thoughts, setThoughts] = useState(exploreCache.thoughts)
+  const [loading, setLoading] = useState(exploreCache.thoughts.length === 0)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [nextCursor, setNextCursor] = useState(null)
-  const [hasMore, setHasMore] = useState(false)
+  const [nextCursor, setNextCursor] = useState(exploreCache.nextCursor)
+  const [hasMore, setHasMore] = useState(exploreCache.hasMore)
   const [query, setQuery] = useState('')
-  const [reelItems, setReelItems] = useState([])
+  const [reelItems, setReelItems] = useState(exploreCache.reel)
   const [unreadCount, setUnreadCount] = useState(0)
   const [notifications, setNotifications] = useState([])
   const [showNotifications, setShowNotifications] = useState(false)
@@ -990,7 +994,7 @@ export default function ExplorePage() {
   // reset=true: first load (replaces list). reset=false: next page (appends).
   const fetchThoughts = async (reset) => {
     if (!reset && (!hasMore || loadingMore)) return
-    if (reset) setLoading(true)
+    if (reset) { if (thoughtsRef.current.length === 0) setLoading(true) }
     else setLoadingMore(true)
     try {
       const params = { limit: PAGE_SIZE }
@@ -1000,6 +1004,11 @@ export default function ExplorePage() {
       setThoughts((prev) => (reset ? list : [...prev, ...list]))
       setNextCursor((res.data && res.data.nextCursor) || null)
       setHasMore(Boolean(res.data && res.data.hasMore))
+      if (reset) {
+        exploreCache.thoughts = list
+        exploreCache.nextCursor = (res.data && res.data.nextCursor) || null
+        exploreCache.hasMore = Boolean(res.data && res.data.hasMore)
+      }
     } catch (err) {
       console.error('Failed to fetch thoughts:', err)
       if (reset) setThoughts([])
@@ -1078,7 +1087,8 @@ export default function ExplorePage() {
             const raw = urls[j]
             const src = typeof raw === 'string' ? raw : (raw?.url || raw?.secure_url || raw?.src || raw?.path)
             if (typeof src === 'string' && src.trim()) {
-              items.push({ type: 'image', src, url: src, thumbnail: src })
+              const small = thumb(src, 600)
+              items.push({ type: 'image', src: small, url: small, thumbnail: small })
             }
           }
           const vids = Array.isArray(post.videos) ? post.videos : []
@@ -1091,7 +1101,7 @@ export default function ExplorePage() {
             }
           }
         }
-        if (!cancelled) setReelItems(items)
+        if (!cancelled) { exploreCache.reel = items; setReelItems(items) }
       } catch (err) {
         console.error('Reel load failed:', err)
       }

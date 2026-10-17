@@ -630,8 +630,7 @@ function ScrapbookCollage({ post, items }) {
 
 function PhotoLightbox({ post, onClose, navigate }) {
   const items = post ? getMediaItems(post) : []
-  const item = items[0]
-  const videoMode = isVideoItem(item)
+  const [isMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640)
 
   useEffect(() => {
     if (!post) return
@@ -667,76 +666,45 @@ function PhotoLightbox({ post, onClose, navigate }) {
             <FiX size={20} />
           </button>
 
-          {!videoMode ? (
-            <motion.div
-              key={`circular-carousel-modal-${post._id}`}
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              transition={{ type: 'spring', stiffness: 220, damping: 24 }}
-              className="relative z-0 overflow-hidden rounded-[1.75rem]"
-              style={{ width: 'min(72vw, 620px)', height: 'min(70vh, 600px)' }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <CircularCarousel
-                items={items.map((media, index) => ({
-                  src: isVideoItem(media) ? (media.thumbnail || media.url) : media.url,
-                  alt: post.title ? `${post.title} — memory ${index + 1}` : `Memory ${index + 1}`,
-                  title: post.title || 'Memory',
-                  subtitle: `Memory ${index + 1} of ${items.length}`,
-                })).filter((item) => item.src)}
-                preset="cylinder"
-                intro="rise"
-                cardWidth={200}
-                aspectRatio={0.82}
-                gap={24}
-                autoplay="drift"
-                speed={9}
-                draggable
-                focusOnClick
-                captions
-                cornerRadius={18}
-                fadeColor="#000000"
-                innerShade={0.62}
-                className="h-full w-full"
-              />
-            </motion.div>
-          ) : (
-            <AnimatePresence mode="wait">
-              {videoMode ? (
-                <motion.video
-                  key={item?.url}
-                  src={videoSrc(item?.url, 1080)}
-                  poster={item?.thumbnail}
-                  onError={(e) => {
-                    const original = item?.url
-                    if (original && e.currentTarget.src !== original) e.currentTarget.src = original
-                  }}
-                  controls
-                  autoPlay
-                  playsInline
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.96 }}
-                  transition={{ duration: 0.18 }}
-                  className="max-w-[86vw] max-h-[72vh] object-contain rounded-lg"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <motion.img
-                  key={item?.url}
-                  src={item?.url}
-                  alt={post.title || 'Photo'}
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.96 }}
-                  transition={{ duration: 0.18 }}
-                  className="max-w-[86vw] max-h-[72vh] object-contain rounded-lg"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              )}
-            </AnimatePresence>
-          )}
+          <motion.div
+            key={`circular-carousel-modal-${post._id}`}
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            transition={{ type: 'spring', stiffness: 220, damping: 24 }}
+            className="relative z-0 overflow-hidden rounded-[1.75rem]"
+            style={{
+              width: isMobile ? 'min(94vw, 620px)' : 'min(72vw, 620px)',
+              height: isMobile ? 'min(78vh, 640px)' : 'min(70vh, 600px)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CircularCarousel
+              items={items.map((media, index) => ({
+                // Videos show their poster frame in the spinner, same as photos
+                src: isVideoItem(media)
+                  ? (media.thumbnail || autoPoster(media.url, 800) || media.url)
+                  : media.url,
+                alt: post.title ? `${post.title} — memory ${index + 1}` : `Memory ${index + 1}`,
+                title: post.title || 'Memory',
+                subtitle: `Memory ${index + 1} of ${items.length}`,
+              })).filter((item) => item.src)}
+              preset="cylinder"
+              intro="rise"
+              cardWidth={isMobile ? 250 : 200}
+              aspectRatio={0.82}
+              gap={24}
+              autoplay="drift"
+              speed={9}
+              draggable
+              focusOnClick
+              captions
+              cornerRadius={18}
+              fadeColor="#000000"
+              innerShade={0.62}
+              className="h-full w-full"
+            />
+          </motion.div>
 
           {/* ─── Bottom bar – plain orange text link ─── */}
           <div
