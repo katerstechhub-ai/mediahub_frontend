@@ -171,6 +171,13 @@ export default function ProfilePage() {
   const bounceMedia = postGroups.map((group) => group[1] || group[0]).map(toPoster)
   const domeMedia = postGroups.flatMap((group) => group.slice(2)).map(toPoster)
 
+  // The second row holds 6 posts; after that a new line starts below it
+  const BOUNCE_PER_ROW = 6
+  const bounceRows = []
+  for (let i = 0; i < bounceMedia.length; i += BOUNCE_PER_ROW) {
+    bounceRows.push(bounceMedia.slice(i, i + BOUNCE_PER_ROW))
+  }
+
   const featuredCards = stackMedia.map((item, index) => (
     item.type === 'video' ? (
       <MemoryVideo key={`${item.src}-${index}`} src={item.src} poster={item.poster} className="h-full w-full object-cover" />
@@ -324,7 +331,9 @@ export default function ProfilePage() {
               </div>
               <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{userPosts.length} posts</span>
             </div>
-            <BounceCards images={bounceMedia} containerHeight={230} className="mt-3" />
+            {bounceRows.map((rowImages, rowIndex) => (
+              <BounceCards key={rowIndex} images={rowImages} containerHeight={230} className="mt-3" />
+            ))}
           </section>
         )}
 
