@@ -264,6 +264,7 @@ export default function ProfilePage() {
       </div>
 
       <main className="mx-auto max-w-5xl px-4 sm:px-6" style={{ paddingTop: 20 }}>
+        <div style={{ background: '#dc2626', color: '#fff', padding: 10, borderRadius: 8, fontWeight: 700, textAlign: 'center' }}>TEST 1</div>
         <section className="mt-2 flex flex-col items-start gap-5">
           <div className="relative">
             <div className="rounded-full p-1" style={{ background: 'linear-gradient(135deg, #fbbf24, #f3e8d7, #93a6d4)' }}>
