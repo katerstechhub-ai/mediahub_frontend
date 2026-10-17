@@ -23,7 +23,7 @@ function ReelTile({ item, tilt, onItemClick }) {
 
   return (
     <motion.div
-      className={`relative mx-1 h-[76px] w-[108px] shrink-0 overflow-hidden rounded-[16px] border-[3px] border-white bg-white shadow-[0_8px_16px_rgba(50,35,20,0.16)] sm:mx-1.5 sm:h-[108px] sm:w-[154px] ${clickable ? 'cursor-pointer' : ''}`}
+      className={`relative mx-1 h-[76px] w-[108px] shrink-0 overflow-hidden rounded-[16px] border-[3px] border-white bg-[var(--bg-secondary)] shadow-[0_8px_16px_rgba(50,35,20,0.16)] sm:mx-1.5 sm:h-[108px] sm:w-[154px] ${clickable ? 'cursor-pointer' : ''}`}
       initial={false}
       animate={{ rotate: tilt }}
       whileHover={{ rotate: 0, scale: 1.04 }}
@@ -41,10 +41,13 @@ function ReelTile({ item, tilt, onItemClick }) {
           alt="Memory"
           draggable={false}
           className="absolute inset-0 h-full w-full object-cover"
-          initial={{ opacity: 0, rotate: 16, scale: 0.91, x: '4.5%', y: '-3.5%' }}
-          animate={{ opacity: 1, rotate: 0, scale: 1, x: '0%', y: '0%' }}
-          exit={{ opacity: 0, rotate: -10, scale: 1.06 }}
-          transition={{ type: 'spring', stiffness: 260, damping: 26, opacity: { duration: 0.35 } }}
+          // No fading: a fade lets the tile background show through for a moment, which looked like
+          // a white flash. The new photo slides in on top of the old one, which stays fully visible
+          // underneath until the new one has settled.
+          initial={{ rotate: 16, scale: 0.91, x: '4.5%', y: '-3.5%' }}
+          animate={{ rotate: 0, scale: 1, x: '0%', y: '0%' }}
+          exit={{ scale: 0.98, transition: { duration: 0.7 } }}
+          transition={{ type: 'spring', stiffness: 260, damping: 26 }}
         />
       </AnimatePresence>
     </motion.div>
@@ -73,6 +76,9 @@ function TiltedMediaReel({ items = [], rows = 3, tilt = 4, className = '', onIte
   const [shown, setShown] = useState(() => pool.slice(0, slotCount))
   const poolRef = useRef(pool)
   poolRef.current = pool
+  const shownRef = useRef(shown)
+  shownRef.current = shown
+  const busyRef = useRef(false)
 
   // New pool (e.g. more posts loaded): refill the slots, keeping photos that are still valid
   useEffect(() => {
@@ -88,23 +94,44 @@ function TiltedMediaReel({ items = [], rows = 3, tilt = 4, className = '', onIte
   // Swap one random tile at a time
   useEffect(() => {
     if (slotCount < 2 || prefersReducedMotion()) return undefined
+    let alive = true
     const timer = setInterval(() => {
-      setShown((prev) => {
-        if (prev.length < 2) return prev
-        const slot = Math.floor(Math.random() * prev.length)
-        const used = new Set(prev.map((p) => p.postId))
-        const spare = poolRef.current.filter((p) => !used.has(p.postId))
-        const next = [...prev]
-        if (spare.length) {
-          next[slot] = spare[Math.floor(Math.random() * spare.length)]
-        } else {
-          const other = (slot + 1 + Math.floor(Math.random() * (prev.length - 1))) % prev.length
+      const prev = shownRef.current
+      if (prev.length < 2 || busyRef.current) return
+      const slot = Math.floor(Math.random() * prev.length)
+      const used = new Set(prev.map((p) => p.postId))
+      const spare = poolRef.current.filter((p) => !used.has(p.postId))
+
+      if (!spare.length) {
+        // Nothing new to show: two tiles trade photos (both already on screen)
+        setShown((cur) => {
+          const next = [...cur]
+          const other = (slot + 1 + Math.floor(Math.random() * (cur.length - 1))) % cur.length
           ;[next[slot], next[other]] = [next[other], next[slot]]
-        }
-        return next
+          return next
+        })
+        return
+      }
+
+      // Load and decode the new photo BEFORE swapping, so a tile never shows an empty frame.
+      // If it fails to load, this swap is skipped.
+      const pick = spare[Math.floor(Math.random() * spare.length)]
+      busyRef.current = true
+      const img = new window.Image()
+      img.src = pick.src
+      const ready = img.decode ? img.decode().then(() => true, () => false) : Promise.resolve(true)
+      ready.then((ok) => {
+        busyRef.current = false
+        if (!ok || !alive) return
+        setShown((cur) => {
+          if (cur.some((p) => p.postId === pick.postId)) return cur
+          const next = [...cur]
+          next[Math.min(slot, next.length - 1)] = pick
+          return next
+        })
       })
     }, SWAP_MS)
-    return () => clearInterval(timer)
+    return () => { alive = false; clearInterval(timer) }
   }, [slotCount])
 
   if (!pool.length) return null

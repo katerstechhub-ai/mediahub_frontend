@@ -24,17 +24,25 @@ export default function BounceCards({
   const [hovered, setHovered] = useState(-1)
   const [width, setWidth] = useState(containerWidth)
 
+  const visibleItems = images.filter((item) => {
+    const src = typeof item === 'string' ? item : item?.src
+    return src && !failed.has(src)
+  }).slice(0, 5)
+  const hasItems = visibleItems.length > 0
+
   // The row is sized from the real width, so all five cards fit on a phone
-  // instead of the outer ones sliding off-screen and the rest piling up in the middle.
   useEffect(() => {
     const el = containerRef.current
     if (!el || typeof ResizeObserver === 'undefined') return undefined
     const ro = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width || containerWidth))
     ro.observe(el)
     return () => ro.disconnect()
-  }, [containerWidth])
+  }, [containerWidth, hasItems])
 
+  // The entrance bounce plays once, when the cards first appear. It used to replay whenever
+  // the number of photos changed, which made the cards vanish and pop back in.
   useEffect(() => {
+    if (!hasItems) return undefined
     const ctx = gsap.context(() => {
       gsap.fromTo('.profile-bounce-card', { scale: 0, opacity: 0 }, {
         scale: 1,
@@ -45,7 +53,7 @@ export default function BounceCards({
       })
     }, containerRef)
     return () => ctx.revert()
-  }, [animationDelay, animationStagger, easeType, images.length])
+  }, [hasItems, animationDelay, animationStagger, easeType])
 
   const changeHover = (hoveredIndex) => {
     setHovered(hoveredIndex)
@@ -70,19 +78,12 @@ export default function BounceCards({
     })
   }
 
-  const visibleItems = images.filter((item) => {
-    const src = typeof item === 'string' ? item : item?.src
-    return src && !failed.has(src)
-  }).slice(0, 5)
-
   const removeFailed = (src) => {
     setFailed((current) => new Set([...current, src]))
   }
 
-  if (!visibleItems.length) return null
+  if (!hasItems) return null
 
-  // Card size and spacing come from the row width: the five cards always span the row,
-  // each one overlaps its neighbour by about a third, so every card has a clear strip to tap.
   const count = visibleItems.length
   const size = Math.round(Math.min(174, Math.max(96, width * 0.36)))
   const step = count > 1 ? Math.min(size * 0.62, (width - size - 8) / (count - 1)) : 0
@@ -103,7 +104,7 @@ export default function BounceCards({
           return (
           <div
             key={`${src}-${index}`}
-            className="profile-bounce-card absolute top-1/2 cursor-pointer overflow-hidden rounded-[22px] border-[5px] border-white bg-white shadow-[0_12px_28px_rgba(50,35,20,0.18)]"
+            className="profile-bounce-card absolute top-1/2 cursor-pointer overflow-hidden rounded-[22px] border-[5px] border-white bg-[var(--bg-secondary)] shadow-[0_12px_28px_rgba(50,35,20,0.18)]"
             style={{
               left: `calc(50% + ${Math.round((index - mid) * step)}px)`,
               width: size,

@@ -111,7 +111,7 @@ export default function Stack({
               onSendToBack={() => sendToBack(card.id)}
             >
               <motion.div
-                className="absolute inset-0 overflow-hidden rounded-[24px] border-[6px] border-white bg-white shadow-[0_16px_35px_rgba(50,35,20,0.22)]"
+                className="absolute inset-0 overflow-hidden rounded-[24px] border-[6px] border-white bg-[var(--bg-secondary)] shadow-[0_16px_35px_rgba(50,35,20,0.22)]"
                 onClick={() => handleCardClick(card, isTop)}
                 animate={{
                   rotateZ: (stack.length - index - 1) * 4 + rotation,

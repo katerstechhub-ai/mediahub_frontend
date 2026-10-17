@@ -39,7 +39,7 @@ export default function DomeGallery({ images = [], onPostSelect, grayscale = fal
                 onClick={() => {
                   setOpened(item)
                 }}
-                className="group relative aspect-square overflow-hidden rounded-[18px] border-2 border-white/80 bg-white shadow-[0_10px_22px_rgba(50,35,20,0.16)] transition duration-300 hover:z-10 hover:scale-105 hover:!rotate-0"
+                className="group relative aspect-square overflow-hidden rounded-[18px] border-2 border-white/80 bg-[var(--bg-secondary)] shadow-[0_10px_22px_rgba(50,35,20,0.16)] transition duration-300 hover:z-10 hover:scale-105 hover:!rotate-0"
                 style={{ transform: `translateY(${lift}px) rotate(${tilt}deg)` }}
                 aria-label={item.alt || 'Open memory'}
               >
