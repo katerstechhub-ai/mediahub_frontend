@@ -685,6 +685,9 @@ function PhotoLightbox({ post, onClose, navigate }) {
                 src: isVideoItem(media)
                   ? (media.thumbnail || autoPoster(media.url, 800) || media.url)
                   : media.url,
+                // Video cards play inside the spinner (poster shows until the first frame)
+                video: isVideoItem(media) ? videoSrc(media.url, 720) : undefined,
+                videoFallback: isVideoItem(media) ? media.url : undefined,
                 alt: post.title ? `${post.title} — memory ${index + 1}` : `Memory ${index + 1}`,
                 title: post.title || 'Memory',
                 subtitle: `Memory ${index + 1} of ${items.length}`,

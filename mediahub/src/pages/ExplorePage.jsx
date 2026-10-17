@@ -31,6 +31,15 @@ const GIPHY_KEY = import.meta.env.VITE_GIPHY_KEY || ''
 // Kept in memory between visits so Explore paints instantly and refreshes quietly
 const exploreCache = { thoughts: [], nextCursor: null, hasMore: false, reel: [] }
 
+// Resolves true once the image is fully downloaded (false on error or after 7s)
+const preloadImage = (src) => new Promise((resolve) => {
+  const img = new window.Image()
+  const timer = setTimeout(() => resolve(false), 7000)
+  img.onload = () => { clearTimeout(timer); resolve(true) }
+  img.onerror = () => { clearTimeout(timer); resolve(false) }
+  img.src = src
+})
+
 /* ─────────── Liquid-glass presets (inline, same family as FeedPage) ─────────── */
 
 const glassSurface = {
@@ -1097,11 +1106,21 @@ export default function ExplorePage() {
             const src = typeof video === 'string' ? video : (video?.url || video?.secure_url || video?.src)
             const poster = typeof video === 'object' ? (video?.thumbnail || video?.poster || src) : src
             if (typeof src === 'string' && src.trim()) {
-              items.push({ type: 'video', src, url: src, poster, thumbnail: poster })
+              const small = thumb(poster, 600)
+              items.push({ type: 'image', src: small, url: small, thumbnail: small })
             }
           }
         }
-        if (!cancelled) { exploreCache.reel = items; setReelItems(items) }
+        // Only show images that have fully loaded, so the reel never has white tiles
+        const okList = await Promise.all(items.map((it) => preloadImage(it.src)))
+        const loaded = items.filter((_, i) => okList[i])
+        if (!cancelled && loaded.length > 0) {
+          exploreCache.reel = loaded
+          // Keep the current list if nothing changed, so the reel doesn't remount and flash white
+          setReelItems((prev) => (
+            prev.length === loaded.length && prev.every((p, i) => p.src === loaded[i].src) ? prev : loaded
+          ))
+        }
       } catch (err) {
         console.error('Reel load failed:', err)
       }

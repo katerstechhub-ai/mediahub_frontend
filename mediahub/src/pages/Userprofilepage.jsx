@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FiArrowLeft, FiDownload, FiLayers, FiLoader, FiPlay, FiShare2, FiUser } from 'react-icons/fi'
@@ -22,6 +22,15 @@ const glassChip = {
   WebkitBackdropFilter: 'none',
   border: '1px solid var(--border)',
   boxShadow: 'none',
+}
+
+// Same order every render for one visit (so a background refresh never reshuffles
+// and blanks the galleries), different order on the next visit.
+const shuffleKey = (str, seed) => {
+  const s = `${str}|${seed}`
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0
+  return h
 }
 
 function getPostMedia(post) {
@@ -70,13 +79,20 @@ export default function UserProfilePage() {
     if (!profileUser && userPosts.length > 0) setProfileUser(userPosts[0].author)
   }, [userPosts, profileUser])
 
+  const seed = useRef(Math.random()).current
   const memoryMedia = useMemo(() => userPosts.flatMap((post) => {
     const { images, videos } = getPostMedia(post)
     return [
       ...images.map((src) => ({ type: 'image', src: thumb(src, 640), postId: post._id || post.id })),
       ...videos.map((video) => ({ type: 'video', src: video.url, poster: thumb(video.thumbnail, 640), postId: post._id || post.id })),
     ]
-  }).filter((item) => item.src).sort(() => Math.random() - 0.5).slice(0, 10), [userPosts])
+  }).filter((item) => item.src).sort((a, b) => shuffleKey(a.src, seed) - shuffleKey(b.src, seed)).slice(0, 10), [userPosts])
+
+  // One set of media feeds all three galleries. Live videos only play in the stack;
+  // the other galleries get the poster frame, so the page never runs many video decoders at once.
+  const galleryMedia = memoryMedia.map((item) => (
+    item.type === 'video' ? { type: 'image', src: item.poster || item.src, postId: item.postId } : item
+  ))
 
   const featuredCards = memoryMedia.slice(0, 5).map((item, index) => (
     item.type === 'video' ? (
@@ -231,11 +247,11 @@ export default function UserProfilePage() {
 
         {memoryMedia.length > 0 && (
           <section className="mt-10 overflow-hidden rounded-3xl border-y py-6" style={{ borderColor: 'var(--border)' }}>
-            <BounceCards images={memoryMedia.slice(0, 5)} containerHeight={230} className="mt-3" />
+            <BounceCards images={galleryMedia.slice(0, 5)} containerHeight={230} className="mt-3" />
           </section>
         )}
 
-        {memoryMedia.length > 0 && <DomeGallery images={memoryMedia} onPostSelect={(item) => item.postId && navigate(`/posts/${item.postId}`)} />}
+        {memoryMedia.length > 0 && <DomeGallery images={galleryMedia} onPostSelect={(item) => item.postId && navigate(`/posts/${item.postId}`)} />}
 
         {authorPostsHasMore && userPosts.length > 0 && (
           <div className="flex justify-center py-8">

@@ -60,6 +60,7 @@ const DRAG_THRESHOLD = 5;
 const SPRING = 118;
 const SETTLE_SPEED = 9;
 const CAPTION_SPACE = 76;
+const VIDEO_SCALE = 1.5; // canvas resolution multiplier for video cards
 const TO_RAD = Math.PI / 180;
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -191,6 +192,7 @@ const CircularCarousel = ({
   const cameraRef = useRef(null);
   const ringRef = useRef(null);
   const cardRefs = useRef([]);
+  const videoRefs = useRef([]);
   const wakeRef = useRef(() => {});
   const measureRef = useRef(() => {});
   const activeRef = useRef(0);
@@ -593,6 +595,60 @@ const CircularCarousel = ({
     wakeRef.current();
   });
 
+  // Video cards: a hidden <video> plays, and each curved tile is a canvas that gets
+  // its slice of the current frame. Items need `video` (URL); `src` stays as the poster.
+  const videoKey = list.map(item => item.video || '').join('|');
+  useEffect(() => {
+    if (!videoKey.replace(/\|/g, '')) return undefined;
+    const cw = cardW;
+    const ch = cardH;
+    const ax = axis;
+    const draw = () => {
+      for (let i = 0; i < videoRefs.current.length; i++) {
+        const v = videoRefs.current[i];
+        const card = cardRefs.current[i];
+        if (!v || !card || v.readyState < 2 || !v.videoWidth) continue;
+        const sc = Math.max(cw / v.videoWidth, ch / v.videoHeight);
+        const dx = (cw - v.videoWidth * sc) / 2;
+        const dy = (ch - v.videoHeight * sc) / 2;
+        const canvases = card.querySelectorAll('canvas[data-cc-slice]');
+        for (let k = 0; k < canvases.length; k++) {
+          const c = canvases[k];
+          const ctx = c.getContext('2d');
+          if (!ctx) continue;
+          const off = Number(c.dataset.offset);
+          const size = Number(c.dataset.size);
+          const rx = ax === 'x' ? 0 : off;
+          const ry = ax === 'x' ? off : 0;
+          const rw = ax === 'x' ? cw : size;
+          const rh = ax === 'x' ? size : ch;
+          try {
+            ctx.drawImage(v, (rx - dx) / sc, (ry - dy) / sc, rw / sc, rh / sc, 0, 0, c.width, c.height);
+          } catch {}
+        }
+      }
+    };
+    const play = () => {
+      videoRefs.current.forEach(v => {
+        if (!v) return;
+        v.muted = true;
+        const p = v.play();
+        if (p && p.catch) p.catch(() => {});
+      });
+    };
+    const onVisibility = () => {
+      if (!document.hidden) play();
+    };
+    play();
+    const timer = setInterval(draw, 40);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      videoRefs.current.forEach(v => v && v.pause());
+    };
+  }, [videoKey, cardW, cardH, axis]);
+
   const focusIndex = useCallback(index => {
     const state = stateRef.current;
     const s = settingsRef.current;
@@ -778,6 +834,16 @@ const CircularCarousel = ({
             decoding="async"
             style={photoStyle}
           />
+          {item.video && (
+            <canvas
+              data-cc-slice=""
+              data-offset={offset}
+              data-size={size}
+              width={axis === 'x' ? Math.round(cardW * VIDEO_SCALE) : Math.round(size * VIDEO_SCALE)}
+              height={axis === 'x' ? Math.round(size * VIDEO_SCALE) : Math.round(cardH * VIDEO_SCALE)}
+              style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+            />
+          )}
           {back && <div className="circular-carousel__inner" />}
           <div className="circular-carousel__shade" />
         </div>
@@ -813,6 +879,32 @@ const CircularCarousel = ({
       onClick={handleClick}
       onKeyDown={handleKeyDown}
     >
+      <div
+        aria-hidden="true"
+        style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }}
+      >
+        {list.map((item, index) =>
+          item.video ? (
+            <video
+              key={`v${index}`}
+              ref={element => {
+                videoRefs.current[index] = element;
+              }}
+              src={item.video}
+              poster={item.src}
+              muted
+              loop
+              autoPlay
+              playsInline
+              preload="auto"
+              onError={event => {
+                const fallback = item.videoFallback;
+                if (fallback && event.currentTarget.src !== fallback) event.currentTarget.src = fallback;
+              }}
+            />
+          ) : null
+        )}
+      </div>
       <div className="circular-carousel__view">
         <div ref={stageRef} className="circular-carousel__stage">
           <div ref={cameraRef} className="circular-carousel__camera">
