@@ -130,8 +130,17 @@ body.composer-open .bottom-nav {
   display: none !important;
 }
 
-
-
+/* Hide the browser's own play button on videos. iOS Safari draws one over a
+   muted autoplay video when autoplay is blocked (Low Power Mode, first load).
+   Our videos are controlled in code, so the native controls are never needed. */
+video::-webkit-media-controls,
+video::-webkit-media-controls-start-playback-button,
+video::-webkit-media-controls-overlay-play-button,
+video::-webkit-media-controls-panel {
+  display: none !important;
+  -webkit-appearance: none;
+  opacity: 0;
+}
 
 /* Mobile zoom fix — iOS Safari (and some Android browsers) zoom the whole
    page when you focus an input whose font size is under 16px. Forcing 16px

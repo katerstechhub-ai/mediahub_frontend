@@ -3,6 +3,46 @@ import './DepthCarousel.css'
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
 
+// Plays only while it is the front card AND the carousel is on screen.
+// muted is forced on the element itself (React's muted prop doesn't always set
+// the attribute, which is what made browsers block autoplay and show a play button).
+function DepthVideo({ src, poster, active }) {
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const v = ref.current
+    if (!v) return
+    v.muted = true
+    v.defaultMuted = true
+    if (active) {
+      const p = v.play()
+      if (p && p.catch) p.catch(() => {})
+    } else {
+      v.pause()
+    }
+  }, [active, src])
+
+  return (
+    <video
+      ref={ref}
+      src={src}
+      poster={poster || undefined}
+      className="depth-carousel__media"
+      muted
+      playsInline
+      loop
+      controls={false}
+      disablePictureInPicture
+      disableRemotePlayback
+      preload={active ? 'auto' : 'metadata'}
+      onCanPlay={() => {
+        const v = ref.current
+        if (active && v && v.paused) v.play().catch(() => {})
+      }}
+    />
+  )
+}
+
 export default function DepthCarousel({
   items = [],
   cardWidth = 300,
@@ -24,16 +64,30 @@ export default function DepthCarousel({
 }) {
   const data = useMemo(() => items.filter(Boolean), [items])
   const [active, setActive] = useState(0)
+  const [inView, setInView] = useState(false)
+  const rootRef = useRef(null)
   const touchStartX = useRef(null)
   const direction = tiltDirection === 'left' ? -1 : 1
 
+  // Only play videos while the carousel is actually on screen
   useEffect(() => {
-    if (!autoplay || data.length < 2) return undefined
+    const el = rootRef.current
+    if (!el) return undefined
+    const io = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting),
+      { threshold: 0.05, rootMargin: '120px' }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [data.length])
+
+  useEffect(() => {
+    if (!autoplay || data.length < 2 || !inView) return undefined
     const timer = window.setInterval(() => {
       setActive((current) => loop ? (current + 1) % data.length : Math.min(current + 1, data.length - 1))
     }, autoplayDelay)
     return () => window.clearInterval(timer)
-  }, [autoplay, autoplayDelay, data.length, loop])
+  }, [autoplay, autoplayDelay, data.length, loop, inView])
 
   useEffect(() => {
     if (active >= data.length) setActive(Math.max(0, data.length - 1))
@@ -67,6 +121,7 @@ export default function DepthCarousel({
 
   return (
     <div
+      ref={rootRef}
       className={`depth-carousel ${fill ? 'depth-carousel--fill' : ''} ${contain ? 'depth-carousel--contain' : ''} ${className}`}
       style={{ '--depth-card-width': `${cardWidth}px`, '--depth-card-height': `${cardHeight}px`, '--depth-radius': `${radius}px`, '--depth-distance': `${depth}px`, '--depth-spread': `${spread}px`, '--depth-tilt': `${tilt}deg` }}
       aria-label="Memory carousel"
@@ -101,7 +156,7 @@ export default function DepthCarousel({
               onClick={(event) => { if (distance !== 0) { event.stopPropagation(); setActive(index) } }}
             >
               {isVideo ? (
-                <video src={src} poster={poster || undefined} className="depth-carousel__media" muted playsInline autoPlay={distance === 0} loop preload={distance === 0 ? 'auto' : 'metadata'} />
+                <DepthVideo src={src} poster={poster} active={distance === 0 && inView} />
               ) : (
                 <img src={src} alt={item.alt || 'Memory'} className="depth-carousel__media" draggable={false} />
               )}

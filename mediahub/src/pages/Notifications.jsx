@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, useMotionValue, animate } from 'framer-motion'
 import { FiBell, FiArrowLeft, FiHeart, FiMessageCircle, FiUserPlus, FiThumbsDown, FiTrash2, FiLayers, FiPlay } from 'react-icons/fi'
 import { notificationsAPI, postsAPI } from '../api'
 import { onNotificationsChanged } from '../lib/notificationSocket'
+import { notifCache } from '../lib/notificationsCache'
+import { thumb } from '../lib/perf'
 import { Avatar } from '../components/ui'
 import AnimatedContent from '../components/ui/AnimatedContent'
 import ThemeOverlay from '../components/ui/ThemeOverlay'
@@ -77,20 +79,101 @@ const thoughtTileContent = (notification) => {
   return '💭'
 }
 
+// ── Extract thumbnail from a post object (module level: no state needed) ──
+const extractThumbnail = (post) => {
+  if (!post) return null
+
+  // Videos
+  if (post.videos && Array.isArray(post.videos) && post.videos.length > 0) {
+    const video = post.videos[0]
+    const url = video?.thumbnail || video?.url || null
+    if (url) return { url, isVideo: true, multiple: false }
+  }
+
+  // Images array
+  if (post.images && Array.isArray(post.images) && post.images.length > 0) {
+    const first = post.images[0]
+    const url = typeof first === 'string' ? first : first?.url
+    if (url) return { url, isVideo: false, multiple: post.images.length > 1 }
+  }
+
+  // media array (legacy)
+  if (post.media && Array.isArray(post.media) && post.media.length > 0) {
+    const first = post.media[0]
+    const url = typeof first === 'string' ? first : first?.url
+    if (url) return { url, isVideo: first?.resource_type === 'video', multiple: post.media.length > 1 }
+  }
+
+  // Single image fields
+  const singleFields = [
+    post.image?.url,
+    post.image,
+    post.imageUrl,
+    post.thumbnail,
+    post.coverImage,
+    post.cover,
+    post.preview,
+    post.previewImage,
+  ]
+  for (const val of singleFields) {
+    if (typeof val === 'string' && val.startsWith('http')) {
+      return { url: val, isVideo: false, multiple: false }
+    }
+  }
+
+  // Brute-force: scan all keys for URL strings
+  for (const key in post) {
+    const val = post[key]
+    if (typeof val === 'string' && val.startsWith('http')) {
+      return { url: val, isVideo: false, multiple: false }
+    }
+    if (val && typeof val === 'object' && val.url && typeof val.url === 'string' && val.url.startsWith('http')) {
+      return { url: val.url, isVideo: false, multiple: false }
+    }
+  }
+
+  return null
+}
+
+function NotificationSkeleton() {
+  return (
+    <div className="px-3 py-5 sm:px-4 sm:py-6 flex flex-col gap-3">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div
+          key={i}
+          className="flex items-center gap-3 px-3.5 py-3.5 rounded-[1.65rem] animate-pulse"
+          style={{ background: 'var(--bg-secondary)' }}
+        >
+          <div className="h-11 w-11 rounded-full" style={{ background: 'var(--border)' }} />
+          <div className="flex-1 space-y-2">
+            <div className="h-3 w-3/4 rounded" style={{ background: 'var(--border)' }} />
+            <div className="h-2.5 w-1/3 rounded" style={{ background: 'var(--border)' }} />
+          </div>
+          <div className="h-12 w-12 rounded-xl" style={{ background: 'var(--border)' }} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function Notifications() {
   const navigate = useNavigate()
-  const [notifications, setNotifications] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [thumbnailsMap, setThumbnailsMap] = useState({}) // cache fetched thumbnails
-  const [fetchingMap, setFetchingMap] = useState({}) // track which posts are being fetched
+  // Start from the cache so a repeat visit (or a prefetched one) paints instantly
+  const [notifications, setNotifications] = useState(notifCache.items ?? [])
+  const [loading, setLoading] = useState(!notifCache.items)
+  const [thumbnailsMap, setThumbnailsMap] = useState(notifCache.thumbs)
+  const requestedRef = useRef(new Set()) // post ids we've already asked the server about
 
   const fetchNotifications = async () => {
     try {
-      const response = await notificationsAPI.getAll()
-      setNotifications(response.data?.data || [])
+      const response = await notificationsAPI.getAll(1, 30)
+      const rows = response.data?.data || []
+      notifCache.items = rows
+      setNotifications(rows)
     } catch (error) {
       console.error('Error fetching notifications:', error)
-      setNotifications([])
+      // keep whatever is already on screen instead of wiping it
+      if (!notifCache.items) setNotifications([])
     } finally {
       setLoading(false)
     }
@@ -103,12 +186,40 @@ export default function Notifications() {
     return unsubscribe
   }, [])
 
+  // Fetch missing thumbnails here (never during render), a few at a time
+  useEffect(() => {
+    const ids = []
+    for (const n of notifications) {
+      const p = n.post
+      if (!p?._id) continue
+      if (thumbnailsMap[p._id] || requestedRef.current.has(p._id)) continue
+      if (extractThumbnail(p)) continue
+      ids.push(p._id)
+    }
+    ids.slice(0, 6).forEach(async (id) => {
+      requestedRef.current.add(id)
+      try {
+        const response = await postsAPI.getOne(id)
+        const full = response.data?.data || response.data?.post || response.data
+        const t = extractThumbnail(full)
+        if (t) {
+          notifCache.thumbs[id] = t
+          setThumbnailsMap((prev) => ({ ...prev, [id]: t }))
+        }
+      } catch (e) {
+        /* thumbnail is best-effort */
+      }
+    })
+  }, [notifications, thumbnailsMap])
+
   const handleMarkAsRead = async (notificationId) => {
     try {
       await notificationsAPI.markAsRead(notificationId)
-      setNotifications((prev) =>
-        prev.map((n) => (n._id === notificationId ? { ...n, read: true } : n))
-      )
+      setNotifications((prev) => {
+        const next = prev.map((n) => (n._id === notificationId ? { ...n, read: true } : n))
+        notifCache.items = next
+        return next
+      })
     } catch (error) {
       console.error('Error marking notification as read:', error)
     }
@@ -117,7 +228,11 @@ export default function Notifications() {
   const handleMarkAllAsRead = async () => {
     try {
       await notificationsAPI.markAllAsRead()
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+      setNotifications((prev) => {
+        const next = prev.map((n) => ({ ...n, read: true }))
+        notifCache.items = next
+        return next
+      })
     } catch (error) {
       console.error('Error marking all as read:', error)
     }
@@ -125,11 +240,14 @@ export default function Notifications() {
 
   const handleDeleteNotification = async (notificationId) => {
     const previous = notifications
-    setNotifications((prev) => prev.filter((n) => n._id !== notificationId))
+    const next = previous.filter((n) => n._id !== notificationId)
+    notifCache.items = next
+    setNotifications(next)
     try {
       await notificationsAPI.delete(notificationId)
     } catch (error) {
       console.error('Error deleting notification:', error)
+      notifCache.items = previous
       setNotifications(previous)
     }
   }
@@ -247,99 +365,6 @@ export default function Notifications() {
     }
   }
 
-  // ── Extract thumbnail from a post object ──
-  const extractThumbnail = (post) => {
-    if (!post) return null
-
-    // Videos
-    if (post.videos && Array.isArray(post.videos) && post.videos.length > 0) {
-      const video = post.videos[0]
-      const url = video?.thumbnail || video?.url || null
-      if (url) return { url, isVideo: true, multiple: false }
-    }
-
-    // Images array
-    if (post.images && Array.isArray(post.images) && post.images.length > 0) {
-      const first = post.images[0]
-      const url = typeof first === 'string' ? first : first?.url
-      if (url) return { url, isVideo: false, multiple: post.images.length > 1 }
-    }
-
-    // media array (legacy)
-    if (post.media && Array.isArray(post.media) && post.media.length > 0) {
-      const first = post.media[0]
-      const url = typeof first === 'string' ? first : first?.url
-      if (url) return { url, isVideo: first?.resource_type === 'video', multiple: post.media.length > 1 }
-    }
-
-    // Single image fields
-    const singleFields = [
-      post.image?.url,
-      post.image,
-      post.imageUrl,
-      post.thumbnail,
-      post.coverImage,
-      post.cover,
-      post.preview,
-      post.previewImage,
-    ]
-    for (const val of singleFields) {
-      if (typeof val === 'string' && val.startsWith('http')) {
-        return { url: val, isVideo: false, multiple: false }
-      }
-    }
-
-    // Brute‑force: scan all keys for URL strings
-    for (const key in post) {
-      const val = post[key]
-      if (typeof val === 'string' && val.startsWith('http')) {
-        return { url: val, isVideo: false, multiple: false }
-      }
-      if (val && typeof val === 'object' && val.url && typeof val.url === 'string' && val.url.startsWith('http')) {
-        return { url: val.url, isVideo: false, multiple: false }
-      }
-    }
-
-    return null
-  }
-
-  // ── Fetch full post data for a given post ID ──
-  const fetchFullPostThumbnail = async (postId) => {
-    if (!postId) return
-    if (fetchingMap[postId]) return // already fetching
-    if (thumbnailsMap[postId]) return // already cached
-
-    setFetchingMap((prev) => ({ ...prev, [postId]: true }))
-    try {
-      const response = await postsAPI.getOne(postId)
-      const fullPost = response.data?.data || response.data?.post || response.data || null
-      if (fullPost) {
-        const thumb = extractThumbnail(fullPost)
-        if (thumb) {
-          setThumbnailsMap((prev) => ({ ...prev, [postId]: thumb }))
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch post for thumbnail:', error)
-    } finally {
-      setFetchingMap((prev) => ({ ...prev, [postId]: false }))
-    }
-  }
-
-  if (loading) {
-    return (
-      <motion.div className="flex min-h-screen flex-col items-center justify-center gap-4" style={{ background: 'var(--bg-primary)' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <motion.div className="relative flex h-20 w-20 items-center justify-center rounded-[2rem] border border-sky-300/40 bg-[var(--bg-secondary)] text-sky-500 shadow-[0_12px_34px_rgba(14,165,233,0.16)]" animate={{ y: [0, -7, 0], rotate: [-3, 3, -3] }} transition={{ repeat: Infinity, duration: 1.7, ease: 'easeInOut' }}>
-          <span aria-hidden="true" className="relative block h-9 w-9 rounded-xl border-2 border-current/70"><span className="absolute -left-1 -top-1 h-6 w-6 rounded-lg border-2 border-current/55" /><span className="absolute -bottom-1 -right-1 h-6 w-6 rounded-lg border-2 border-current/55" /></span>
-          <motion.span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-sky-200" animate={{ scale: [0.7, 1.15, 0.7], opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.2 }} />
-        </motion.div>
-        <div className="flex items-center gap-1.5" aria-label="Loading notifications">
-          {[0, 1, 2].map((dot) => <motion.span key={dot} className="h-2 w-2 rounded-full bg-amber-500" animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }} transition={{ repeat: Infinity, duration: 0.9, delay: dot * 0.14 }} />)}
-        </div>
-      </motion.div>
-    )
-  }
-
   const unreadCount = notifications.filter((n) => !n.read).length
 
   return (
@@ -387,8 +412,11 @@ export default function Notifications() {
           <ThemeOverlay className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full" />
         </div>
       </div>
+
       <div className="relative z-0 max-w-2xl mx-auto pt-1">
-        {notifications.length === 0 ? (
+        {loading ? (
+          <NotificationSkeleton />
+        ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-4 py-24 text-center">
             <AnimatedContent
               distance={28}
@@ -406,25 +434,13 @@ export default function Notifications() {
               </div>
             </AnimatedContent>
 
-            <AnimatedContent
-              distance={18}
-              delay={0.12}
-              duration={0.7}
-              threshold={0.2}
-              className="mt-6"
-            >
+            <AnimatedContent distance={18} delay={0.12} duration={0.7} threshold={0.2} className="mt-6">
               <h3 className="font-display text-xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
                 Your activity will appear here
               </h3>
             </AnimatedContent>
 
-            <AnimatedContent
-              distance={14}
-              delay={0.22}
-              duration={0.7}
-              threshold={0.2}
-              className="mt-2"
-            >
+            <AnimatedContent distance={14} delay={0.22} duration={0.7} threshold={0.2} className="mt-2">
               <p className="max-w-sm text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                 Likes and comments on your posts and thoughts will show up here when they happen.
               </p>
@@ -435,16 +451,7 @@ export default function Notifications() {
             {notifications.map((notification) => {
               const post = notification.post
               const isThought = isThoughtType(notification.type)
-              // First, check if we have a cached thumbnail from a full fetch
-              let thumbnail = post ? thumbnailsMap[post._id] || null : null
-              // If not cached, try to extract from the current post object
-              if (!thumbnail && post) {
-                thumbnail = extractThumbnail(post)
-                // If still null and we have a post ID, trigger a full fetch
-                if (!thumbnail && post._id && !fetchingMap[post._id] && !thumbnailsMap[post._id]) {
-                  fetchFullPostThumbnail(post._id)
-                }
-              }
+              const thumbnail = post ? thumbnailsMap[post._id] || extractThumbnail(post) : null
 
               const fallbackColor = post?._id
                 ? `hsl(${parseInt(post._id.slice(-6), 16) % 360}, 70%, 55%)`
@@ -465,7 +472,6 @@ export default function Notifications() {
                     onClick={() => {
                       handleMarkAsRead(notification._id)
                       if (isThought) {
-                        // Open the thought on Explore with its replies expanded
                         navigate(
                           notification.thought?._id
                             ? `${EXPLORE_PATH}?thought=${notification.thought._id}`
@@ -500,13 +506,12 @@ export default function Notifications() {
                     {thumbnail?.url ? (
                       <div className="relative flex-shrink-0">
                         <img
-                          src={thumbnail.url}
+                          src={thumbnail.isVideo ? thumbnail.url : thumb(thumbnail.url, 120)}
                           alt={post?.title || 'Post'}
+                          loading="lazy"
+                          decoding="async"
                           className="w-12 h-12 rounded-xl object-cover"
-                          onError={(e) => {
-                            console.error('❌ Image failed to load:', thumbnail.url)
-                            e.target.style.display = 'none'
-                          }}
+                          onError={(e) => { e.target.style.display = 'none' }}
                         />
                         {thumbnail.isVideo && (
                           <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-xl">

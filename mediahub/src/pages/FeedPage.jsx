@@ -12,6 +12,8 @@ import { FaHeart } from 'react-icons/fa'
 import api, { postsAPI, getDownloadUrl } from '../api'
 import { useAuthStore } from '../store'
 import { feedCache } from '../lib/feedCache'
+import { prefetchExplore } from '../lib/exploreCache'
+import { prefetchNotifications } from '../lib/notificationsCache'
 import { readFeedSnapshot, saveFeedSnapshot, thumb, videoSrc } from '../lib/perf'
 import { Avatar } from '../components/ui'
 import { getMediaItems, MediaSlider, useMediaAspect } from '../components/PostMedia'
@@ -369,6 +371,7 @@ function autoPoster(url, width = 480) {
 //     always set the attribute, and without it autoplay is blocked.
 //   • a failed play() is retried when the clip becomes playable, instead of
 //     being swallowed and never tried again.
+//   • a blocked autoplay is retried on the first touch/click anywhere.
 //   • a load error no longer hides the video forever. Cloudinary's resized
 //     copy can fail on first request while it is still being made, so we fall
 //     back to the original and then retry with a short delay.
@@ -477,6 +480,10 @@ function BoomerangVideo({ src, poster, className, style, onClick, isActive = tru
       }, 4500)
     }
 
+    // If the browser blocked autoplay (Low Power Mode, first load), the first
+    // touch anywhere on the page starts the clip instead of leaving it frozen.
+    const retryOnGesture = () => { if (video.paused && !reversingRef.current) tryPlay() }
+
     video.addEventListener('ended', handleEnded)
     video.addEventListener('loadeddata', handleCanPlay)
     video.addEventListener('canplay', handleCanPlay)
@@ -484,6 +491,8 @@ function BoomerangVideo({ src, poster, className, style, onClick, isActive = tru
     try { video.currentTime = 0 } catch (err) { /* metadata not ready yet */ }
     tryPlay()
     armWatchdog()
+    window.addEventListener('pointerdown', retryOnGesture, { once: true, passive: true })
+    window.addEventListener('touchstart', retryOnGesture, { once: true, passive: true })
 
     return () => {
       cancelled = true
@@ -492,6 +501,8 @@ function BoomerangVideo({ src, poster, className, style, onClick, isActive = tru
       video.removeEventListener('loadeddata', handleCanPlay)
       video.removeEventListener('canplay', handleCanPlay)
       video.removeEventListener('playing', handlePlaying)
+      window.removeEventListener('pointerdown', retryOnGesture)
+      window.removeEventListener('touchstart', retryOnGesture)
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
   }, [src, playSrc, attempt, shouldPlay, useOriginal])
@@ -519,6 +530,9 @@ function BoomerangVideo({ src, poster, className, style, onClick, isActive = tru
         style={{ background: '#18181b', ...style }}
         muted
         playsInline
+        controls={false}
+        disablePictureInPicture
+        disableRemotePlayback
         loop={false}
         preload={shouldPlay ? 'auto' : 'metadata'}
         onClick={onClick}
@@ -814,6 +828,9 @@ function FeedVideo({ src, poster, postId, className, style, isActive = true }) {
         className="w-full h-full object-cover bg-black"
         muted
         playsInline
+        controls={false}
+        disablePictureInPicture
+        disableRemotePlayback
         loop
         preload={isActive ? 'auto' : 'metadata'}
         onError={() => { if (!useOriginal && playSrc !== src) setUseOriginal(true) }}
@@ -1126,6 +1143,26 @@ export default function FeedPage() {
     feedCache.viewMode = viewMode
     feedCache.query = query
   }, [loading, posts, nextCursor, hasMore, viewMode, query])
+
+  // Warm up Explore + Notifications while the user is still looking at the feed,
+  // so those pages open instantly instead of showing a spinner.
+  useEffect(() => {
+    if (loading) return undefined
+    const run = () => {
+      prefetchExplore()
+      prefetchNotifications()
+      // pre-downloads the route chunks if your routes use React.lazy (harmless otherwise)
+      import('./ExplorePage').catch(() => {})
+      import('./Notifications').catch(() => {})
+    }
+    const id = window.requestIdleCallback
+      ? window.requestIdleCallback(run, { timeout: 3000 })
+      : setTimeout(run, 1500)
+    return () => {
+      if (window.cancelIdleCallback && window.requestIdleCallback) window.cancelIdleCallback(id)
+      else clearTimeout(id)
+    }
+  }, [loading])
 
   // Put the scroll position back. Images/cards settle in after first paint,
   // so retry a few times until the page is tall enough to reach the target.

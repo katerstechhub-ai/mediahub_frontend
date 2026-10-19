@@ -1,4 +1,3 @@
-// MediaSlider.js – fully functional, passes isActive to renderVideo
 import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { FiPlay, FiVolume2, FiVolumeX } from 'react-icons/fi'
@@ -65,11 +64,9 @@ export function getMediaItems(post) {
   return items
 }
 
-// ── NEW: measures the real aspect ratio of a post's first media item, the
-// same way Instagram sizes a post's frame off its first photo/video, instead
-// of forcing every post into a fixed square/4:5 box that crops content.
-// Clamped to IG's own portrait/landscape bounds (4:5 .. 1.91:1) so a very
-// tall or very wide file doesn't blow out the feed layout.
+// ── Measures the real aspect ratio of a post's first media item, the same way
+// Instagram sizes a post's frame off its first photo/video. Clamped to IG's own
+// portrait/landscape bounds (4:5 .. 1.91:1).
 export function useMediaAspect(items, { min = 4 / 5, max = 1.91, fallback = 1 } = {}) {
   const [ratio, setRatio] = useState(fallback)
   const firstUrl = items?.[0]?.url
@@ -108,21 +105,15 @@ export function useMediaAspect(items, { min = 4 / 5, max = 1.91, fallback = 1 } 
   return ratio
 }
 
-// ── Instagram-style video — autoplaying, muted, looping, no native browser
-// controls (so no "paused" chrome flashes on refresh), tap toggles
-// play/pause, small mute toggle bottom-right.
-//
-// `isActive` (passed down from MediaSlider when this is one slide among
-// several) AND real viewport visibility both gate playback now. Previously
-// this played on mount unconditionally, which meant every video inside a
-// multi-media post's slider started decoding and playing at once — not just
-// the one slide actually on screen. With several video posts in a feed that
-// adds up fast and was the main cause of stuttery dragging/scrolling.
+// ── Instagram-style video — autoplaying, muted, looping, no native controls.
+// Tap toggles play/pause; the play overlay only shows after the USER pauses
+// (not when the video pauses itself while scrolled out of view).
+// `isActive` AND real viewport visibility both gate playback.
 export function InstagramVideo({ src, poster, className, style, isActive = true }) {
   const videoRef = useRef(null)
   const wrapRef = useRef(null)
   const [muted, setMuted] = useState(true)
-  const [paused, setPaused] = useState(false)
+  const [userPaused, setUserPaused] = useState(false)
   const [inView, setInView] = useState(false)
 
   useEffect(() => {
@@ -136,30 +127,35 @@ export function InstagramVideo({ src, poster, className, style, isActive = true 
     return () => io.disconnect()
   }, [])
 
-  const shouldPlay = isActive && inView
+  const shouldPlay = isActive && inView && !userPaused
 
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
+    v.muted = muted
     if (shouldPlay) {
       v.play().catch(() => {})
     } else {
       v.pause()
     }
-  }, [shouldPlay, src])
+  }, [shouldPlay, src, muted])
 
   useEffect(() => {
-    const onVisible = () => { if (document.visibilityState === 'visible' && shouldPlay) videoRef.current?.play().catch(() => {}) }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && shouldPlay) videoRef.current?.play().catch(() => {})
+    }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [shouldPlay])
 
+  // Scrolling away should not leave a "paused" state behind
+  useEffect(() => {
+    if (!inView) setUserPaused(false)
+  }, [inView])
+
   const togglePlay = (e) => {
     e.stopPropagation()
-    const v = videoRef.current
-    if (!v) return
-    if (v.paused) v.play().catch(() => {})
-    else v.pause()
+    setUserPaused((p) => !p)
   }
 
   return (
@@ -170,15 +166,16 @@ export function InstagramVideo({ src, poster, className, style, isActive = true 
         poster={poster || undefined}
         className={className}
         style={style}
-        muted={muted}
+        muted
         loop
         playsInline
+        controls={false}
+        disablePictureInPicture
+        disableRemotePlayback
         preload={shouldPlay ? 'auto' : 'metadata'}
-        onPlay={() => setPaused(false)}
-        onPause={() => setPaused(true)}
         onError={(e) => { e.target.style.display = 'none' }}
       />
-      {paused && (
+      {userPaused && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div
             className="w-14 h-14 rounded-full flex items-center justify-center backdrop-blur-md"
@@ -189,7 +186,7 @@ export function InstagramVideo({ src, poster, className, style, isActive = true 
         </div>
       )}
       <button
-        onClick={(e) => { e.stopPropagation(); setMuted(m => !m) }}
+        onClick={(e) => { e.stopPropagation(); setMuted((m) => !m) }}
         aria-label={muted ? 'Unmute' : 'Mute'}
         className="absolute bottom-3 right-3 z-10 w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md"
         style={{ background: 'rgba(0,0,0,0.5)' }}
@@ -200,18 +197,59 @@ export function InstagramVideo({ src, poster, className, style, isActive = true 
   )
 }
 
-export function MultiImage({ urls, title, postId, onDoubleTap, tileRadius = 'rounded-xl', gapClass = 'gap-1.5', children }) {
-  // ... (same as you pasted, no changes) — keep your existing implementation here
+// ── NOTE: MultiImage and ImageSlider below are REPLACEMENTS I wrote because the
+// original bodies were never visible to me. If you can restore your originals
+// from git, paste them over these two functions. These work as drop-ins with the
+// same props.
+
+export function MultiImage({ urls = [], title, postId, onDoubleTap, tileRadius = 'rounded-xl', gapClass = 'gap-1.5', children }) {
+  const shown = urls.slice(0, 4)
+  if (shown.length === 0) return null
+  const cols = shown.length === 1 ? 'grid-cols-1' : 'grid-cols-2'
+  return (
+    <div className={`relative grid ${cols} ${gapClass} w-full h-full`} onClick={onDoubleTap}>
+      {shown.map((url, i) => (
+        <div
+          key={`${postId}-${i}`}
+          className={`relative overflow-hidden ${tileRadius} ${shown.length === 3 && i === 0 ? 'row-span-2' : ''}`}
+        >
+          <img
+            src={url}
+            alt={title || 'Post'}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            draggable={false}
+            onError={(e) => { e.target.style.display = 'none' }}
+          />
+        </div>
+      ))}
+      {children}
+    </div>
+  )
 }
 
-export function ImageSlider({ urls, title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '', showCounter = true, hideDots = false, peek = false, tapToNavigate = true }) {
-  // ... (same as you pasted, no changes) — keep your existing implementation here
+export function ImageSlider({ urls = [], title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '', showCounter = true, hideDots = false, peek = false, tapToNavigate = true }) {
+  const items = urls.map((url) => ({ type: 'image', url }))
+  return (
+    <MediaSlider
+      items={items}
+      title={title}
+      postId={postId}
+      onDoubleTap={onDoubleTap}
+      rounded={rounded}
+      className={className}
+      showCounter={showCounter}
+      hideDots={hideDots}
+      peek={peek}
+      tapToNavigate={tapToNavigate}
+    />
+  )
 }
 
 export function MediaSlider({
   items, title, postId, onDoubleTap, rounded = 'rounded-2xl', className = '',
   showCounter = true, hideDots = false, peek = false, tapToNavigate = true,
-  renderVideo, fit = 'cover', // ← 'cover' (default, unchanged for grid) or 'contain' (full media visible)
+  renderVideo, fit = 'cover', // 'cover' (default, used by the grid) or 'contain' (full media visible)
 }) {
   const [index, setIndex] = useState(0)
   const containerRef = useRef(null)
@@ -308,10 +346,8 @@ export function MediaSlider({
       >
         <motion.div
           className="flex h-full"
-          // will-change hints the browser to promote this to its own GPU
-          // compositor layer up front, instead of deciding mid-drag — that
-          // "deciding" moment was part of what made the first swipe of a
-          // session feel janky compared to the second.
+          // will-change promotes this to its own GPU layer up front, so the
+          // first swipe of a session doesn't feel janky.
           style={{ width: `${items.length * 100}%`, willChange: 'transform' }}
           drag="x"
           dragConstraints={containerRef}
@@ -323,9 +359,8 @@ export function MediaSlider({
         >
           {items.map((item, i) => {
             const isActive = i === index
-            // Only the active slide should be interactive, and only when
-            // it's a video (so its play/pause + mute controls can receive
-            // taps).
+            // Only the active slide is interactive, and only when it's a video
+            // (so its play/pause + mute controls can receive taps).
             const interactive = item.type === 'video' && isActive
             return (
               <div

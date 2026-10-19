@@ -13,6 +13,8 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import api, { postsAPI, notificationsAPI } from '../api'
 import { useAuthStore } from '../store'
 import { onNotificationsChanged } from '../lib/notificationSocket'
+import { exploreCache } from '../lib/exploreCache'
+import { feedCache } from '../lib/feedCache'
 import ThemeOverlay from '../components/ui/ThemeOverlay'
 import { EmptyState, Avatar } from '../components/ui'
 import { getImageUrls } from '../components/PostMedia'
@@ -28,8 +30,8 @@ const PAGE_SIZE = 20
 // Without it the built-in emoji packs still work.
 const GIPHY_KEY = import.meta.env.VITE_GIPHY_KEY || ''
 
-// Kept in memory between visits so Explore paints instantly and refreshes quietly
-const exploreCache = { thoughts: [], nextCursor: null, hasMore: false, reel: [] }
+// exploreCache now lives in ../lib/exploreCache so the feed page can fill it
+// in the background before you ever open Explore.
 
 // Resolves true once the image is fully downloaded (false on error or after 7s)
 const preloadImage = (src) => new Promise((resolve) => {
@@ -1020,7 +1022,7 @@ export default function ExplorePage() {
       }
     } catch (err) {
       console.error('Failed to fetch thoughts:', err)
-      if (reset) setThoughts([])
+      if (reset && thoughtsRef.current.length === 0) setThoughts([])
     } finally {
       if (reset) setLoading(false)
       setLoadingMore(false)
@@ -1076,18 +1078,23 @@ export default function ExplorePage() {
     else navigate('/explore', { replace: true })
   }
 
-  // Top reel keeps using photo/video posts — it's the one place media stays on this page.
+  // Top reel: reuses the posts the feed page already loaded (no extra request),
+  // builds fewer, smaller tiles, and only keeps images that fully load.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const res = await postsAPI.getAll()
-        const d = res.data
-        let arr = []
-        if (d && d.data && d.data.posts) arr = d.data.posts
-        else if (d && d.posts) arr = d.posts
-        else if (d && Array.isArray(d.data)) arr = d.data
-        else if (Array.isArray(d)) arr = d
+        let arr = Array.isArray(feedCache.posts) && feedCache.posts.length ? feedCache.posts : null
+        if (!arr) {
+          const res = await postsAPI.getAll()
+          const d = res.data
+          arr = []
+          if (d && d.data && d.data.posts) arr = d.data.posts
+          else if (d && d.posts) arr = d.posts
+          else if (d && Array.isArray(d.data)) arr = d.data
+          else if (Array.isArray(d)) arr = d
+        }
+        const LIMIT = 12
         const items = []
         // The same photo can come from several posts (or a video poster can match an image),
         // so each picture is added once.
@@ -1097,26 +1104,23 @@ export default function ExplorePage() {
           seen.add(small)
           items.push({ type: 'image', src: small, url: small, thumbnail: small })
         }
-        for (let i = 0; i < arr.length && items.length < 24; i++) {
+        for (let i = 0; i < arr.length && items.length < LIMIT; i++) {
           const post = arr[i]
           const urls = getImageUrls(post) || []
-          for (let j = 0; j < urls.length && items.length < 24; j++) {
+          for (let j = 0; j < urls.length && items.length < LIMIT; j++) {
             const raw = urls[j]
             const src = typeof raw === 'string' ? raw : (raw?.url || raw?.secure_url || raw?.src || raw?.path)
-            if (typeof src === 'string' && src.trim()) {
-              const small = thumb(src, 600)
-              addItem(small)
+            // getImageUrls also returns video URLs; those would fail to preload as images
+            if (typeof src === 'string' && src.trim() && !/\.(mp4|webm|mov|m4v|ogg)(\?|$)/i.test(src)) {
+              addItem(thumb(src, 400))
             }
           }
           const vids = Array.isArray(post.videos) ? post.videos : []
-          for (let k = 0; k < vids.length && items.length < 24; k++) {
+          for (let k = 0; k < vids.length && items.length < LIMIT; k++) {
             const video = vids[k]
             const src = typeof video === 'string' ? video : (video?.url || video?.secure_url || video?.src)
             const poster = typeof video === 'object' ? (video?.thumbnail || video?.poster || src) : src
-            if (typeof src === 'string' && src.trim()) {
-              const small = thumb(poster, 600)
-              addItem(small)
-            }
+            if (typeof src === 'string' && src.trim()) addItem(thumb(poster, 400))
           }
         }
         // Only show images that have fully loaded, so the reel never has white tiles
