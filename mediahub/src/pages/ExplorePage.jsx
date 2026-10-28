@@ -25,6 +25,7 @@ dayjs.extend(relativeTime)
 /* ─────────── Config ─────────── */
 
 const MAX_LEN = 280
+const EXPLORE_HASHTAG = '#TElovestory2026'
 const PAGE_SIZE = 20
 // Optional. Add VITE_GIPHY_KEY to your .env to unlock the animated sticker tab.
 // Without it the built-in emoji packs still work.
@@ -474,6 +475,33 @@ function Composer({ user, parentId = null, compact = false, placeholder, autoFoc
     el.style.height = Math.min(el.scrollHeight, 260) + 'px'
   }
 
+  const insertHashtag = () => {
+    const textarea = taRef.current
+    const start = textarea ? textarea.selectionStart : text.length
+    const end = textarea ? textarea.selectionEnd : text.length
+    const before = text.slice(0, start)
+    const after = text.slice(end)
+    const prefix = before && !/\s$/.test(before) ? ' ' : ''
+    const suffix = after && !/^\s/.test(after) ? ' ' : ' '
+    const insertion = `${prefix}${EXPLORE_HASHTAG}${suffix}`
+    const nextText = `${before}${insertion}${after}`
+
+    if (nextText.length > MAX_LEN) {
+      toast.error('Not enough characters left')
+      return
+    }
+
+    setText(nextText)
+
+    requestAnimationFrame(() => {
+      if (!taRef.current) return
+      const caret = before.length + insertion.length
+      taRef.current.focus()
+      taRef.current.setSelectionRange(caret, caret)
+      resize(taRef.current)
+    })
+  }
+
   const submit = async () => {
     if (!canPost) return
     setPosting(true)
@@ -573,24 +601,54 @@ function Composer({ user, parentId = null, compact = false, placeholder, autoFoc
           <div
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 10, flexWrap: 'wrap',
               marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)',
             }}
           >
-            <button
-              type="button"
-              onClick={() => setShowTray((v) => !v)}
-              aria-label="Add a sticker"
-              style={{
-                ...glassChip,
-                width: 42, height: 42, borderRadius: 999,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: showTray ? '#f59e0b' : 'var(--text-primary)',
-              }}
-            >
-              <FiSmile size={19} strokeWidth={2.5} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setShowTray((v) => !v)}
+                aria-label="Add a sticker"
+                style={{
+                  ...glassChip,
+                  width: 42, height: 42, borderRadius: 999,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: showTray ? '#f59e0b' : 'var(--text-primary)',
+                  flexShrink: 0,
+                }}
+              >
+                <FiSmile size={19} strokeWidth={2.5} />
+              </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              {!compact && !parentId && (
+                <button
+                  type="button"
+                  onClick={insertHashtag}
+                  aria-label={`Insert ${EXPLORE_HASHTAG}`}
+                  title="Add wedding hashtag to your thought"
+                  style={{
+                    ...glassChip,
+                    minHeight: 42,
+                    padding: '0 13px',
+                    borderRadius: 999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    color: '#f59e0b',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                >
+                  {EXPLORE_HASHTAG}
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginLeft: 'auto' }}>
               {text.length > 0 && <CharRing value={text.length} max={MAX_LEN} />}
               <motion.button
                 type="button"
