@@ -45,13 +45,15 @@ const APPLE_TOUCH = 'min-h-[44px] min-w-[44px]'
 const TILE_AVATAR_POS = { top: '8%', left: '9%' }
 const TILE_BADGE_POS = { top: '10%', right: '11%' }
 
-import gallery1 from '../assets/gallery-1.jpeg'
-import gallery2 from '../assets/gallery-2.jpeg'
-// import gallery3 from '../assets/gallery-3.jpeg'
-import gallery4 from '../assets/gallery-4.jpeg'
-import gallery5 from '../assets/gallery-5.jpeg'
-import pamsSolo from '../assets/pams-solo.jpeg'
-import bizzerSolo from '../assets/bizzer-solo.jpeg'
+import bride1 from '../assets/bride1.jpg'
+import bride2 from '../assets/bride2.jpg'
+import bride3 from '../assets/bride3.jpg'
+import couple1 from '../assets/couple1.jpg'
+import couple2 from '../assets/couple2.jpg'
+import couple3 from '../assets/couple3.jpg'
+import couple4 from '../assets/couple4.jpg'
+import couple5 from '../assets/couple5.jpg'
+import couple6 from '../assets/couple6.jpg'
 
 /* ─────────── Global sound state (only one video audible at a time) ─────────── */
 
@@ -80,13 +82,15 @@ const SoundBus = (() => {
    face still isn't framed the way you want — lower % = crop favors the
    top of the image, higher % = crop favors the bottom. */
 const WEDDING_SLIDES = [
-  { url: gallery2, caption: 'Two hearts, one journey', position: 'center 15%' },
-  { url: gallery1, caption: 'Where forever begins', position: 'center 12%' },
-  // { url: gallery3, caption: 'Golden hour, golden vows', position: 'center 20%' },
-  { url: gallery4, caption: 'Dancing into forever', position: 'center 18%' },
-  { url: gallery5, caption: 'Love', position: 'center 15%' },
-  { url: pamsSolo, caption: 'The bride', position: 'center 10%' },
-  { url: bizzerSolo, caption: 'The groom', position: 'center 10%' },
+  { url: couple1, caption: 'Two hearts, one journey', position: 'center 15%' },
+  { url: couple2, caption: 'Where forever begins', position: 'center 15%' },
+  { url: couple3, caption: 'Golden hour, golden vows', position: 'center 15%' },
+  { url: couple4, caption: 'Dancing into forever', position: 'center 15%' },
+  { url: couple5, caption: 'Love', position: 'center 15%' },
+  { url: couple6, caption: 'Always and forever', position: 'center 15%' },
+  { url: bride1, caption: 'The bride', position: 'center 10%' },
+  { url: bride2, caption: 'Radiant', position: 'center 10%' },
+  { url: bride3, caption: 'Simply beautiful', position: 'center 10%' },
 ]
 
 function WeddingHero() {
@@ -193,12 +197,15 @@ function WeddingHero() {
 
 /* ─────────── Card Spread — keeps the wedding memories tactile and playful ─────────── */
 const MEMORY_CARDS = [
-  { src: gallery1, alt: 'Paloma and Kenneth celebrating together', id: 'celebration' },
-  { src: gallery2, alt: 'A quiet moment between Paloma and Kenneth', id: 'together' },
-  { src: gallery4, alt: 'Dancing into forever', id: 'dancing' },
-  { src: gallery5, alt: 'A joyful wedding memory', id: 'joy' },
-  { src: pamsSolo, alt: 'Portrait of the bride', id: 'bride' },
-  { src: bizzerSolo, alt: 'Portrait of the groom', id: 'groom' },
+  { src: couple1, alt: 'Paloma and Kenneth celebrating together', id: 'couple1' },
+  { src: couple2, alt: 'A quiet moment between Paloma and Kenneth', id: 'couple2' },
+  { src: couple3, alt: 'Paloma and Kenneth together', id: 'couple3' },
+  { src: couple4, alt: 'Dancing into forever', id: 'couple4' },
+  { src: couple5, alt: 'A joyful wedding memory', id: 'couple5' },
+  { src: couple6, alt: 'Paloma and Kenneth', id: 'couple6' },
+  { src: bride1, alt: 'Portrait of the bride', id: 'bride1' },
+  { src: bride2, alt: 'The bride', id: 'bride2' },
+  { src: bride3, alt: 'The bride', id: 'bride3' },
 ]
 
 function MemoryCardSpread() {
@@ -959,7 +966,7 @@ function PostListItem({
               postId={post._id}
               compact
               contain
-              onOpen={(e) => handleDoubleTap(e || { stopPropagation() {} }, post._id, () => navigate(`/posts/${post._id}`))}
+              onOpen={(e) => handleDoubleTap(e || { stopPropagation() { } }, post._id, () => navigate(`/posts/${post._id}`))}
             />
           ) : (
             <MediaSlider
@@ -1152,8 +1159,8 @@ export default function FeedPage() {
       prefetchExplore()
       prefetchNotifications()
       // pre-downloads the route chunks if your routes use React.lazy (harmless otherwise)
-      import('./ExplorePage').catch(() => {})
-      import('./Notifications').catch(() => {})
+      import('./ExplorePage').catch(() => { })
+      import('./Notifications').catch(() => { })
     }
     const id = window.requestIdleCallback
       ? window.requestIdleCallback(run, { timeout: 3000 })
@@ -1653,79 +1660,79 @@ export default function FeedPage() {
         <main className="max-w-7xl mx-auto px-3 sm:px-5 pt-8 sm:pt-10">
           <MemoryDollyGallery />
 
-        <div className="max-w-7xl mx-auto px-3 sm:px-5 pt-4 sm:pt-8">
-          {monthGroups.length === 0 ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
-              className="flex flex-col items-center justify-center text-center px-4 pt-20">
-              <div className="w-20 h-20 rounded-full flex items-center justify-center mb-4" style={{ background: 'var(--bg-secondary)' }}>
-                <FiSearch size={28} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
-              </div>
-              <h3 className="text-lg font-extrabold font-display" style={{ color: 'var(--text-primary)' }}>No results</h3>
-              <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>No posts match "{query}"</p>
-            </motion.div>
-          ) : (
-            <LayoutGroup>
-              {monthGroups.map((group, groupIndex) => (
-                <div
-                  key={group.key}
-                  className="relative flex flex-col"
-                  style={{
-                    // SPACING: marginTop = space between one month's last row and the next
-                    // month heading (24 = Tailwind 6). gap = heading-to-cards (12 = gap-3).
-                    marginTop: groupIndex > 0 ? 24 : 0,
-                    gap: 12,
-                  }}
-                >
-                  <div style={{ position: 'relative', zIndex: 10, padding: '0 4px' }}>
-                    <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)', margin: 0 }}>
-                      {group.label}
-                    </h2>
-                  </div>
-
-                  {viewMode === 'grid' ? (
-                    <motion.div
-                      className="relative z-0 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4 sm:gap-6"
-                      variants={gridContainer} initial="initial" animate="animate"
-                    >
-                      {group.posts.map((post) => renderGridTile(post))}
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      className="relative z-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-16 sm:gap-y-20"
-                      variants={gridContainer} initial="initial" animate="animate"
-                    >
-                      {group.posts.map((post) => (
-                        <PostListItem
-                          key={post._id}
-                          post={post}
-                          user={user}
-                          gridItem={gridItem}
-                          navigate={navigate}
-                          handleLike={handleLike}
-                          handleDoubleTap={handleDoubleTap}
-                          goToProfile={goToProfile}
-                          HeartAnimation={HeartAnimation}
-                          downloadingMap={downloadingMap}
-                          handleDownload={handleDownload}
-                        />
-                      ))}
-                    </motion.div>
-                  )}
+          <div className="max-w-7xl mx-auto px-3 sm:px-5 pt-4 sm:pt-8">
+            {monthGroups.length === 0 ? (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
+                className="flex flex-col items-center justify-center text-center px-4 pt-20">
+                <div className="w-20 h-20 rounded-full flex items-center justify-center mb-4" style={{ background: 'var(--bg-secondary)' }}>
+                  <FiSearch size={28} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
                 </div>
-              ))}
-            </LayoutGroup>
-          )}
+                <h3 className="text-lg font-extrabold font-display" style={{ color: 'var(--text-primary)' }}>No results</h3>
+                <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>No posts match "{query}"</p>
+              </motion.div>
+            ) : (
+              <LayoutGroup>
+                {monthGroups.map((group, groupIndex) => (
+                  <div
+                    key={group.key}
+                    className="relative flex flex-col"
+                    style={{
+                      // SPACING: marginTop = space between one month's last row and the next
+                      // month heading (24 = Tailwind 6). gap = heading-to-cards (12 = gap-3).
+                      marginTop: groupIndex > 0 ? 24 : 0,
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ position: 'relative', zIndex: 10, padding: '0 4px' }}>
+                      <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)', margin: 0 }}>
+                        {group.label}
+                      </h2>
+                    </div>
 
-          {/* Infinite-scroll trigger + spinner. Hidden during search since
+                    {viewMode === 'grid' ? (
+                      <motion.div
+                        className="relative z-0 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4 sm:gap-6"
+                        variants={gridContainer} initial="initial" animate="animate"
+                      >
+                        {group.posts.map((post) => renderGridTile(post))}
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        className="relative z-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-16 sm:gap-y-20"
+                        variants={gridContainer} initial="initial" animate="animate"
+                      >
+                        {group.posts.map((post) => (
+                          <PostListItem
+                            key={post._id}
+                            post={post}
+                            user={user}
+                            gridItem={gridItem}
+                            navigate={navigate}
+                            handleLike={handleLike}
+                            handleDoubleTap={handleDoubleTap}
+                            goToProfile={goToProfile}
+                            HeartAnimation={HeartAnimation}
+                            downloadingMap={downloadingMap}
+                            handleDownload={handleDownload}
+                          />
+                        ))}
+                      </motion.div>
+                    )}
+                  </div>
+                ))}
+              </LayoutGroup>
+            )}
+
+            {/* Infinite-scroll trigger + spinner. Hidden during search since
               search only filters posts already loaded on this page. */}
-          {!query.trim() && hasMore && (
-            <div ref={sentinelRef} className="flex justify-center py-8">
-              {loadingMore && (
-                <div className="animate-spin rounded-full h-6 w-6 border-4 border-amber-500 border-t-transparent" />
-              )}
-            </div>
-          )}
-        </div>
+            {!query.trim() && hasMore && (
+              <div ref={sentinelRef} className="flex justify-center py-8">
+                {loadingMore && (
+                  <div className="animate-spin rounded-full h-6 w-6 border-4 border-amber-500 border-t-transparent" />
+                )}
+              </div>
+            )}
+          </div>
         </main>
       </div>
 
