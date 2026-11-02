@@ -27,6 +27,7 @@ const LikesPage = lazy(() => import('./pages/LikesPage'))
 const CommentsPage = lazy(() => import('./pages/CommentsPage'))
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
+const PrintQr = lazy(() => import('./pages/PrintQr'))
 
 // Start downloading the Feed chunk right now, in parallel with the auth check,
 // instead of waiting until auth finishes. (Dynamic imports are cached, so
@@ -77,8 +78,6 @@ function App() {
   // and show the app immediately; the token is verified quietly in the
   // background. If it turns out to be expired, the 401 handler in api.js logs
   // the person out and sends them to /login.
-  // Before, the whole app waited on /api/auth/me, which meant a sleeping
-  // Render backend froze the page for 30-50 seconds.
   const [hasSession] = useState(
     () => !!localStorage.getItem('auth_token') && !!useAuthStore.getState().user
   )
@@ -107,6 +106,11 @@ function App() {
           <Routes>
             <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
             <Route path="/register" element={!user ? <Register /> : <Navigate to="/" replace />} />
+
+            {/* Public print sheet — no Layout, no auth. Anyone can open it
+                and scan/print the QR that points at the site. */}
+            <Route path="/print-qr" element={<PrintQr />} />
+
             <Route path="/" element={<Layout />}>
               {/* Public routes — viewable by guests */}
               <Route index element={<FeedPage />} />
