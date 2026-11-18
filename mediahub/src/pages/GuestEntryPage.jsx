@@ -8,29 +8,50 @@ import africanMemoriesHero from '../assets/african-memories-login.jpg'
 export default function GuestEntryPage() {
   const navigate = useNavigate()
   const setAuth = useAuthStore((s) => s.setAuth)
+  const [mode, setMode] = useState('enter') // 'enter' | 'create'
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const isCreate = mode === 'create'
+
+  const switchMode = (m) => {
+    setMode(m)
+    setError('')
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const trimmed = name.trim()
+    const trimmed = name.trim().replace(/\s+/g, ' ')
     if (trimmed.length < 2) {
       setError('Please enter your name (at least 2 characters)')
       return
     }
     setLoading(true)
     try {
-      const { data } = await authAPI.guest({ name: trimmed })
+      const call = isCreate ? authAPI.guestRegister : authAPI.guestLogin
+      const { data } = await call({ name: trimmed })
       setAuth(data.user, data.token)
-      toast.success(`Welcome, ${data.user.name}!`)
+      toast.success(isCreate ? `Welcome, ${data.user.name}!` : `Welcome back, ${data.user.name}!`)
       navigate('/')
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not enter the site')
+      setError(err.response?.data?.message || 'Could not enter the site')
     } finally {
       setLoading(false)
     }
   }
+
+  const tabStyle = (active) => ({
+    flex: 1,
+    padding: '10px 0',
+    borderRadius: 10,
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 700,
+    background: active ? 'rgba(255,255,255,0.18)' : 'transparent',
+    color: active ? '#fff' : 'rgba(255,255,255,0.55)',
+  })
 
   return (
     <div className="min-h-screen w-full relative flex items-center justify-end overflow-hidden">
@@ -76,11 +97,25 @@ export default function GuestEntryPage() {
           </div>
 
           <h1 className="text-4xl font-extrabold font-display mb-2 text-white">
-            Welcome
+            {isCreate ? 'Pick a name' : 'Welcome back'}
           </h1>
-          <p className="text-sm mb-8 text-white/60">
-            Enter your name to join and share your photos.
+          <p className="text-sm mb-6 text-white/60">
+            {isCreate
+              ? 'Choose a name nobody has used yet.'
+              : 'Enter your name to get back in.'}
           </p>
+
+          <div
+            className="flex gap-1 mb-8 p-1 rounded-xl"
+            style={{ background: 'rgba(255,255,255,0.08)' }}
+          >
+            <button type="button" style={tabStyle(!isCreate)} onClick={() => switchMode('enter')}>
+              Enter
+            </button>
+            <button type="button" style={tabStyle(isCreate)} onClick={() => switchMode('create')}>
+              Create account
+            </button>
+          </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-7 text-left">
             <div className="flex flex-col gap-2">
@@ -115,9 +150,9 @@ export default function GuestEntryPage() {
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                  Entering...
+                  {isCreate ? 'Creating...' : 'Entering...'}
                 </span>
-              ) : 'Enter'}
+              ) : isCreate ? 'Create account' : 'Enter'}
             </button>
           </form>
         </div>
