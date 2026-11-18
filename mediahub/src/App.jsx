@@ -6,13 +6,11 @@ import { useThemeStore, useAuthStore } from './store'
 import Layout from "./components/layout/Layout";
 import ProtectedRoute from './components/layout/ProtectedRoute'
 
-// Login/Register are on the critical path (unauthenticated users land here
-// first), so they stay as normal eager imports. Everything else is
-// lazy-loaded — each page becomes its own chunk that only downloads when
-// the user actually navigates there, instead of all of them shipping in
-// the initial bundle.
-import Login from './pages/Login'
-import Register from './pages/Register'
+// Login/Register are paused: GuestEntryPage (name only) replaces them for now.
+// To bring them back, uncomment these imports and the two original routes below.
+// import Login from './pages/Login'
+// import Register from './pages/Register'
+import GuestEntryPage from './pages/GuestEntryPage'
 
 const FeedPage = lazy(() => import('./pages/FeedPage'))
 const ExplorePage = lazy(() => import('./pages/ExplorePage'))
@@ -74,10 +72,6 @@ function App() {
   const { theme } = useThemeStore()
   const { user, isLoading, checkAuth } = useAuthStore()
 
-  // A saved session = a token plus the persisted user. If one exists, trust it
-  // and show the app immediately; the token is verified quietly in the
-  // background. If it turns out to be expired, the 401 handler in api.js logs
-  // the person out and sends them to /login.
   const [hasSession] = useState(
     () => !!localStorage.getItem('auth_token') && !!useAuthStore.getState().user
   )
@@ -104,15 +98,20 @@ function App() {
       <div className="min-h-dvh" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
         <Suspense fallback={<PageFallback />}>
           <Routes>
+            {/* QR link lands here. Already entered -> straight into the site. */}
+            <Route path="/welcome" element={!user ? <GuestEntryPage /> : <Navigate to="/" replace />} />
+
+            {/* Login/Register paused: both show the name-only page for now. */}
+            <Route path="/login" element={!user ? <GuestEntryPage /> : <Navigate to="/" replace />} />
+            <Route path="/register" element={!user ? <GuestEntryPage /> : <Navigate to="/" replace />} />
+            {/* Original routes, to restore later:
             <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
             <Route path="/register" element={!user ? <Register /> : <Navigate to="/" replace />} />
+            */}
 
-            {/* Public print sheet — no Layout, no auth. Anyone can open it
-                and scan/print the QR that points at the site. */}
             <Route path="/print-qr" element={<PrintQr />} />
 
             <Route path="/" element={<Layout />}>
-              {/* Public routes — viewable by guests */}
               <Route index element={<FeedPage />} />
               <Route path="explore" element={<ExplorePage />} />
               <Route path="posts/:id" element={<PostDetailPage />} />
@@ -120,7 +119,6 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-              {/* Protected routes — require auth */}
               <Route element={<ProtectedRoute />}>
                 <Route path="create" element={<CreatePostPage />} />
                 <Route path="notifications" element={<Notifications />} />

@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 
-const TARGET_URL = "https://mediahub-frontend-4tdp.vercel.app/";
+const TARGET_URL = "https://mediahub-frontend-4tdp.vercel.app/welcome";
 
 export default function PrintQr() {
   const qrRef = useRef(null);
@@ -17,6 +17,7 @@ export default function PrintQr() {
 
   return (
     <div
+      className="qr-page"
       style={{
         minHeight: "100vh",
         background: "#efeae0",
@@ -28,9 +29,29 @@ export default function PrintQr() {
         justifyContent: "center",
         padding: 24,
         gap: 20,
+        boxSizing: "border-box",
       }}
     >
+      <style>{`
+        @page { margin: 12mm; }
+        @media print {
+          html, body { background: #fff !important; }
+          .qr-page {
+            min-height: 0 !important;
+            height: 100vh !important;
+            background: #fff !important;
+            padding: 0 !important;
+            justify-content: center !important;
+            page-break-inside: avoid;
+          }
+          .qr-card { box-shadow: none !important; border: 1px solid #e5e0d3 !important; }
+          .no-print { display: none !important; }
+          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      `}</style>
+
       <div
+        className="qr-card"
         style={{
           background: "#fff",
           borderRadius: 24,
@@ -38,6 +59,7 @@ export default function PrintQr() {
           textAlign: "center",
           maxWidth: 420,
           width: "100%",
+          boxSizing: "border-box",
           boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
         }}
       >
@@ -64,7 +86,7 @@ export default function PrintQr() {
           Share your photos 📸
         </h1>
         <p style={{ margin: "0 0 24px", fontSize: 14, color: "#6b6a63" }}>
-          Scan the QR code with your phone camera to upload your pictures.
+          Scan the QR code with your phone camera, enter your name, and start sharing.
         </p>
 
         <div
@@ -98,7 +120,7 @@ export default function PrintQr() {
         </p>
       </div>
 
-      <div style={{ display: "flex", gap: 10 }}>
+      <div className="no-print" style={{ display: "flex", gap: 10 }}>
         <button
           onClick={handleDownload}
           style={{
