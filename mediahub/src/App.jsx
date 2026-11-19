@@ -12,6 +12,7 @@ import ProtectedRoute from './components/layout/ProtectedRoute'
 // import Register from './pages/Register'
 import GuestEntryPage from './pages/GuestEntryPage'
 
+const GiftsPage = lazy(() => import('./pages/GiftsPage'))
 const FeedPage = lazy(() => import('./pages/FeedPage'))
 const ExplorePage = lazy(() => import('./pages/ExplorePage'))
 const CreatePostPage = lazy(() => import('./pages/CreatePostPage'))
@@ -114,6 +115,7 @@ function App() {
             <Route path="/" element={<Layout />}>
               <Route index element={<FeedPage />} />
               <Route path="explore" element={<ExplorePage />} />
+              <Route path="gifts" element={<GiftsPage />} />
               <Route path="posts/:id" element={<PostDetailPage />} />
               <Route path="users/:userId" element={<UserProfilePage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />

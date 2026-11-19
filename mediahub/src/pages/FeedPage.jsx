@@ -24,6 +24,7 @@ import DepthCarousel from '../components/ui/DepthCarousel'
 import CircularCarousel from '../components/ui/CircularCarousel'
 import DollyGallery from '../components/ui/DollyGallery'
 import MemoryVideo from '../components/ui/MemoryVideo'
+import GiftBanner from '../components/GiftBanner'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -1658,6 +1659,8 @@ export default function FeedPage() {
         </div>
 
         <main className="max-w-7xl mx-auto px-3 sm:px-5 pt-8 sm:pt-10">
+          <GiftBanner />
+
           <MemoryDollyGallery />
 
           <div className="max-w-7xl mx-auto px-3 sm:px-5 pt-4 sm:pt-8">
