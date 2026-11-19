@@ -25,6 +25,7 @@ import CircularCarousel from '../components/ui/CircularCarousel'
 import DollyGallery from '../components/ui/DollyGallery'
 import MemoryVideo from '../components/ui/MemoryVideo'
 import GiftBanner from '../components/GiftBanner'
+import CommentsSheet from './_CommentsSheet'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -45,6 +46,12 @@ const APPLE_TOUCH = 'min-h-[44px] min-w-[44px]'
 // Percentages are of the tile, so they scale with it. Raise a number to move the item further in.
 const TILE_AVATAR_POS = { top: '8%', left: '9%' }
 const TILE_BADGE_POS = { top: '10%', right: '11%' }
+
+// LIST VIEW, multi-media posts: a swipeable row of individual pictures (see ListMediaStrip).
+// LIST_STRIP_HEIGHT = height of the box. LIST_STRIP_CARD_WIDTH = width of each picture as a % of the box;
+// lower it to show more of the next picture, raise it to make each picture bigger.
+const LIST_STRIP_HEIGHT = 'clamp(300px, 82vw, 420px)'
+const LIST_STRIP_CARD_WIDTH = '72%'
 
 import bride1 from '../assets/bride1.jpg'
 import bride2 from '../assets/bride2.jpg'
@@ -301,6 +308,39 @@ function isVideoMedia(item) {
   return /\.(mp4|webm|mov|m4v|ogg)(\?|$)/i.test(item.url || '')
 }
 
+// List view: each picture is its own rounded card in a swipeable row, so they sit side by side
+// (the next one peeks in) instead of one picture filling the whole box.
+function ListMediaStrip({ items }) {
+  return (
+    <div
+      className="flex h-full w-full snap-x snap-mandatory gap-3 overflow-x-auto px-4 py-4 [&::-webkit-scrollbar]:hidden"
+      style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
+    >
+      {items.map((item, i) => (
+        <div
+          key={i}
+          className="relative h-full flex-none snap-center overflow-hidden rounded-2xl"
+          style={{ width: LIST_STRIP_CARD_WIDTH, background: 'var(--bg-primary)', boxShadow: '0 6px 18px rgba(15,23,42,0.14)' }}
+        >
+          <img
+            src={item.type === 'video' ? item.poster : item.src}
+            alt=""
+            draggable={false}
+            loading="lazy"
+            className="h-full w-full object-cover"
+            onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
+          />
+          {item.type === 'video' && (
+            <span className="absolute bottom-2 left-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/55">
+              <FiPlay size={11} fill="white" color="white" />
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function MultiMediaShowcase({ items, postId, onOpen, compact = false, contain = false, bare = false, badgeStyle }) {
   // Images and video posters use small Cloudinary copies (thumb); the video
   // file itself is left untouched.
@@ -325,25 +365,31 @@ function MultiMediaShowcase({ items, postId, onOpen, compact = false, contain = 
       className={`relative block w-full overflow-hidden ${bare ? '' : 'rounded-3xl border border-black/[0.06] shadow-[0_12px_30px_rgba(15,23,42,0.08)]'} bg-[var(--bg-secondary)] p-0 text-left ${compact ? 'h-full min-h-[190px]' : 'h-[360px] sm:h-[440px]'}`}
       aria-label="Open multiple memories"
     >
-      <DepthCarousel
-        items={visibleItems}
-        cardWidth={contain ? 330 : compact ? 250 : 360}
-        cardHeight={contain ? 300 : compact ? 300 : 430}
-        radius={22}
-        depth={contain ? 120 : compact ? 150 : 220}
-        spread={contain ? 42 : compact ? 48 : 72}
-        tilt={contain ? 12 : 18}
-        visibleCards={contain ? 3 : 4}
-        autoplay
-        autoplayDelay={3500}
-        loop
-        showControls={false}
-        showIndicators={false}
-        fill
-        contain={contain}
-        className="h-full w-full"
-      />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[125] h-20 bg-gradient-to-t from-black/25 to-transparent" />
+      {contain ? (
+        <ListMediaStrip items={visibleItems} />
+      ) : (
+        <>
+          <DepthCarousel
+            items={visibleItems}
+            cardWidth={compact ? 250 : 360}
+            cardHeight={compact ? 300 : 430}
+            radius={22}
+            depth={compact ? 150 : 220}
+            spread={compact ? 48 : 72}
+            tilt={18}
+            visibleCards={4}
+            autoplay
+            autoplayDelay={3500}
+            loop
+            showControls={false}
+            showIndicators={false}
+            fill
+            contain={false}
+            className="h-full w-full"
+          />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[125] h-20 bg-gradient-to-t from-black/25 to-transparent" />
+        </>
+      )}
       <MultiImageBadge count={items.length} style={badgeStyle} />
     </div>
   )
@@ -924,13 +970,13 @@ function groupPostsByMonth(posts) {
 }
 
 /* ─────────── List-view post card ───────────
-   No inline comments and no modal: the comment pill takes you to the post
-   detail page. Like / Comment use the same pill style as the Explore page. */
+   The comment pill opens the comments sheet right here on the feed.
+   Like / Comment use the same pill style as the Explore page. */
 
 function PostListItem({
   post, user, gridItem, navigate,
   handleLike, handleDoubleTap, goToProfile, HeartAnimation,
-  downloadingMap, handleDownload,
+  downloadingMap, handleDownload, onOpenComments,
 }) {
   const mediaItems = getMediaItems(post)
   const mediaRatio = useMediaAspect(mediaItems)
@@ -939,6 +985,7 @@ function PostListItem({
   const commentCount = post.commentCount ?? 0
   const isDownloading = downloadingMap[post._id] || false
   const downloadTarget = mediaItems[0]?.url
+  const isMulti = mediaItems.length > 1
 
   return (
     <motion.article
@@ -956,17 +1003,20 @@ function PostListItem({
           className="relative w-full cursor-pointer overflow-hidden"
           style={{
             background: 'var(--bg-secondary)',
-            aspectRatio: mediaRatio,
-            maxHeight: mediaItems.length > 1 ? 380 : 560,
-            height: mediaItems.length > 1 ? 'clamp(270px, 66vw, 380px)' : undefined,
+            // Multi-media posts get a fixed-height box (LIST_STRIP_HEIGHT) holding the swipeable
+            // row of pictures; single posts keep their own ratio.
+            aspectRatio: isMulti ? undefined : mediaRatio,
+            maxHeight: isMulti ? 420 : 560,
+            height: isMulti ? LIST_STRIP_HEIGHT : undefined,
           }}
         >
-          {mediaItems.length > 1 ? (
+          {isMulti ? (
             <MultiMediaShowcase
               items={mediaItems}
               postId={post._id}
               compact
               contain
+              badgeStyle={{ top: 'auto', right: 14, bottom: 14 }}
               onOpen={(e) => handleDoubleTap(e || { stopPropagation() { } }, post._id, () => navigate(`/posts/${post._id}`))}
             />
           ) : (
@@ -1080,7 +1130,7 @@ function PostListItem({
 
           <motion.button
             type="button"
-            onClick={(e) => { e.stopPropagation(); navigate(`/posts/${post._id}`) }}
+            onClick={(e) => { e.stopPropagation(); onOpenComments(post) }}
             whileTap={{ scale: 0.93 }}
             aria-label="View comments"
             className="flex items-center gap-2"
@@ -1131,6 +1181,9 @@ export default function FeedPage() {
   const [scrolled, setScrolled] = useState(false)
   const [lightboxPost, setLightboxPost] = useState(null)
   const [searchFocused, setSearchFocused] = useState(false)
+  // Comments sheet: the post stays set while the sheet slides out, `commentsOpen` drives open/close
+  const [commentsPost, setCommentsPost] = useState(null)
+  const [commentsOpen, setCommentsOpen] = useState(false)
   const lastTapRef = useRef({})
   const sentinelRef = useRef(null)
   const navigate = useNavigate()
@@ -1281,6 +1334,22 @@ export default function FeedPage() {
 
   const openLightbox = (post) => {
     setLightboxPost(post)
+  }
+
+  const openComments = (post) => {
+    setCommentsPost(post)
+    setCommentsOpen(true)
+  }
+
+  const closeComments = useCallback(() => setCommentsOpen(false), [])
+
+  // The sheet reports +1 / -1 as comments are added or rolled back; keep the pill count in step
+  const handleCommentCount = (delta) => {
+    const id = commentsPost?._id
+    if (!id) return
+    setPosts((prev) => prev.map((p) => (
+      p._id === id ? { ...p, commentCount: Math.max(0, (p.commentCount ?? 0) + delta) } : p
+    )))
   }
 
   const handleDoubleTap = (e, postId, onSingleTap) => {
@@ -1717,6 +1786,7 @@ export default function FeedPage() {
                             HeartAnimation={HeartAnimation}
                             downloadingMap={downloadingMap}
                             handleDownload={handleDownload}
+                            onOpenComments={openComments}
                           />
                         ))}
                       </motion.div>
@@ -1744,6 +1814,22 @@ export default function FeedPage() {
         onClose={() => setLightboxPost(null)}
         navigate={navigate}
       />
+
+      {/* Comments sheet — its own top-level layer so it covers the bottom nav */}
+      {createPortal(
+        <div style={{ position: 'relative', zIndex: 2147483000 }}>
+          <CommentsSheet
+            postId={commentsPost?._id}
+            open={commentsOpen}
+            onClose={closeComments}
+            user={user}
+            onGoToProfile={goToProfile}
+            postOwnerId={commentsPost?.author?._id || commentsPost?.author?.id || commentsPost?.author}
+            onCountChange={handleCommentCount}
+          />
+        </div>,
+        document.body,
+      )}
     </>
   )
 }
