@@ -32,9 +32,9 @@ const COUPLE_WHATSAPP = ''
 const CASH_GIFT = {
   title: 'Cash gift',
   note: 'Prefer to contribute towards our new home? You can send it here.',
-  bank: 'Bank name',
-  accountName: 'Account name',
-  accountNumber: '0000000000',
+  bank: 'Zenith bank ',
+  accountName: 'Kenneth Gbugho',
+  accountNumber: '2088862299',
 }
 
 /* PHOTOS
